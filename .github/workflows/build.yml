@@ -52,96 +52,70 @@ jobs:
           test -s plugins/LuckPerms.jar
           test -s plugins/PacketEvents.jar
 
-      - name: Download and safely extract the integration plugins
+      - name: Download integration plugins from official Modrinth releases
+        env:
+          MODRINTH_USER_AGENT: "ThatsABan-CI/1.0 (https://github.com/Christian8799/that-is-a-ban)"
         run: |
           set -euo pipefail
-          DROPBOX_FOLDER_URL="https://www.dropbox.com/scl/fo/pydnwzw2cxvpj0bxzbj86/AE9rDURI9JqcY3Dauw5V2B4?rlkey=x0k209tuuelcsel0nxt0shmmb&dl=1"
-          curl --fail --location --retry 3 --retry-all-errors "$DROPBOX_FOLDER_URL" -o integration-bundle.zip
 
-          python - <<'PY'
-          from pathlib import Path, PurePosixPath
-          import shutil
-          import zipfile
-
-          bundle = Path("integration-bundle.zip")
-          root = Path("integration-unpacked")
-          root.mkdir(exist_ok=True)
-
-          if not zipfile.is_zipfile(bundle):
-              raise SystemExit(
-                  "Dropbox did not return a ZIP archive. Check the shared-folder "
-                  "download link and its download permission."
-              )
-
-          def safe_extract(archive: Path, destination: Path) -> None:
-              destination.mkdir(parents=True, exist_ok=True)
-              with zipfile.ZipFile(archive) as zf:
-                  for info in zf.infolist():
-                      name = info.filename.replace("\\", "/")
-                      relative = PurePosixPath(name)
-                      if relative.is_absolute() or any(part in ("..", "") for part in relative.parts):
-                          print(f"Skipping unsafe ZIP entry: {name!r}")
-                          continue
-                      target = destination.joinpath(*relative.parts)
-                      if info.is_dir():
-                          target.mkdir(parents=True, exist_ok=True)
-                          continue
-                      target.parent.mkdir(parents=True, exist_ok=True)
-                      with zf.open(info) as source, target.open("wb") as output:
-                          shutil.copyfileobj(source, output)
-
-          queue = [(bundle, root / "outer")]
-          index = 0
-          while queue:
-              archive, destination = queue.pop(0)
-              print(f"Extracting {archive} -> {destination}")
-              safe_extract(archive, destination)
-              nested = sorted(destination.rglob("*.zip"))
-              for child in nested:
-                  index += 1
-                  queue.append((child, root / f"nested-{index:03d}"))
-
-          wanted = {
-              "grimac-bukkit-2.3.74.jar": "GrimAC",
-              "CheatDetector-4.4.jar": "CheatDetector",
-              "FoxGate-Free.jar": "FoxGate",
-              "hand-shaker-paper-7.0.1-1.21_.jar": "HandShaker",
+          # Resolve current official Modrinth files for Paper + Minecraft 1.21.11.
+          # No third-party mirrors, temporary share links, or user-hosted archives.
+          download_modrinth_plugin() {
+            local project="$1"
+            local expected_name="$2"
+            local version_json file_url file_name
+            version_json="$(curl --fail --silent --show-error --location --retry 3 \
+              -H "User-Agent: $MODRINTH_USER_AGENT" \
+              --get "https://api.modrinth.com/v2/project/$project/version" \
+              --data-urlencode 'loaders=["paper"]' \
+              --data-urlencode 'game_versions=["1.21.11"]')"
+            file_url="$(jq -er 'first(.[] | .files[] | select(.primary == true) | .url)' <<< "$version_json")"
+            file_name="$(jq -er 'first(.[] | .files[] | select(.primary == true) | .filename)' <<< "$version_json")"
+            curl --fail --silent --show-error --location --retry 3 "$file_url" -o "plugins/$file_name"
+            test -s "plugins/$file_name"
+            printf '%s\t%s\n' "$expected_name" "plugins/$file_name" >> integration-plugin-map.txt
+            echo "Downloaded $expected_name from official Modrinth project '$project': $file_name"
           }
-          all_jars = [p for p in root.rglob("*.jar") if p.is_file()]
-          by_name = {p.name.lower(): p for p in all_jars}
 
-          for filename, plugin_name in wanted.items():
-              source = by_name.get(filename.lower())
-              if source is None:
-                  raise SystemExit(f"Missing integration JAR: {filename}")
-              with zipfile.ZipFile(source) as jar:
-                  descriptors = [
-                      n for n in ("plugin.yml", "paper-plugin.yml")
-                      if n in jar.namelist()
-                  ]
+          : > integration-plugin-map.txt
+          download_modrinth_plugin "grimac" "GrimAC"
+          download_modrinth_plugin "cheat-detector" "CheatDetector"
+          download_modrinth_plugin "foxgate" "FoxGate"
+          download_modrinth_plugin "hand-shaker" "HandShaker"
+
+          # Verify the official downloads actually contain the expected plugin IDs.
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import re
+
+          expected = {
+              "GrimAC": {"grimac"},
+              "CheatDetector": {"cheatdetector", "cheat detector"},
+              "FoxGate": {"foxgate"},
+              "HandShaker": {"handshaker", "hand shaker"},
+          }
+          for line in Path("integration-plugin-map.txt").read_text().splitlines():
+              plugin, jar_path = line.split("\\t", 1)
+              jar = Path(jar_path)
+              if not jar.is_file() or not jar.stat().st_size:
+                  raise SystemExit(f"Missing or empty plugin JAR: {jar}")
+              with ZipFile(jar) as archive:
+                  descriptors = [n for n in ("plugin.yml", "paper-plugin.yml") if n in archive.namelist()]
                   if not descriptors:
-                      raise SystemExit(f"{filename} has no plugin descriptor")
-                  descriptor_text = "\n".join(
-                      jar.read(n).decode("utf-8", "replace") for n in descriptors
-                  )
-                  if not any(
-                      line.strip().lower() == f"name: {plugin_name.lower()}"
-                      or line.strip().lower() == f'name: "{plugin_name.lower()}"'
-                      for line in descriptor_text.splitlines()
-                  ):
-                      raise SystemExit(
-                          f"{filename} does not declare plugin name {plugin_name}"
-                      )
-              shutil.copy2(source, Path("plugins") / filename)
-              print(f"Installed {plugin_name}: {source}")
-
-          print("Integration plugin JARs:")
-          for path in sorted(Path("plugins").glob("*.jar")):
-              print(f" - {path.name} ({path.stat().st_size} bytes)")
+                      raise SystemExit(f"{jar.name} has no Paper/Bukkit plugin descriptor")
+                  descriptor = "\\n".join(archive.read(n).decode("utf-8", "replace") for n in descriptors)
+              match = re.search(r"(?im)^name:\\s*['\\"]?([^'\\\"\\r\\n]+)", descriptor)
+              if not match:
+                  raise SystemExit(f"Could not read plugin name from {jar.name}")
+              actual = match.group(1).strip().lower()
+              if actual not in expected[plugin]:
+                  raise SystemExit(f"{jar.name}: expected {plugin}, descriptor declares {actual!r}")
+              print(f"Verified {plugin}: {jar.name}")
           PY
 
-          printf 'eula=true\n' > eula.txt
-          printf 'online-mode=false\nserver-port=25565\n' > server.properties
+          printf 'eula=true\\n' > eula.txt
+          printf 'online-mode=false\\nserver-port=25565\\n' > server.properties
 
       - name: Start Paper and verify every plugin
         run: |
