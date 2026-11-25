@@ -26,6 +26,14 @@ bedrock:
   name-prefixes:
     - "."
 
+# Nur IP-Adressen, die laut GeoIP-Datenbank Deutschland zugeordnet sind, duerfen verbinden.
+# Die oeffentliche IP wird dazu an ipwho.is uebermittelt. Bei Ausfall der Abfrage wird
+# fail-closed abgelehnt, damit die Laendersperre nicht versehentlich offen bleibt.
+country-filter:
+  enabled: true
+  allow-private-addresses: false
+  timeout-ms: 3000
+
 alt-detection:
   enabled: true
   # Beim /offend auch alle bereits bekannten Accounts derselben IP(s) in Layer 2 versetzen
@@ -56,3 +64,5 @@ messages:
   error: "<red>Layer 2 konnte nicht gesetzt werden - siehe Konsole."
   kick-relogin: "<red>Deine Sicherheitsstufe wurde geaendert. Bitte verbinde dich erneut."
   alt-flagged-staff: "<white><player></white> wurde wegen gleicher IP automatisch in Layer 2 versetzt."
+  country-denied: "<red>Verbindungen sind nur mit einer deutschen IP-Adresse erlaubt."
+  country-lookup-failed: "<red>Deine IP-Adresse konnte geografisch nicht zugeordnet werden. Bitte versuche es spaeter erneut."
