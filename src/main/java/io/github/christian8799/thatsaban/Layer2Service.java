@@ -67,6 +67,7 @@ final class Layer2Service {
         store.record(uuid, name, hash);
 
         if (store.isOffender(uuid)) {
+            store.renewOffender(uuid); // Aktivität erneuert die Offender-Aufbewahrungsfrist
             store.flagIp(hash); // neue IP eines Ausloesers ebenfalls markieren
             return;
         }
