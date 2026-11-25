@@ -492,10 +492,10 @@ final class AdminSpectatorManager implements Listener {
         positions.write(0, position);
     }
 
-    private void translatePlayerPosition(PacketEvent event, int offsetX, int offsetZ) {
+    private void translateRelativePosition(PacketEvent event, int offsetX, int offsetZ) {
         var positions = event.getPacket().getPositionMoveRotation();
         if (positions.size() == 0) {
-            throw new IllegalStateException("Player-Position-Paket enthält keine Position/Rotation.");
+            throw new IllegalStateException("Relatives Positionspaket enthält keine Position/Rotation.");
         }
 
         // ClientboundPlayerPositionPacket in 1.21.11 carries a Set<Relative>.
@@ -503,7 +503,7 @@ final class AdminSpectatorManager implements Listener {
         // so only absolute components receive the coordinate offset.
         var setModifiers = event.getPacket().getModifier().withType(Set.class);
         if (setModifiers.size() == 0) {
-            throw new IllegalStateException("Player-Position-Paket enthält keine Relative-Flags.");
+            throw new IllegalStateException("Relatives Positionspaket enthält keine Relative-Flags.");
         }
         Set<?> flags = (Set<?>) setModifiers.read(0);
         boolean relativeX = containsRelativeFlag(flags, "X");
@@ -673,11 +673,12 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.OPEN_SIGN_EDITOR) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY) {
-                        translateVectorCoordinates(event, session.offsetX(), session.offsetZ());
-                    } else if (type == PacketType.Play.Server.ENTITY_TELEPORT) {
-                        translatePositionMoveRotation(event, session.offsetX(), session.offsetZ());
-                    } else if (type == PacketType.Play.Server.POSITION) {
-                        translatePlayerPosition(event, session.offsetX(), session.offsetZ());
+                        // In 1.21.11 X/Y/Z are three doubles; getVectors() is entity velocity.
+                        translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 2);
+                    } else if (type == PacketType.Play.Server.ENTITY_TELEPORT
+                            || type == PacketType.Play.Server.POSITION) {
+                        // Both packet types carry PositionMoveRotation plus relative flags.
+                        translateRelativePosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
                         translateEntityPosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.EXPLOSION) {
