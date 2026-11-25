@@ -199,6 +199,7 @@ jobs:
 
           cat server.log
           grep -q "Done (" server.log
+          grep -q "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar." server.log
 
           for plugin in LuckPerms ProtocolLib ThatsABan GrimAC CheatDetector FoxGate HandShaker; do
             if ! grep -Ei "(Loading server plugin|Enabling) ${plugin}([[:space:]]| v)" server.log; then

@@ -103,7 +103,15 @@ final class AdminSpectatorManager implements Listener {
             registerPacketTranslation();
             Bukkit.getPluginManager().registerEvents(this, plugin);
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (!restorePending(player)) enforcePermanent(player);
+                boolean restoredSession = restorePending(player);
+                UUID playerId = player.getUniqueId();
+                if (!hasPendingRestore(playerId)) {
+                    if (!permanent.contains(playerId)) {
+                        restorePendingPermanent(player);
+                    } else if (!restoredSession) {
+                        enforcePermanent(player);
+                    }
+                }
             }
             // Re-enforce against plugins that bypass the Bukkit game-mode event.
             Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -301,14 +309,18 @@ final class AdminSpectatorManager implements Listener {
         if (permanent.contains(uuid)) return true;
         Player player = Bukkit.getPlayer(uuid);
         PermanentSnapshot previousSnapshot = permanentSnapshots.get(uuid);
+        PermanentSnapshot pendingSnapshot = pendingPermanentSnapshots.remove(uuid);
         permanent.add(uuid);
-        if (player != null && previousSnapshot == null) {
+        if (previousSnapshot == null && pendingSnapshot != null) {
+            permanentSnapshots.put(uuid, pendingSnapshot);
+        } else if (player != null && previousSnapshot == null) {
             permanentSnapshots.put(uuid, capturePermanentSnapshot(player));
         }
         if (!savePermanentData()) {
             permanent.remove(uuid);
             if (previousSnapshot == null) permanentSnapshots.remove(uuid);
             else permanentSnapshots.put(uuid, previousSnapshot);
+            if (pendingSnapshot != null) pendingPermanentSnapshots.put(uuid, pendingSnapshot);
             return false;
         }
         if (player != null) enforcePermanent(player);
@@ -518,7 +530,7 @@ final class AdminSpectatorManager implements Listener {
     private boolean restorePendingPermanent(Player player) {
         UUID uuid = player.getUniqueId();
         PermanentSnapshot snapshot = pendingPermanentSnapshots.get(uuid);
-        if (snapshot == null) return false;
+        if (snapshot == null || permanent.contains(uuid)) return false;
         try {
             player.setGameMode(snapshot.gameMode());
             player.setAllowFlight(snapshot.allowFlight());
@@ -775,6 +787,8 @@ final class AdminSpectatorManager implements Listener {
     private void finishObserverVisibility(Player player, boolean vanishMode, boolean wasVanished) {
         if (permanent.contains(player.getUniqueId())) {
             enforcePermanent(player);
+        } else if (pendingPermanentSnapshots.containsKey(player.getUniqueId())) {
+            hideObserverFromAll(player);
         } else if (vanishMode && wasVanished && !vanishAvailable()) {
             hideObserverFromAll(player);
         } else {
@@ -799,11 +813,9 @@ final class AdminSpectatorManager implements Listener {
         Player joining = event.getPlayer();
         UUID joiningId = joining.getUniqueId();
 
-        restorePendingPermanent(joining);
-
         // Register hides before the joining entity is inserted into the world and
         // before existing clients can receive its first spawn packet.
-        if (hasPendingRestore(joiningId)) {
+        if (hasPendingRestore(joiningId) || pendingPermanentSnapshots.containsKey(joiningId)) {
             hideObserverFromAll(joining);
         }
         for (UUID observerId : Set.copyOf(sessions.keySet())) {
@@ -842,8 +854,17 @@ final class AdminSpectatorManager implements Listener {
             }
         }
 
-        // Recover an interrupted observation before revealing the joining account.
-        if (!restorePending(joining)) enforcePermanent(joining);
+        // Recover the observer's saved state first. An offline permanent removal is
+        // applied afterwards, so it takes precedence over the snapshot from that session.
+        boolean restoredSession = restorePending(joining);
+        UUID joiningId = joining.getUniqueId();
+        if (!hasPendingRestore(joiningId)) {
+            if (!permanent.contains(joiningId)) {
+                restorePendingPermanent(joining);
+            } else if (!restoredSession) {
+                enforcePermanent(joining);
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
