@@ -76,7 +76,7 @@ Technische Schutzmaßnahmen sind keine pauschale DSGVO-Konformitätsgarantie. De
 
 - Die Regionsprüfung verwendet die lokale GeoIP-Datenbank. Das Plugin sendet dafür keine Spieler-IP an einen GeoIP-Drittanbieter und speichert keinen GeoIP-Cache.
 - HMAC-Hashes, UUIDs, Namen und Layer-2-Zuordnungen können weiterhin personenbezogene oder pseudonyme Daten sein.
-- `data.yml` und `ip-hmac.key` werden owner-only geschützt. Das Plugin erstellt keine vollständigen Daten-Backups. Beim Start werden alte `data.yml.bak-*`- und `data.yml.corrupt-*`-Dateien gelöscht. Eine beschädigte `data.yml` bleibt unverändert und blockiert Schreibzugriffe, statt ungesichert überschrieben zu werden.
+- `data.yml` und `ip-hmac.key` werden owner-only geschützt. Das Plugin erstellt keine vollständigen Daten-Backups. Beim Start werden alte `data.yml.bak-*`- und `data.yml.corrupt-*`-Dateien gelöscht. Eine beschädigte `data.yml` bleibt unverändert und blockiert Schreibzugriffe, statt ungesichert überschrieben zu werden. In diesem Zustand melden `/offend`, `/thatsaban unoffend` und `/thatsaban forget` einen Fehler, statt eine nicht persistierbare Änderung als erfolgreich auszugeben.
 - Die IP-Adresse kann unabhängig davon in Proxy-, Firewall-, Hoster-, Paper- oder anderen Plugin-Logs auftauchen. Diese Systeme müssen separat geprüft und mit passenden Aufbewahrungsfristen konfiguriert werden.
 - Die Konfiguration begrenzt nur Daten, die dieses Plugin selbst verwaltet. Andere Plugins, LuckPerms, Hosting-Anbieter und Netzwerkkomponenten benötigen eigene Lösch- und Zugriffskonzepte.
 

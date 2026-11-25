@@ -30,6 +30,9 @@ final class Layer2Service {
     }
 
     CompletableFuture<OffendResult> offend(UUID uuid) {
+        if (store.isWriteBlocked()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
+        }
         return hook.users().loadUser(uuid).<OffendResult>thenCompose(user -> {
             if (hook.has(user, hook.exemptNode())) {
                 return CompletableFuture.completedFuture(new OffendResult(Status.EXEMPT, List.of()));
@@ -42,6 +45,9 @@ final class Layer2Service {
     }
 
     CompletableFuture<Boolean> removeLayer2(UUID uuid) {
+        if (store.isWriteBlocked()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
+        }
         return hook.clearLayer2Async(uuid)
                 .thenCompose(ignored -> hook.users().loadUser(uuid))
                 .thenApply(user -> {
@@ -51,11 +57,17 @@ final class Layer2Service {
     }
 
     CompletableFuture<Integer> forgetPlayer(UUID uuid) {
+        if (store.isWriteBlocked()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
+        }
         return hook.clearLayer2Async(uuid).thenApply(v -> store.forgetPlayer(uuid));
     }
 
     /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
     void cleanupExpired() {
+        if (store.isWriteBlocked()) {
+            return;
+        }
         for (UUID uuid : store.pendingExpiredOffenders()) {
             if (store.hasLayer2Tracking(uuid)) {
                 store.completeExpiredOffender(uuid);
@@ -80,7 +92,7 @@ final class Layer2Service {
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
 
-        if (hook.has(user, hook.exemptNode())) {
+        if (hook.has(user, hook.exemptNode()) || store.isWriteBlocked()) {
             return;
         }
 

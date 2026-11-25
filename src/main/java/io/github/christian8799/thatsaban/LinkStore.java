@@ -339,6 +339,10 @@ final class LinkStore {
         dirty = true;
     }
 
+    synchronized boolean isWriteBlocked() {
+        return writeBlocked;
+    }
+
     synchronized boolean isOffender(UUID uuid) {
         return offenders.containsKey(uuid);
     }
