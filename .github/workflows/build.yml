@@ -22,7 +22,7 @@ jobs:
           name: ThatsABan-Paper-1.21.11
           path: build/libs/*.jar
 
-  paper-smoke-test:
+  paper-integration-test:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +34,7 @@ jobs:
         with:
           name: ThatsABan-Paper-1.21.11
           path: plugins
-      - name: Download Paper 1.21.11 and LuckPerms
+      - name: Download Paper, LuckPerms and integration plugins
         run: |
           set -euo pipefail
           USER_AGENT="ThatsABan-CI/1.0 (https://github.com/Christian8799/that-is-a-ban)"
@@ -42,15 +42,36 @@ jobs:
           LP_URL="$(curl -fsSL -H "User-Agent: $USER_AGENT" https://metadata.luckperms.net/data/downloads | jq -er '.downloads.bukkit')"
           curl -fL "$PAPER_URL" -o paper.jar
           curl -fL "$LP_URL" -o plugins/LuckPerms.jar
+
+          # Public test bundle supplied by the repository owner in Dropbox.
+          DROPBOX_FOLDER_URL="https://www.dropbox.com/scl/fo/pydnwzw2cxvpj0bxzbj86/AE9rDURI9JqcY3Dauw5V2B4?rlkey=x0k209tuuelcsel0nxt0shmmb&st=g4zv21a1&dl=1"
+          curl --fail --location --retry 3 "$DROPBOX_FOLDER_URL" -o integration-bundle.zip
+          mkdir -p integration-bundle integration-unpacked
+          unzip -q integration-bundle.zip -d integration-bundle
+
+          # GrimAC is supplied as a nested ZIP. Extract archives, but never
+          # replace the freshly built ThatsABan JAR with an older bundle copy.
+          while IFS= read -r -d '' archive; do
+            unzip -oq "$archive" -d integration-unpacked
+          done < <(find integration-bundle -type f -iname 'grimac-bukkit.zip' -print0)
+
+          find integration-bundle integration-unpacked -type f -name '*.jar' \
+            ! -iname 'paper*.jar' \
+            ! -iname 'thatsaban*.jar' \
+            -print -exec cp -f {} plugins/ \;
+
           printf 'eula=true\n' > eula.txt
           printf 'online-mode=false\nserver-port=25565\n' > server.properties
-      - name: Start Paper and verify plugin enablement
+          echo "Installed test plugins:"
+          find plugins -maxdepth 1 -type f -name '*.jar' -printf '%f\n' | sort
+
+      - name: Start Paper and verify all plugins
         run: |
           set -euo pipefail
-          java -Xms512M -Xmx1G -jar paper.jar --nogui > server.log 2>&1 &
+          java -Xms1G -Xmx2G -jar paper.jar --nogui > server.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 90); do
+          for attempt in $(seq 1 120); do
             if grep -q "Done (" server.log; then
               break
             fi
@@ -65,7 +86,12 @@ jobs:
           grep -q "Enabling LuckPerms v" server.log
           grep -q "Enabling ThatsABan v" server.log
           grep -q "Done (" server.log
-          if grep -E "Could not load 'plugins/ThatsABan|Error occurred while enabling ThatsABan" server.log; then
-            echo "ThatsABan failed to load."
+
+          # Fail on plugin load/enable errors; missing optional dependencies
+          # and incompatible integration builds must be visible in CI.
+          if grep -Ei "Could not load .*plugins/|Error occurred while enabling|Unsupported API version|InvalidPluginException" server.log; then
+            echo "At least one test plugin failed to load or enable."
             exit 1
           fi
+
+          echo "Paper startup completed with the integration bundle."
