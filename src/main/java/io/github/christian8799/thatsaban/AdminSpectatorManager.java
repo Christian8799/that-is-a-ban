@@ -43,6 +43,7 @@ final class AdminSpectatorManager implements Listener {
     private final JavaPlugin plugin;
     private final ProtocolManager protocol;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
+    private final Set<UUID> restoring = ConcurrentHashMap.newKeySet();
     private final Set<UUID> permanent = new HashSet<>();
     private final SecureRandom random = new SecureRandom();
     private boolean packetListenerRegistered;
@@ -50,7 +51,25 @@ final class AdminSpectatorManager implements Listener {
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
                             boolean flying, boolean invulnerable, float flySpeed, float walkSpeed,
                             int viewDistance, int sendViewDistance, UUID spectatorTarget) {}
-    private record Session(UUID target, Snapshot snapshot, int offsetX, int offsetZ) {}
+    private static final class Session {
+        private volatile UUID target;
+        private final Snapshot snapshot;
+        private final int offsetX;
+        private final int offsetZ;
+
+        private Session(UUID target, Snapshot snapshot, int offsetX, int offsetZ) {
+            this.target = target;
+            this.snapshot = snapshot;
+            this.offsetX = offsetX;
+            this.offsetZ = offsetZ;
+        }
+
+        UUID target() { return target; }
+        void setTarget(UUID target) { this.target = target; }
+        Snapshot snapshot() { return snapshot; }
+        int offsetX() { return offsetX; }
+        int offsetZ() { return offsetZ; }
+    }
 
     AdminSpectatorManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -131,23 +150,25 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
-    private boolean retarget(Player observer, Player target, Session previous) {
+    private boolean retarget(Player observer, Player target, Session session) {
         UUID observerId = observer.getUniqueId();
-        Session replacement = new Session(target.getUniqueId(), previous.snapshot(),
-                createOffset(target.getLocation().getX()), createOffset(target.getLocation().getZ()));
+        synchronized (session) {
+            if (sessions.get(observerId) != session) return false;
 
-        synchronized (previous) {
-            if (sessions.get(observerId) != previous) return false;
+            // Keep one coordinate space for the entire observation. Changing offsets
+            // mid-session races in-flight movement packets and can desynchronize client/server.
+            double clientX = target.getLocation().getX() - session.offsetX();
+            double clientZ = target.getLocation().getZ() - session.offsetZ();
+            if (Math.abs(clientX) > 29_000_000.0 || Math.abs(clientZ) > 29_000_000.0) {
+                audit("RETARGET_OUT_OF_RANGE", observerId, target.getUniqueId());
+                return false;
+            }
 
-            // Keep the original snapshot and the observer hidden. Stopping and
-            // starting a second session here would briefly reveal the moderator
-            // at the saved real location between the two operations.
-            sessions.put(observerId, replacement);
-            boolean teleported = false;
+            boolean teleportAttempted = false;
             try {
+                teleportAttempted = true;
                 if (!observer.teleport(target.getLocation())) {
-                    sessions.replace(observerId, replacement, previous);
-                    Player previousTarget = Bukkit.getPlayer(previous.target());
+                    Player previousTarget = Bukkit.getPlayer(session.target());
                     if (previousTarget != null) {
                         observer.teleport(previousTarget.getLocation());
                         observer.setSpectatorTarget(previousTarget);
@@ -158,18 +179,16 @@ final class AdminSpectatorManager implements Listener {
                     return false;
                 }
 
-                teleported = true;
+                session.setTarget(target.getUniqueId());
                 observer.setSpectatorTarget(target);
                 audit("RETARGET", observerId, target.getUniqueId());
                 return true;
             } catch (RuntimeException ex) {
-                // Once the new-coordinate teleport may have been sent, retain the
-                // replacement offset; reverting it could desynchronize the client.
+                // A teleport may have emitted a packet before throwing. Keep the same
+                // offset, and conservatively track the requested target for later cleanup.
+                if (teleportAttempted) session.setTarget(target.getUniqueId());
                 plugin.getLogger().severe("Admin-Spectator-Zielwechsel fehlgeschlagen für "
                         + observerId + ": " + ex.getMessage());
-                if (!teleported) {
-                    sessions.replace(observerId, replacement, previous);
-                }
                 keepObserverHidden(observer);
                 audit("RETARGET_FAILED", observerId, target.getUniqueId());
                 return false;
@@ -181,12 +200,10 @@ final class AdminSpectatorManager implements Listener {
         UUID observerId = observer.getUniqueId();
         Session session = sessions.get(observerId);
         if (session == null) return restorePending(observer);
-        if (!sessions.remove(observerId, session)) return false;
 
-        // Serialize packet translation with restoration. A Netty callback which
-        // captured this session before removal must finish before the unshifted
-        // return teleport is sent.
         synchronized (session) {
+            if (!sessions.remove(observerId, session)) return false;
+            restoring.add(observerId);
             boolean returnTeleportSucceeded = false;
             try {
                 observer.setSpectatorTarget(null);
@@ -216,6 +233,8 @@ final class AdminSpectatorManager implements Listener {
                         + observerId + ": " + ex.getMessage());
                 audit("STOP_FAILED (" + reason + ")", observerId, session.target());
                 return false;
+            } finally {
+                restoring.remove(observerId);
             }
         }
     }
@@ -860,10 +879,19 @@ final class AdminSpectatorManager implements Listener {
 
             @Override
             public void onPacketReceiving(PacketEvent event) {
-                Session session = sessions.get(event.getPlayer().getUniqueId());
-                if (session == null) return;
+                UUID playerId = event.getPlayer().getUniqueId();
+                Session session = sessions.get(playerId);
+                if (session == null) {
+                    // Ignore stale shifted input while the server is sending the
+                    // unshifted return teleport and restoring the saved state.
+                    if (restoring.contains(playerId)) event.setCancelled(true);
+                    return;
+                }
                 synchronized (session) {
-                    if (sessions.get(event.getPlayer().getUniqueId()) != session) return;
+                    if (sessions.get(playerId) != session) {
+                        if (restoring.contains(playerId)) event.setCancelled(true);
+                        return;
+                    }
                     try {
                     if (event.getPacketType() == PacketType.Play.Client.TILE_NBT_QUERY
                             || event.getPacketType() == PacketType.Play.Client.ENTITY_NBT_QUERY) {
