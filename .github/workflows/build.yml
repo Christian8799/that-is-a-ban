@@ -78,7 +78,7 @@ jobs:
               if "plugin.yml" not in archive.namelist():
                   raise SystemExit("Official ProtocolLib Paper JAR has no plugin.yml")
               descriptor = archive.read("plugin.yml").decode("utf-8", "replace")
-          match = re.search(r"(?im)^name:\\s*['\\"]?([^\\r\\n'\\"]+)", descriptor)
+          match = re.search(r"(?im)^name:\s*['\"]?([^\r\n'\"]+)", descriptor)
           if not match or match.group(1).strip() != "ProtocolLib":
               raise SystemExit("Downloaded JAR is not the ProtocolLib Bukkit/Paper plugin")
           print("Verified official ProtocolLib plugin descriptor.")
