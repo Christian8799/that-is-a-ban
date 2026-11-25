@@ -129,24 +129,31 @@ final class AdminSpectatorManager implements Listener {
         // captured this session before removal must finish before the unshifted
         // return teleport is sent.
         synchronized (session) {
-            observer.setSpectatorTarget(null);
-            if (!observer.teleport(session.snapshot().location())) {
-                // Fail closed: keep the session active and the moderator hidden.
-                sessions.put(observerId, session);
-                observer.setGameMode(GameMode.SPECTATOR);
-                observer.setAllowFlight(true);
-                observer.setFlying(true);
-                plugin.getLogger().severe("Admin-Spectator-Rückteleport fehlgeschlagen; Spieler bleibt verborgen: " + observerId);
+            try {
+                observer.setSpectatorTarget(null);
+                if (!observer.teleport(session.snapshot().location())) {
+                    sessions.put(observerId, session);
+                    keepObserverHidden(observer);
+                    plugin.getLogger().severe("Admin-Spectator-Rückteleport fehlgeschlagen; Spieler bleibt verborgen: " + observerId);
+                    audit("STOP_FAILED (" + reason + ")", observerId, session.target());
+                    return false;
+                }
+
+                restoreSnapshot(observer, session.snapshot());
+                showObserverToAll(observer);
+                clearPendingRestore(observerId);
+                audit("STOP (" + reason + ")", observerId, session.target());
+                return true;
+            } catch (RuntimeException ex) {
+                // The snapshot was persisted before observation began. Preserve it
+                // and the hidden/Spectator fail-safe if any restoration API throws.
+                sessions.putIfAbsent(observerId, session);
+                keepObserverHidden(observer);
+                plugin.getLogger().severe("Admin-Spectator-Wiederherstellung fehlgeschlagen für "
+                        + observerId + ": " + ex.getMessage());
                 audit("STOP_FAILED (" + reason + ")", observerId, session.target());
                 return false;
             }
-
-            restoreSnapshot(observer, session.snapshot());
-            clearPendingRestore(observerId);
-            // Reveal only after the unshifted return teleport and state restoration succeeded.
-            showObserverToAll(observer);
-            audit("STOP (" + reason + ")", observerId, session.target());
-            return true;
         }
     }
 
@@ -218,63 +225,70 @@ final class AdminSpectatorManager implements Listener {
         String path = pendingRestorePath(uuid);
         if (!hasPendingRestore(uuid)) return false;
 
-        World world = null;
-        String worldId = plugin.getConfig().getString(path + ".world-uuid", "");
         try {
-            if (!worldId.isBlank()) world = Bukkit.getWorld(UUID.fromString(worldId));
-        } catch (IllegalArgumentException ignored) {
-            plugin.getLogger().warning("Ungültige Welt-UUID bei gespeicherter Spectator-Wiederherstellung: " + uuid);
-        }
-        if (world == null) {
-            String worldName = plugin.getConfig().getString(path + ".world-name", "");
-            if (!worldName.isBlank()) world = Bukkit.getWorld(worldName);
-        }
-        if (world == null) {
+            World world = null;
+            String worldId = plugin.getConfig().getString(path + ".world-uuid", "");
+            try {
+                if (!worldId.isBlank()) world = Bukkit.getWorld(UUID.fromString(worldId));
+            } catch (IllegalArgumentException ignored) {
+                plugin.getLogger().warning("Ungültige Welt-UUID bei gespeicherter Spectator-Wiederherstellung: " + uuid);
+            }
+            if (world == null) {
+                String worldName = plugin.getConfig().getString(path + ".world-name", "");
+                if (!worldName.isBlank()) world = Bukkit.getWorld(worldName);
+            }
+            if (world == null) {
+                keepObserverHidden(player);
+                plugin.getLogger().severe("Wiederherstellungswelt nicht verfügbar; Spieler bleibt verborgen im Spectator-Modus: " + uuid);
+                return false;
+            }
+
+            double x = plugin.getConfig().getDouble(path + ".x", Double.NaN);
+            double y = plugin.getConfig().getDouble(path + ".y", Double.NaN);
+            double z = plugin.getConfig().getDouble(path + ".z", Double.NaN);
+            float yaw = (float) plugin.getConfig().getDouble(path + ".yaw");
+            float pitch = (float) plugin.getConfig().getDouble(path + ".pitch");
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+                    || !Float.isFinite(yaw) || !Float.isFinite(pitch)) {
+                throw new IllegalStateException("Gespeicherte Position enthält ungültige Zahlen.");
+            }
+
+            Location location = new Location(world, x, y, z, yaw, pitch);
             hideObserverFromAll(player);
-            player.setGameMode(GameMode.SPECTATOR);
-            player.setAllowFlight(true);
-            player.setFlying(true);
-            plugin.getLogger().severe("Wiederherstellungswelt nicht verfügbar; Spieler bleibt verborgen im Spectator-Modus: " + uuid);
+            player.setSpectatorTarget(null);
+            if (!player.teleport(location)) {
+                keepObserverHidden(player);
+                plugin.getLogger().severe("Gespeicherte Spectator-Position konnte nicht wiederhergestellt werden; Spieler bleibt verborgen: " + uuid);
+                return false;
+            }
+
+            GameMode gameMode;
+            try {
+                gameMode = GameMode.valueOf(plugin.getConfig().getString(path + ".game-mode", "SURVIVAL"));
+            } catch (IllegalArgumentException ex) {
+                gameMode = GameMode.SURVIVAL;
+                plugin.getLogger().warning("Ungültiger gespeicherter Gamemode; verwende SURVIVAL für " + uuid);
+            }
+            Snapshot snapshot = new Snapshot(location, gameMode,
+                    plugin.getConfig().getBoolean(path + ".allow-flight"),
+                    plugin.getConfig().getBoolean(path + ".flying"),
+                    plugin.getConfig().getBoolean(path + ".invulnerable"),
+                    (float) plugin.getConfig().getDouble(path + ".fly-speed", 0.1),
+                    (float) plugin.getConfig().getDouble(path + ".walk-speed", 0.2),
+                    plugin.getConfig().getInt(path + ".view-distance", player.getViewDistance()),
+                    plugin.getConfig().getInt(path + ".send-view-distance", player.getSendViewDistance()),
+                    parseOptionalUuid(plugin.getConfig().getString(path + ".spectator-target")));
+            restoreSnapshot(player, snapshot);
+            showObserverToAll(player);
+            clearPendingRestore(uuid);
+            audit("RECOVER", uuid, uuid);
+            return true;
+        } catch (RuntimeException ex) {
+            keepObserverHidden(player);
+            plugin.getLogger().severe("Gespeicherte Admin-Spectator-Wiederherstellung fehlgeschlagen für "
+                    + uuid + ": " + ex.getMessage());
             return false;
         }
-
-        Location location = new Location(world,
-                plugin.getConfig().getDouble(path + ".x"),
-                plugin.getConfig().getDouble(path + ".y"),
-                plugin.getConfig().getDouble(path + ".z"),
-                (float) plugin.getConfig().getDouble(path + ".yaw"),
-                (float) plugin.getConfig().getDouble(path + ".pitch"));
-        hideObserverFromAll(player);
-        player.setSpectatorTarget(null);
-        if (!player.teleport(location)) {
-            player.setGameMode(GameMode.SPECTATOR);
-            player.setAllowFlight(true);
-            player.setFlying(true);
-            plugin.getLogger().severe("Gespeicherte Spectator-Position konnte nicht wiederhergestellt werden; Spieler bleibt verborgen: " + uuid);
-            return false;
-        }
-
-        GameMode gameMode;
-        try {
-            gameMode = GameMode.valueOf(plugin.getConfig().getString(path + ".game-mode", "SURVIVAL"));
-        } catch (IllegalArgumentException ex) {
-            gameMode = GameMode.SURVIVAL;
-            plugin.getLogger().warning("Ungültiger gespeicherter Gamemode; verwende SURVIVAL für " + uuid);
-        }
-        Snapshot snapshot = new Snapshot(location, gameMode,
-                plugin.getConfig().getBoolean(path + ".allow-flight"),
-                plugin.getConfig().getBoolean(path + ".flying"),
-                plugin.getConfig().getBoolean(path + ".invulnerable"),
-                (float) plugin.getConfig().getDouble(path + ".fly-speed", 0.1),
-                (float) plugin.getConfig().getDouble(path + ".walk-speed", 0.2),
-                plugin.getConfig().getInt(path + ".view-distance", player.getViewDistance()),
-                plugin.getConfig().getInt(path + ".send-view-distance", player.getSendViewDistance()),
-                parseOptionalUuid(plugin.getConfig().getString(path + ".spectator-target")));
-        restoreSnapshot(player, snapshot);
-        clearPendingRestore(uuid);
-        showObserverToAll(player);
-        audit("RECOVER", uuid, uuid);
-        return true;
     }
 
     private UUID parseOptionalUuid(String value) {
@@ -284,6 +298,18 @@ final class AdminSpectatorManager implements Listener {
         } catch (IllegalArgumentException ex) {
             plugin.getLogger().warning("Ungültige gespeicherte Spectator-Ziel-UUID: " + value);
             return null;
+        }
+    }
+
+    private void keepObserverHidden(Player observer) {
+        try {
+            observer.setSpectatorTarget(null);
+            observer.setGameMode(GameMode.SPECTATOR);
+            observer.setAllowFlight(true);
+            observer.setFlying(true);
+            hideObserverFromAll(observer);
+        } catch (RuntimeException ex) {
+            plugin.getLogger().severe("Fail-closed Spectator-Zustand konnte nicht vollständig gesetzt werden: " + ex.getMessage());
         }
     }
 
@@ -689,9 +715,31 @@ final class AdminSpectatorManager implements Listener {
     }
 
     void shutdown() {
-        for (UUID uuid : Set.copyOf(sessions.keySet())) {
-            Player player = Bukkit.getPlayer(uuid);
-            if (player != null) stop(player, "Plugin wird deaktiviert");
+        try {
+            for (UUID uuid : Set.copyOf(sessions.keySet())) {
+                Player player = Bukkit.getPlayer(uuid);
+                if (player != null) {
+                    try {
+                        stop(player, "Plugin wird deaktiviert");
+                    } catch (RuntimeException ex) {
+                        plugin.getLogger().severe("Fehler beim Beenden einer Admin-Spectator-Sitzung für "
+                                + uuid + ": " + ex.getMessage());
+                    }
+                }
+            }
+        } finally {
+            if (packetListenerRegistered) {
+                try {
+                    protocol.removePacketListeners(plugin);
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().severe("ProtocolLib-Listener konnten nicht vollständig entfernt werden: " + ex.getMessage());
+                } finally {
+                    packetListenerRegistered = false;
+                }
+            }
+        }
+    }
+null) stop(player, "Plugin wird deaktiviert");
         }
         if (packetListenerRegistered) protocol.removePacketListeners(plugin);
     }
