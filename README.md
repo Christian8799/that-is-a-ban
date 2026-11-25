@@ -13,12 +13,14 @@ Anti-Cheat-Connector für **Paper 1.21.11** (Java 21). Das Plugin bringt keine e
 
 - **`/offend <Spieler>`** ist eine bewusste Staff-Entscheidung und setzt den Spieler in Layer 2.
 - Layer 2 verwendet den LuckPerms-Marker `thatsaban.layer2` sowie die in `layer2.negated-permissions` konfigurierten Nodes.
-- **IP-Kopplung ist standardmäßig deaktiviert** (`alt-detection.enabled: false`). Wird sie aktiviert, speichert das Plugin keine Roh-IP, sondern HMAC-SHA-256-Werte. IPv6 wird vor dem HMAC auf /64 gekürzt.
+- **Alt-Account-Netzwerk ist standardmäßig deaktiviert** (`alt-detection.enabled: false`). Nach ausdrücklicher Aktivierung werden alle erfassten Java- und Bedrock-Accounts (außer `thatsaban.exempt`) anhand gemeinsamer IP-HMACs verknüpft. Es werden keine Roh-IPs gespeichert; IPv6 wird vor dem HMAC auf /64 gekürzt. Bedrock-Accounts erscheinen nur im Netzwerk und bleiben von Layer-2-Aktionen/`/offend` ausgenommen.
+- **Account-Netzwerk:** `/thatsaban network <Spieler|UUID> [1-3]` zeigt direkte und indirekte Verbindungen bis zur angegebenen Tiefe (Standard 2), maximal 50 weitere Accounts. Namen werden nur mit `thatsaban.view-linked-accounts` angezeigt; andernfalls erscheinen UUIDs. `thatsaban.network` oder `thatsaban.admin` erlaubt die Netzwerkansicht.
+- **Interpretation:** Das Netzwerk ist eine begrenzte Darstellung gemeinsam beobachteter IP-HMACs, kein Beweis gemeinsamer Identität. Dynamische IPs können Verbindungen übersehen; Familien, Schulen, CGNAT, Mobilfunk und VPN-Ausgänge können unbeteiligte Accounts verbinden. Indirekte Verbindungen sind noch unsicherer. Es gibt keinen automatischen Bann oder eine automatische Einstufung aus diesem Netzwerk.
 - Der geheime HMAC-Schlüssel liegt getrennt in `plugins/ThatsABan/ip-hmac.key`. Über `privacy.hmac-key-path` oder vorrangig `THATSABAN_HMAC_KEY_PATH` kann ein **absoluter Pfad außerhalb des Plugin-Ordners** festgelegt werden. `data.yml` und Schlüsseldatei erhalten owner-only-Dateirechte. Der Schlüssel darf nicht gelöscht oder mit anderen Servern geteilt werden. Geht er verloren, werden gespeicherte IP-Verknüpfungen beim nächsten Start verworfen. Bei der erstmaligen Umstellung den bisherigen Schlüssel sicher an den neuen Pfad verschieben, bevor der Server startet; ein neu erzeugter Schlüssel kann alte HMAC-Zuordnungen nicht mehr auflösen. Der externe Pfad trennt die Dateien organisatorisch, schützt aber nicht vor einem kompromittierten Serverkonto oder vor Backups, die beide Pfade gemeinsam erfassen.
 - IP-Hashes und zugehörige Spielerreferenzen werden nach `alt-detection.retention-days` gelöscht (Standard: 30 Tage).
 - Plugin-verwaltete Layer-2-Markierungen (einschließlich Offender) laufen nach `alt-detection.offender-retention-days` ab (Standard: **365 Tage seit dem letzten Login**, maximal 3650 Tage). Abgelaufene Layer-2-Nodes werden auch bei Offline-Spielern aus LuckPerms entfernt.
 - **Shared-IP-Fehlalarme:** Familie, WG, Schule, CGNAT und Mobilfunk können dieselbe öffentliche IP verwenden. Deshalb sind `alt-detection.auto-apply` und `alt-detection.retroactive` standardmäßig `false`. Eine Übereinstimmung erzeugt zunächst nur einen Hinweis für Staff mit `thatsaban.notify`. Erst nach Prüfung kann Staff mit `/offend <Spieler>` bestätigen. Automatische oder rückwirkende Einstufung ist nur nach bewusster Konfigurationsänderung aktiv.
-- **Bedrock-Spieler (Geyser/Floodgate) sind immun** gegen `/offend` und IP-Kopplung.
+- **Bedrock-Spieler (Geyser/Floodgate) sind immun** gegen `/offend` und Layer-2-Aktionen; bei aktivierter Netzwerkerkennung werden ihre HMAC-IP-Verknüpfungen ausschließlich für die Netzwerkansicht erfasst.
 - **`thatsaban.exempt`** nimmt einzelne Spieler von `/offend` und der IP-Kopplung aus.
 
 ## Datenschutzbefehle
@@ -26,6 +28,7 @@ Anti-Cheat-Connector für **Paper 1.21.11** (Java 21). Das Plugin bringt keine e
 | Befehl | Zweck | Permission |
 |---|---|---|
 | `/thatsaban info <Spieler|UUID>` | Auskunft über Plugin-Datensatz und effektive Layer-2-LuckPerms-Nodes | `thatsaban.privacy.read` |
+| `/thatsaban network <Spieler|UUID> [1-3]` | Zeigt direkte/indirekte Account-Verbindungen und gemeinsame HMAC-Indizien | `thatsaban.network` |
 | `/thatsaban unoffend <Spieler|UUID>` | Layer 2 und Offender-Eintrag entfernen | `thatsaban.layer2.remove` |
 | `/thatsaban forget <Spieler|UUID> confirm` | Plugin-Datensatz, Spielername, IP-Verknüpfungen und die Plugin-Layer-2-Nodes löschen | `thatsaban.privacy.erase` |
 
