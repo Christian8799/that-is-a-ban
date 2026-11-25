@@ -487,6 +487,38 @@ final class AdminSpectatorManager implements Listener {
         positions.write(0, position);
     }
 
+    private void translatePlayerPosition(PacketEvent event, int offsetX, int offsetZ) {
+        var positions = event.getPacket().getPositionMoveRotation();
+        if (positions.size() == 0) {
+            throw new IllegalStateException("Player-Position-Paket enthält keine Position/Rotation.");
+        }
+
+        // ClientboundPlayerPositionPacket in 1.21.11 carries a Set<Relative>.
+        // Relative X/Z values are deltas from the client's already-shifted position,
+        // so only absolute components receive the coordinate offset.
+        var setModifiers = event.getPacket().getModifier().withType(Set.class);
+        if (setModifiers.size() == 0) {
+            throw new IllegalStateException("Player-Position-Paket enthält keine Relative-Flags.");
+        }
+        Set<?> flags = setModifiers.read(0);
+        boolean relativeX = containsRelativeFlag(flags, "X");
+        boolean relativeZ = containsRelativeFlag(flags, "Z");
+
+        WrappedPositionMoveRotation position = positions.read(0);
+        Vector current = position.getPosition();
+        position.setPosition(new Vector(
+                relativeX ? current.getX() : current.getX() - offsetX,
+                current.getY(),
+                relativeZ ? current.getZ() : current.getZ() - offsetZ));
+        positions.write(0, position);
+    }
+
+    private boolean containsRelativeFlag(Set<?> flags, String expectedName) {
+        if (flags == null) throw new IllegalStateException("Relative-Flags sind null.");
+        return flags.stream().anyMatch(flag ->
+                flag instanceof Enum<?> enumFlag && enumFlag.name().equals(expectedName));
+    }
+
     private void translateEntityPosition(PacketEvent event, int offsetX, int offsetZ) {
         var positions = event.getPacket().getPositionMoveRotation();
         if (positions.size() > 0) {
@@ -637,9 +669,10 @@ final class AdminSpectatorManager implements Listener {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY) {
                         translateVectorCoordinates(event, session.offsetX(), session.offsetZ());
-                    } else if (type == PacketType.Play.Server.ENTITY_TELEPORT
-                            || type == PacketType.Play.Server.POSITION) {
+                    } else if (type == PacketType.Play.Server.ENTITY_TELEPORT) {
                         translatePositionMoveRotation(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.POSITION) {
+                        translatePlayerPosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
                         translateEntityPosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.EXPLOSION) {
