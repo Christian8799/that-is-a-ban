@@ -59,7 +59,12 @@ final class LuckPermsHook {
     }
 
     CompletableFuture<Void> applyLayer2Async(UUID uuid) {
-        return users().modifyUser(uuid, user -> applyLayer2(user));
+        return users().loadUser(uuid).thenCompose(user -> {
+            if (!applyLayer2(user)) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return save(user);
+        });
     }
 
     CompletableFuture<Void> save(User user) {
