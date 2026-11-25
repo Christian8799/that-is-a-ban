@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.security.SecureRandom;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -428,6 +429,22 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
+    private void sanitizeRespawn(PacketEvent event) {
+        // Respawn's CommonPlayerSpawnInfo contains Optional<GlobalPos> lastDeathLocation.
+        // Its block coordinates are not otherwise needed for observing a target.
+        var structures = event.getPacket().getStructures();
+        for (int index = 0; index < structures.size(); index++) {
+            var structure = structures.read(index);
+            var optionalStructures = structure.getOptionalStructures();
+            if (optionalStructures.size() > 0) {
+                optionalStructures.write(0, Optional.empty());
+                structures.write(index, structure);
+                return;
+            }
+        }
+        throw new IllegalStateException("Respawn enthält keine erkannte Spawn-Info-Struktur mit optionaler Todesposition.");
+    }
+
     private void translateDoubleCoordinates(PacketEvent event, int offsetX, int offsetZ, int xIndex, int zIndex) {
         var doubles = event.getPacket().getDoubles();
         if (doubles.size() <= Math.max(xIndex, zIndex)) {
@@ -608,6 +625,7 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.ENTITY_POSITION_SYNC,
                 PacketType.Play.Server.POSITION,
                 PacketType.Play.Server.EXPLOSION,
+                PacketType.Play.Server.RESPAWN,
                 PacketType.Play.Server.WORLD_PARTICLES,
                 PacketType.Play.Server.CUSTOM_PAYLOAD,
                 PacketType.Play.Server.CHUNKS_BIOMES,
@@ -685,6 +703,8 @@ final class AdminSpectatorManager implements Listener {
                         translateEntityPosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.EXPLOSION) {
                         translateExplosion(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.RESPAWN) {
+                        sanitizeRespawn(event);
                     } else if (type == PacketType.Play.Server.VEHICLE_MOVE) {
                         translateVehicleMove(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.WORLD_EVENT) {
