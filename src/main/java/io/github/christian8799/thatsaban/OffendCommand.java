@@ -12,7 +12,6 @@ import org.bukkit.entity.Player;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.logging.Level;
 
 final class OffendCommand implements CommandExecutor, TabCompleter {
 
@@ -70,7 +69,7 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
         layer2.offend(targetId).whenComplete((result, error) ->
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     if (error != null || result == null) {
-                        plugin.getLogger().log(Level.WARNING, "/offend fuer " + targetName + " fehlgeschlagen", error);
+                        plugin.getLogger().warning("/offend konnte nicht abgeschlossen werden.");
                         sender.sendMessage(msg.get("error"));
                         return;
                     }
@@ -79,7 +78,12 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
                         case ALREADY -> sender.sendMessage(msg.get("already", nameTag));
                         case DONE -> {
                             sender.sendMessage(msg.get("done", nameTag));
-                            plugin.getLogger().info(sender.getName() + " hat " + targetName + " in Layer 2 versetzt.");
+                            if (plugin.getConfig().getBoolean("privacy.audit-logging", false)) {
+                                String actor = sender instanceof Player player
+                                        ? player.getUniqueId().toString() : "CONSOLE";
+                                plugin.getLogger().info("Layer-2-Zuweisung; actor=" + actor
+                                        + "; target=" + targetId);
+                            }
                             if (plugin.getConfig().getBoolean("offend.kick-online-target", false)) {
                                 Player target = Bukkit.getPlayer(targetId);
                                 if (target != null) {
@@ -88,7 +92,8 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
                             }
                         }
                     }
-                    if (!result.alts().isEmpty()) {
+                    if (!result.alts().isEmpty()
+                            && sender.hasPermission("thatsaban.view-linked-accounts")) {
                         sender.sendMessage(msg.get("done-alts",
                                 Placeholder.unparsed("alts", String.join(", ", result.alts()))));
                     }

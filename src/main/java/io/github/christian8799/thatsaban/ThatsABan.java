@@ -36,14 +36,24 @@ public final class ThatsABan extends JavaPlugin {
         Layer2Service layer2 = new Layer2Service(this, store, hook);
         countryFilter = new CountryFilter(this);
 
+        layer2.cleanupExpired();
+        getServer().getScheduler().runTaskTimer(this, layer2::cleanupExpired, 1200L, 1200L);
+
         getServer().getPluginManager().registerEvents(
                 new LoginListener(this, layer2, bedrock, countryFilter), this);
 
-        PluginCommand command = getCommand("offend");
-        if (command != null) {
+        PluginCommand offendCommand = getCommand("offend");
+        if (offendCommand != null) {
             OffendCommand offend = new OffendCommand(this, layer2, bedrock, store);
-            command.setExecutor(offend);
-            command.setTabCompleter(offend);
+            offendCommand.setExecutor(offend);
+            offendCommand.setTabCompleter(offend);
+        }
+
+        PluginCommand privacyCommand = getCommand("thatsaban");
+        if (privacyCommand != null) {
+            PrivacyAdminCommand admin = new PrivacyAdminCommand(this, store, layer2, hook);
+            privacyCommand.setExecutor(admin);
+            privacyCommand.setTabCompleter(admin);
         }
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
@@ -51,20 +61,28 @@ public final class ThatsABan extends JavaPlugin {
 
     private void migrateConfig() {
         int version = getConfig().getInt("config-version", 0);
-        if (version >= 2) {
-            return;
+        if (version < 2) {
+            getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
+            getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
+            getConfig().set("alt-detection.enabled", false);
+            getConfig().set("alt-detection.retention-days", 30);
+            version = 2;
+            getLogger().warning("Datenschutz-Migration: IP-Kopplung wurde deaktiviert. "
+                    + "Die lokale GeoIP-Datenbank muss unter plugins/ThatsABan/geoip abgelegt werden.");
         }
-
-        // Alte Installationen koennen noch die externe ipwho.is-Abfrage und
-        // standardmaessig aktive, unbegrenzt gespeicherte IP-Kopplungsdaten nutzen.
-        getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
-        getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
-        getConfig().set("alt-detection.enabled", false);
-        getConfig().set("alt-detection.retention-days", 30);
-        getConfig().set("config-version", 2);
-        saveConfig();
-        getLogger().warning("Datenschutz-Migration: IP-Kopplung wurde deaktiviert. "
-                + "Die lokale GeoIP-Datenbank muss unter plugins/ThatsABan/geoip abgelegt werden.");
+        if (version < 3) {
+            if (getConfig().getLong("alt-detection.offender-retention-days", 0L) <= 0L) {
+                getConfig().set("alt-detection.offender-retention-days", 365);
+            }
+            getConfig().set("alt-detection.auto-apply", false);
+            getConfig().set("alt-detection.retroactive", false);
+            getConfig().set("privacy.audit-logging", false);
+            version = 3;
+        }
+        if (getConfig().getInt("config-version", 0) != version) {
+            getConfig().set("config-version", version);
+            saveConfig();
+        }
     }
 
     @Override
@@ -89,8 +107,8 @@ public final class ThatsABan extends JavaPlugin {
     private void warnMissing(String key, String layer) {
         for (String name : getConfig().getStringList("integrations." + key)) {
             if (getServer().getPluginManager().getPlugin(name) == null) {
-                getLogger().warning(layer + ": Plugin '" + name + "' ist nicht installiert. "
-                        + "(Falls der Plugin-Name abweicht: config.yml -> integrations." + key + ")");
+                getLogger().warning(layer + ": Ein konfiguriertes Integrations-Plugin fehlt. "
+                        + "(Details: config.yml -> integrations." + key + ")");
             }
         }
     }

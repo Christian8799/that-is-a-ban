@@ -29,31 +29,84 @@ final class Layer2Service {
         this.hook = hook;
     }
 
-    /** /offend: Spieler dauerhaft in Layer 2 versetzen (+ seine IP-Alts). */
     CompletableFuture<OffendResult> offend(UUID uuid) {
+        if (store.isWriteBlocked()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
+        }
         return hook.users().loadUser(uuid).<OffendResult>thenCompose(user -> {
             if (hook.has(user, hook.exemptNode())) {
                 return CompletableFuture.completedFuture(new OffendResult(Status.EXEMPT, List.of()));
             }
             boolean already = hook.has(user, hook.markerNode());
             return hook.applyLayer2Async(uuid)
-                    .thenCompose(v -> flagAlts(uuid))
+                    .thenCompose(v -> flagAlts(store.markOffender(uuid)))
                     .thenApply(alts -> new OffendResult(already ? Status.ALREADY : Status.DONE, alts));
         });
     }
 
-    /** Wird beim Login (Async) fuer jeden Java-Spieler aufgerufen. */
+    CompletableFuture<Boolean> removeLayer2(UUID uuid) {
+        if (store.isWriteBlocked()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
+        }
+        return hook.clearLayer2Async(uuid)
+                .thenCompose(ignored -> hook.users().loadUser(uuid))
+                .thenApply(user -> {
+                    store.unmarkOffender(uuid);
+                    return hook.has(user, hook.markerNode());
+                });
+    }
+
+    CompletableFuture<Integer> forgetPlayer(UUID uuid) {
+        if (store.isWriteBlocked()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
+        }
+        return hook.clearLayer2Async(uuid).thenApply(v -> store.forgetPlayer(uuid));
+    }
+
+    /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
+    void cleanupExpired() {
+        if (store.isWriteBlocked()) {
+            return;
+        }
+        for (UUID uuid : store.pendingExpiredOffenders()) {
+            if (store.hasLayer2Tracking(uuid)) {
+                store.completeExpiredOffender(uuid);
+                continue;
+            }
+            hook.users().loadUser(uuid).thenCompose(user -> {
+                if (store.hasLayer2Tracking(uuid) || !hook.clearLayer2(user)) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                return hook.save(user);
+            }).whenComplete((ignored, error) -> {
+                if (error == null) {
+                    store.completeExpiredOffender(uuid);
+                } else if (!store.hasLayer2Tracking(uuid)) {
+                    plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden; der Löschauftrag bleibt vorgemerkt.");
+                }
+            });
+        }
+    }
+
+    /** Läuft beim Async-Pre-Login für jeden Java-Spieler. */
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
 
-        // Exempt muss vor jeder Marker-Reparatur und IP-Verarbeitung Vorrang haben.
-        // Ausgenommene Accounts duerfen auch keine IP-Kopplung fuer andere Accounts ausloesen.
-        if (hook.has(user, hook.exemptNode())) {
+        if (hook.has(user, hook.exemptNode()) || store.isWriteBlocked()) {
             return;
         }
 
-        // Vorhandene Marker koennen manuell gesetzt worden sein; alle Layer-2-Nodes angleichen.
+        boolean offender = store.isOffender(uuid);
         boolean marked = hook.has(user, hook.markerNode());
+        if (offender) {
+            store.renewOffender(uuid);
+        } else if (marked) {
+            if (store.hasLayer2Tracking(uuid)) {
+                store.renewLayer2(uuid);
+            } else {
+                store.trackLayer2(uuid);
+            }
+        }
         if (marked && hook.applyLayer2(user)) {
             hook.save(user);
         }
@@ -66,34 +119,35 @@ final class Layer2Service {
         String hash = store.hash(address);
         store.record(uuid, name, hash);
 
-        if (store.isOffender(uuid)) {
-            store.renewOffender(uuid); // Aktivität erneuert die Offender-Aufbewahrungsfrist
-            store.flagIp(hash); // neue IP eines Ausloesers ebenfalls markieren
+        if (offender) {
+            store.flagIp(hash);
             return;
         }
         if (marked) {
             return;
         }
         if (store.isLayer2Ip(hash)) {
-            hook.applyLayer2(user);
-            hook.save(user);
-            plugin.getLogger().info(name + " wurde per IP-Kopplung in Layer 2 versetzt.");
-            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.broadcast(
-                    plugin.messages().get("alt-flagged-staff", Placeholder.unparsed("player", name)),
-                    "thatsaban.notify"));
+            if (cfg.getBoolean("alt-detection.auto-apply", false)) {
+                if (hook.applyLayer2(user)) {
+                    hook.save(user);
+                }
+                store.trackLayer2(uuid);
+                notifyStaff("alt-auto-applied-staff", name);
+            } else {
+                notifyStaff("alt-suggestion-staff", name);
+            }
         }
     }
 
-    private CompletableFuture<List<String>> flagAlts(UUID uuid) {
+    private CompletableFuture<List<String>> flagAlts(Set<UUID> others) {
         FileConfiguration cfg = plugin.getConfig();
-        if (!cfg.getBoolean("alt-detection.enabled", true)) {
-            return CompletableFuture.completedFuture(List.of());
-        }
-        Set<UUID> others = store.markOffender(uuid);
-        if (!cfg.getBoolean("alt-detection.retroactive", true)) {
+        if (!cfg.getBoolean("alt-detection.enabled", true)
+                || !cfg.getBoolean("alt-detection.retroactive", false)
+                || others.isEmpty()) {
             return CompletableFuture.completedFuture(List.of());
         }
 
+        boolean autoApply = cfg.getBoolean("alt-detection.auto-apply", false);
         List<CompletableFuture<String>> jobs = new ArrayList<>();
         for (UUID other : others) {
             jobs.add(hook.users().loadUser(other).<String>thenCompose(user -> {
@@ -101,16 +155,35 @@ final class Layer2Service {
                     return CompletableFuture.completedFuture((String) null);
                 }
                 String name = store.nameOf(other);
-                if (hook.has(user, hook.markerNode())) {
-                    // Bereits markierte Accounts trotzdem reparieren: fehlende Negationen nachziehen.
-                    return hook.applyLayer2Async(other).thenApply(v -> (String) null);
+                if (!autoApply) {
+                    notifyStaff("alt-suggestion-staff", name != null ? name : other.toString());
+                    return CompletableFuture.completedFuture((String) null);
                 }
-                return hook.applyLayer2Async(other).thenApply(v ->
-                        name != null ? name : other.toString());
+                if (hook.has(user, hook.markerNode())) {
+                    return hook.applyLayer2Async(other).thenApply(v -> {
+                        store.trackLayer2(other);
+                        return (String) null;
+                    });
+                }
+                return hook.applyLayer2Async(other).thenApply(v -> {
+                    store.trackLayer2(other);
+                    return name != null ? name : other.toString();
+                });
             }));
         }
         return CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]))
-                .thenApply(v -> jobs.stream().map(CompletableFuture::join).filter(Objects::nonNull).toList());
+                .thenApply(v -> jobs.stream().map(CompletableFuture::join)
+                        .filter(Objects::nonNull).toList());
+    }
+
+    private void notifyStaff(String messageKey, String player) {
+        if (player == null) {
+            player = "unbekannt";
+        }
+        var message = plugin.messages().get(messageKey, Placeholder.unparsed("player", player));
+        Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getOnlinePlayers().stream()
+                .filter(recipient -> recipient.hasPermission("thatsaban.notify"))
+                .forEach(recipient -> recipient.sendMessage(message)));
     }
 
     private boolean ignored(InetAddress address) {

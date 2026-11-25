@@ -9,10 +9,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Kapselt alles, was mit LuckPerms zu tun hat.
- * Layer 2 = Marker-Node (true) + negierte Bypass-Nodes (false) direkt auf dem Spieler.
- */
 final class LuckPermsHook {
 
     private final ThatsABan plugin;
@@ -43,13 +39,12 @@ final class LuckPermsHook {
         return user.getCachedData().getPermissionData().checkPermission(node).asBoolean();
     }
 
-    /** Nur aus Async-Threads aufrufen (kann blockieren, wenn der User noch nicht geladen ist). */
+    /** Nur aus Async-Threads aufrufen. */
     User userNow(UUID uuid) {
         User cached = users().getUser(uuid);
         return cached != null ? cached : users().loadUser(uuid).join();
     }
 
-    /** Setzt Layer 2 im uebergebenen User-Objekt. Gibt true zurueck, wenn sich etwas geaendert hat. */
     boolean applyLayer2(User user) {
         boolean changed = setExact(user, markerNode(), true);
         for (String node : negatedNodes()) {
@@ -58,9 +53,26 @@ final class LuckPermsHook {
         return changed;
     }
 
+    boolean clearLayer2(User user) {
+        boolean changed = clearExact(user, markerNode());
+        for (String node : negatedNodes()) {
+            changed |= clearExact(user, node);
+        }
+        return changed;
+    }
+
     CompletableFuture<Void> applyLayer2Async(UUID uuid) {
         return users().loadUser(uuid).thenCompose(user -> {
             if (!applyLayer2(user)) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return save(user);
+        });
+    }
+
+    CompletableFuture<Void> clearLayer2Async(UUID uuid) {
+        return users().loadUser(uuid).thenCompose(user -> {
+            if (!clearLayer2(user)) {
                 return CompletableFuture.completedFuture(null);
             }
             return save(user);
@@ -80,5 +92,14 @@ final class LuckPermsHook {
         user.data().clear(n -> n.getKey().equals(key) && n.getContexts().isEmpty());
         user.data().add(Node.builder(key).value(value).build());
         return true;
+    }
+
+    private boolean clearExact(User user, String key) {
+        boolean present = user.getNodes().stream().anyMatch(
+                n -> n.getKey().equals(key) && n.getContexts().isEmpty());
+        if (present) {
+            user.data().clear(n -> n.getKey().equals(key) && n.getContexts().isEmpty());
+        }
+        return present;
     }
 }
