@@ -80,9 +80,14 @@ final class AdminSpectatorManager implements Listener {
 
     boolean observe(Player observer, Player target) {
         if (observer.equals(target)) return false;
-        if (sessions.containsKey(observer.getUniqueId())
-                && !stop(observer, "Neue Beobachtung gestartet")) return false;
-        if (hasPendingRestore(observer.getUniqueId()) && !restorePending(observer)) return false;
+
+        UUID observerId = observer.getUniqueId();
+        Session active = sessions.get(observerId);
+        if (active != null) {
+            return retarget(observer, target, active);
+        }
+        if (hasPendingRestore(observerId) && !restorePending(observer)) return false;
+
         Snapshot snapshot = new Snapshot(observer.getLocation().clone(), observer.getGameMode(),
                 observer.getAllowFlight(), observer.isFlying(), observer.isInvulnerable(),
                 observer.getFlySpeed(), observer.getWalkSpeed(),
@@ -94,8 +99,9 @@ final class AdminSpectatorManager implements Listener {
         // Persist the pre-observation state before changing the player's position or mode.
         // This also allows recovery after a process crash or plugin/server restart.
         try {
-            savePendingRestore(observer.getUniqueId(), snapshot);
-            sessions.put(observer.getUniqueId(), new Session(target.getUniqueId(), snapshot, offsetX, offsetZ));
+            savePendingRestore(observerId, snapshot);
+            Session session = new Session(target.getUniqueId(), snapshot, offsetX, offsetZ);
+            sessions.put(observerId, session);
             // Hide before changing mode or moving: otherwise the initial spectator
             // transition can briefly expose the moderator at their real location.
             hideObserverFromAll(observer);
@@ -110,11 +116,11 @@ final class AdminSpectatorManager implements Listener {
                 return false;
             }
             observer.setSpectatorTarget(target);
-            audit("START", observer.getUniqueId(), target.getUniqueId());
+            audit("START", observerId, target.getUniqueId());
             return true;
         } catch (RuntimeException ex) {
             plugin.getLogger().severe("Admin-Spectator konnte nicht gestartet werden: " + ex.getMessage());
-            if (sessions.containsKey(observer.getUniqueId())) {
+            if (sessions.containsKey(observerId)) {
                 try {
                     stop(observer, "Startfehler");
                 } catch (RuntimeException restoreError) {
@@ -122,6 +128,52 @@ final class AdminSpectatorManager implements Listener {
                 }
             }
             return false;
+        }
+    }
+
+    private boolean retarget(Player observer, Player target, Session previous) {
+        UUID observerId = observer.getUniqueId();
+        Session replacement = new Session(target.getUniqueId(), previous.snapshot(),
+                createOffset(target.getLocation().getX()), createOffset(target.getLocation().getZ()));
+
+        synchronized (previous) {
+            if (sessions.get(observerId) != previous) return false;
+
+            // Keep the original snapshot and the observer hidden. Stopping and
+            // starting a second session here would briefly reveal the moderator
+            // at the saved real location between the two operations.
+            sessions.put(observerId, replacement);
+            boolean teleported = false;
+            try {
+                if (!observer.teleport(target.getLocation())) {
+                    sessions.replace(observerId, replacement, previous);
+                    Player previousTarget = Bukkit.getPlayer(previous.target());
+                    if (previousTarget != null) {
+                        observer.teleport(previousTarget.getLocation());
+                        observer.setSpectatorTarget(previousTarget);
+                    } else {
+                        stop(observer, "Vorheriger Beobachtungs-Spieler ist nicht mehr online");
+                    }
+                    audit("RETARGET_FAILED", observerId, target.getUniqueId());
+                    return false;
+                }
+
+                teleported = true;
+                observer.setSpectatorTarget(target);
+                audit("RETARGET", observerId, target.getUniqueId());
+                return true;
+            } catch (RuntimeException ex) {
+                // Once the new-coordinate teleport may have been sent, retain the
+                // replacement offset; reverting it could desynchronize the client.
+                plugin.getLogger().severe("Admin-Spectator-Zielwechsel fehlgeschlagen für "
+                        + observerId + ": " + ex.getMessage());
+                if (!teleported) {
+                    sessions.replace(observerId, replacement, previous);
+                }
+                keepObserverHidden(observer);
+                audit("RETARGET_FAILED", observerId, target.getUniqueId());
+                return false;
+            }
         }
     }
 
@@ -245,12 +297,10 @@ final class AdminSpectatorManager implements Listener {
                 plugin.getLogger().warning("Ungültige Welt-UUID bei gespeicherter Spectator-Wiederherstellung: " + uuid);
             }
             if (world == null) {
-                String worldName = plugin.getConfig().getString(path + ".world-name", "");
-                if (!worldName.isBlank()) world = Bukkit.getWorld(worldName);
-            }
-            if (world == null) {
+                String savedWorldName = plugin.getConfig().getString(path + ".world-name", "<unbekannt>");
                 keepObserverHidden(player);
-                plugin.getLogger().severe("Wiederherstellungswelt nicht verfügbar; Spieler bleibt verborgen im Spectator-Modus: " + uuid);
+                plugin.getLogger().severe("Gespeicherte Wiederherstellungswelt ist nicht verfügbar ("
+                        + savedWorldName + "); Spieler bleibt verborgen im Spectator-Modus: " + uuid);
                 return false;
             }
 
@@ -380,6 +430,7 @@ final class AdminSpectatorManager implements Listener {
                 joining.hidePlayer(plugin, observer);
             }
         }
+        enforcePermanent(joining);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -399,7 +450,7 @@ final class AdminSpectatorManager implements Listener {
         if (!restorePending(joining)) enforcePermanent(joining);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onGameMode(PlayerGameModeChangeEvent event) {
         if (permanent.contains(event.getPlayer().getUniqueId()) && event.getNewGameMode() != GameMode.SPECTATOR) {
             event.setCancelled(true);
