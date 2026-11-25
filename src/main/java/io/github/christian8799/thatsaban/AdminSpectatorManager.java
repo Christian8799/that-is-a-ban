@@ -609,6 +609,7 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.POSITION,
                 PacketType.Play.Server.EXPLOSION,
                 PacketType.Play.Server.WORLD_PARTICLES,
+                PacketType.Play.Server.CUSTOM_PAYLOAD,
                 PacketType.Play.Server.CHUNKS_BIOMES,
                 PacketType.Play.Server.DEBUG_BLOCK_VALUE,
                 PacketType.Play.Server.DEBUG_CHUNK_VALUE,
@@ -640,6 +641,7 @@ final class AdminSpectatorManager implements Listener {
                     // These payloads may contain nested or packed world coordinates.
                     // Suppress them for the observer until their full wire layout is transformed.
                     if (type == PacketType.Play.Server.WORLD_PARTICLES
+                            || type == PacketType.Play.Server.CUSTOM_PAYLOAD
                             || type == PacketType.Play.Server.CHUNKS_BIOMES
                             || type == PacketType.Play.Server.DEBUG_BLOCK_VALUE
                             || type == PacketType.Play.Server.DEBUG_CHUNK_VALUE
