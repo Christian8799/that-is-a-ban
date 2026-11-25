@@ -97,6 +97,14 @@ final class LinkStore {
             }
         }
 
+        for (String id : yaml.getStringList("expired-layer2-markers")) {
+            try {
+                expiredOffenders.add(UUID.fromString(id));
+            } catch (IllegalArgumentException ignored) {
+                // Ungültigen UUID-Eintrag überspringen.
+            }
+        }
+
         ConfigurationSection layer2Times = yaml.getConfigurationSection("layer2-last-seen");
         if (layer2Times != null) {
             for (String id : layer2Times.getKeys(false)) {
@@ -283,6 +291,8 @@ final class LinkStore {
         yaml.set("ip-last-seen", new HashMap<>(ipLastSeen));
         yaml.set("offenders", offenders.keySet().stream().map(UUID::toString).toList());
         yaml.set("layer2-last-seen", new HashMap<>(layer2LastSeen));
+        yaml.set("expired-layer2-markers",
+                expiredOffenders.stream().map(UUID::toString).toList());
         for (Map.Entry<UUID, Long> entry : offenders.entrySet()) {
             yaml.set("offender-last-seen." + entry.getKey(), entry.getValue());
         }
@@ -380,7 +390,7 @@ final class LinkStore {
         boolean changed = offenders.remove(uuid) != null;
         changed |= layer2LastSeen.remove(uuid) != null;
         changed |= removeOrphanedLayer2Flags(uuid);
-        expiredOffenders.remove(uuid);
+        changed |= expiredOffenders.remove(uuid);
         if (changed) {
             dirty = true;
         }
@@ -449,14 +459,14 @@ final class LinkStore {
         return names.get(uuid);
     }
 
-    synchronized Set<UUID> drainExpiredOffenders() {
-        Set<UUID> expired = new HashSet<>(expiredOffenders);
-        expiredOffenders.clear();
-        return expired;
+    synchronized Set<UUID> pendingExpiredOffenders() {
+        return new HashSet<>(expiredOffenders);
     }
 
-    synchronized void requeueExpiredOffender(UUID uuid) {
-        expiredOffenders.add(uuid);
+    synchronized void completeExpiredOffender(UUID uuid) {
+        if (expiredOffenders.remove(uuid)) {
+            dirty = true;
+        }
     }
 
     private boolean removeOrphanedLayer2Flags(UUID uuid) {

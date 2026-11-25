@@ -57,8 +57,9 @@ final class Layer2Service {
 
     /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
     void cleanupExpired() {
-        for (UUID uuid : store.drainExpiredOffenders()) {
+        for (UUID uuid : store.pendingExpiredOffenders()) {
             if (store.hasLayer2Tracking(uuid)) {
+                store.completeExpiredOffender(uuid);
                 continue;
             }
             hook.users().loadUser(uuid).thenCompose(user -> {
@@ -67,9 +68,10 @@ final class Layer2Service {
                 }
                 return hook.save(user);
             }).whenComplete((ignored, error) -> {
-                if (error != null && !store.hasLayer2Tracking(uuid)) {
-                    store.requeueExpiredOffender(uuid);
-                    plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden.");
+                if (error == null) {
+                    store.completeExpiredOffender(uuid);
+                } else if (!store.hasLayer2Tracking(uuid)) {
+                    plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden; der Löschauftrag bleibt vorgemerkt.");
                 }
             });
         }
