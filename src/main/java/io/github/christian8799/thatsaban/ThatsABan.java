@@ -9,6 +9,7 @@ public final class ThatsABan extends JavaPlugin {
 
     private Messages messages;
     private LinkStore store;
+    private CountryFilter countryFilter;
 
     @Override
     public void onEnable() {
@@ -30,7 +31,7 @@ public final class ThatsABan extends JavaPlugin {
         LuckPermsHook hook = new LuckPermsHook(this, provider.getProvider());
         BedrockDetector bedrock = new BedrockDetector(this);
         Layer2Service layer2 = new Layer2Service(this, store, hook);
-        CountryFilter countryFilter = new CountryFilter(this);
+        countryFilter = new CountryFilter(this);
 
         getServer().getPluginManager().registerEvents(
                 new LoginListener(this, layer2, bedrock, countryFilter), this);
@@ -42,7 +43,6 @@ public final class ThatsABan extends JavaPlugin {
             command.setTabCompleter(offend);
         }
 
-        // Erst nach dem Laden aller Plugins pruefen
         getServer().getScheduler().runTask(this, this::checkIntegrations);
     }
 
@@ -50,6 +50,9 @@ public final class ThatsABan extends JavaPlugin {
     public void onDisable() {
         if (store != null) {
             store.save();
+        }
+        if (countryFilter != null) {
+            countryFilter.close();
         }
     }
 
