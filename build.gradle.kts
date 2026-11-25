@@ -11,17 +11,18 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.3.build.+")
+    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("net.luckperms:api:5.4")
+    implementation("com.ip2location:ip2location-java:8.13.0")
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
-    options.release.set(25)
+    options.release.set(21)
 }
 
 tasks.processResources {
@@ -32,4 +33,11 @@ tasks.processResources {
 
 tasks.jar {
     archiveBaseName.set("ThatsABan")
+    // IP2Location-Java-SDK wird eingebettet, damit Server keine separate Library installieren muessen.
+    from({
+        configurations.runtimeClasspath.get()
+            .filter { it.name.startsWith("ip2location-java-") }
+            .map { zipTree(it) }
+    })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

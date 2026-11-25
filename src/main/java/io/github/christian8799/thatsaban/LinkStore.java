@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Speichert, welcher Account von welcher IP kam. IPs werden nur als gesalzener SHA-256-Hash abgelegt.
- * IPv6 wird auf das /64-Praefix gekuerzt. Alle Methoden sind thread-safe.
+ * Speichert IP-Verknuepfungen ausschliesslich als gesalzene SHA-256-Hashes.
+ * Hashes und zugehoerige Spielerreferenzen werden nach der konfigurierten Frist geloescht.
  */
 final class LinkStore {
 
@@ -31,7 +31,8 @@ final class LinkStore {
     private final Map<UUID, Set<String>> ipsByPlayer = new HashMap<>();
     private final Map<String, Set<UUID>> playersByIp = new HashMap<>();
     private final Set<String> layer2Ips = new HashSet<>();
-    private final Set<UUID> offenders = new HashSet<>();
+    private final Map<String, Long> ipLastSeen = new HashMap<>();
+    private final Map<UUID, Long> offenders = new HashMap<>();
 
     private byte[] salt;
     private boolean dirty;
@@ -64,15 +65,25 @@ final class LinkStore {
             dirty = true;
             if (savedSalt != null) {
                 plugin.getLogger().warning("data.yml enthaelt einen ungueltigen Salt. "
-                        + "Gespeicherte IP-Verknuepfungen werden verworfen; Offender-Markierungen bleiben erhalten.");
+                        + "Gespeicherte IP-Verknuepfungen werden verworfen.");
             } else if (file.exists()) {
                 plugin.getLogger().warning("Salt fehlt in data.yml. Gespeicherte IP-Verknuepfungen "
-                        + "werden verworfen; Offender-Markierungen bleiben erhalten.");
+                        + "werden verworfen.");
+            }
+        }
+
+        ConfigurationSection seen = yaml.getConfigurationSection("ip-last-seen");
+        if (seen != null) {
+            for (String hash : seen.getKeys(false)) {
+                long timestamp = seen.getLong(hash, 0L);
+                if (timestamp > 0L) {
+                    ipLastSeen.put(hash, timestamp);
+                }
             }
         }
 
         ConfigurationSection players = yaml.getConfigurationSection("players");
-        if (players != null) {
+        if (players != null && validSalt) {
             for (String key : players.getKeys(false)) {
                 UUID uuid;
                 try {
@@ -84,29 +95,38 @@ final class LinkStore {
                 if (name != null) {
                     names.put(uuid, name);
                 }
-                if (validSalt) {
-                    for (String hash : players.getStringList(key + ".ips")) {
-                        link(uuid, hash);
-                    }
+                for (String hash : players.getStringList(key + ".ips")) {
+                    link(uuid, hash);
                 }
             }
         }
         if (validSalt) {
             layer2Ips.addAll(yaml.getStringList("layer2-ips"));
         }
-        for (String id : yaml.getStringList("offenders")) {
-            try {
-                offenders.add(UUID.fromString(id));
-            } catch (IllegalArgumentException ignored) {
-                // kaputten Eintrag ueberspringen
+
+        ConfigurationSection offenderTimes = yaml.getConfigurationSection("offender-last-seen");
+        if (offenderTimes != null) {
+            for (String id : offenderTimes.getKeys(false)) {
+                try {
+                    long timestamp = offenderTimes.getLong(id, 0L);
+                    if (timestamp > 0L) {
+                        offenders.put(UUID.fromString(id), timestamp);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // Kaputten Eintrag ueberspringen.
+                }
             }
         }
+
+        pruneExpired(System.currentTimeMillis());
     }
 
     synchronized void save() {
+        pruneExpired(System.currentTimeMillis());
         if (!dirty && file.exists()) {
             return;
         }
+
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("salt", HexFormat.of().formatHex(salt));
         for (Map.Entry<UUID, String> entry : names.entrySet()) {
@@ -115,7 +135,11 @@ final class LinkStore {
             yaml.set(base + ".ips", new ArrayList<>(ipsByPlayer.getOrDefault(entry.getKey(), Set.of())));
         }
         yaml.set("layer2-ips", new ArrayList<>(layer2Ips));
-        yaml.set("offenders", offenders.stream().map(UUID::toString).toList());
+        yaml.set("ip-last-seen", new HashMap<>(ipLastSeen));
+        yaml.set("offenders", offenders.keySet().stream().map(UUID::toString).toList());
+        for (Map.Entry<UUID, Long> entry : offenders.entrySet()) {
+            yaml.set("offender-last-seen." + entry.getKey(), entry.getValue());
+        }
         try {
             plugin.getDataFolder().mkdirs();
             yaml.save(file);
@@ -144,13 +168,16 @@ final class LinkStore {
     }
 
     synchronized void record(UUID uuid, String name, String ipHash) {
+        long now = System.currentTimeMillis();
+        pruneExpired(now);
         names.put(uuid, name);
         link(uuid, ipHash);
+        ipLastSeen.put(ipHash, now);
         dirty = true;
     }
 
     synchronized boolean isOffender(UUID uuid) {
-        return offenders.contains(uuid);
+        return offenders.containsKey(uuid);
     }
 
     synchronized boolean isLayer2Ip(String ipHash) {
@@ -158,20 +185,20 @@ final class LinkStore {
     }
 
     synchronized void flagIp(String ipHash) {
-        if (layer2Ips.add(ipHash)) {
-            dirty = true;
-        }
+        long now = System.currentTimeMillis();
+        layer2Ips.add(ipHash);
+        ipLastSeen.put(ipHash, now);
+        dirty = true;
     }
 
-    /**
-     * Merkt den Spieler als "Ausloeser", markiert alle seine bekannten IPs
-     * und gibt alle anderen bekannten Accounts dieser IPs zurueck.
-     */
     synchronized Set<UUID> markOffender(UUID uuid) {
-        offenders.add(uuid);
+        long now = System.currentTimeMillis();
+        pruneExpired(now);
+        offenders.put(uuid, now);
         Set<UUID> others = new HashSet<>();
         for (String hash : ipsByPlayer.getOrDefault(uuid, Set.of())) {
             layer2Ips.add(hash);
+            ipLastSeen.put(hash, now);
             others.addAll(playersByIp.getOrDefault(hash, Set.of()));
         }
         others.remove(uuid);
@@ -190,6 +217,44 @@ final class LinkStore {
 
     synchronized String nameOf(UUID uuid) {
         return names.get(uuid);
+    }
+
+    private void pruneExpired(long now) {
+        long retentionDays = Math.min(3650L,
+                Math.max(1L, plugin.getConfig().getLong("alt-detection.retention-days", 30L)));
+        long retentionMillis = retentionDays * 24L * 60L * 60L * 1000L;
+        long cutoff = now - retentionMillis;
+
+        Set<String> allHashes = new HashSet<>(ipLastSeen.keySet());
+        allHashes.addAll(layer2Ips);
+        for (Set<String> hashes : ipsByPlayer.values()) {
+            allHashes.addAll(hashes);
+        }
+
+        Set<String> expired = new HashSet<>();
+        for (String hash : allHashes) {
+            Long lastSeen = ipLastSeen.get(hash);
+            if (lastSeen == null || lastSeen <= cutoff) {
+                expired.add(hash);
+            }
+        }
+        if (!expired.isEmpty()) {
+            layer2Ips.removeAll(expired);
+            ipLastSeen.keySet().removeAll(expired);
+            for (Set<String> hashes : ipsByPlayer.values()) {
+                hashes.removeAll(expired);
+            }
+            for (String hash : expired) {
+                playersByIp.remove(hash);
+            }
+            dirty = true;
+        }
+
+        ipsByPlayer.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        names.keySet().removeIf(uuid -> !ipsByPlayer.containsKey(uuid));
+        if (offenders.entrySet().removeIf(entry -> entry.getValue() <= cutoff)) {
+            dirty = true;
+        }
     }
 
     private void link(UUID uuid, String ipHash) {

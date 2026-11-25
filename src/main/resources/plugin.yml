@@ -1,7 +1,7 @@
 name: ThatsABan
 main: io.github.christian8799.thatsaban.ThatsABan
 version: ${version}
-api-version: "26.3"
+api-version: "1.21.11"
 author: Christian8799
 description: Anti-Cheat-Connector - Layer 1/2, /offend, IP-Kopplung, Bedrock-Immunitaet, LuckPerms
 depend: [LuckPerms]
