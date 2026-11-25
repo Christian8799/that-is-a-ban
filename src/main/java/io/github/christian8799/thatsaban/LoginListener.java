@@ -9,7 +9,6 @@ import java.net.InetAddress;
 import java.util.UUID;
 
 final class LoginListener implements Listener {
-
     private final ThatsABan plugin;
     private final Layer2Service layer2;
     private final BedrockDetector bedrock;
@@ -29,20 +28,22 @@ final class LoginListener implements Listener {
         String name = event.getName();
         InetAddress address = event.getAddress();
 
-        CountryFilter.Result country = countryFilter.check(address);
-        if (country == CountryFilter.Result.DENIED) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    plugin.messages().plain("country-denied"));
-            return;
-        }
-        if (country == CountryFilter.Result.UNAVAILABLE) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    plugin.messages().plain("country-lookup-failed"));
-            return;
+        if (countryFilter != null) {
+            CountryFilter.Result country = countryFilter.check(address);
+            if (country == CountryFilter.Result.DENIED) {
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                        plugin.messages().plain("country-denied"));
+                return;
+            }
+            if (country == CountryFilter.Result.UNAVAILABLE) {
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                        plugin.messages().plain("country-lookup-failed"));
+                return;
+            }
         }
 
+        if (layer2 == null) return;
         if (bedrock.isBedrock(uuid, name)) {
-            // Bedrock accounts appear in the network view but remain exempt from Layer 2 actions.
             try {
                 layer2.recordNetworkLogin(uuid, name, address);
             } catch (Exception ignored) {

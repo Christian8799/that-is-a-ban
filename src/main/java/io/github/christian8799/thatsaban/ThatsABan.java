@@ -8,7 +8,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.List;
 
 public final class ThatsABan extends JavaPlugin {
-    private Messages messages;
     private LinkStore store;
     private CountryFilter countryFilter;
     private AdminSpectatorManager spectatorManager;
@@ -17,53 +16,113 @@ public final class ThatsABan extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         migrateConfig();
-
-        RegisteredServiceProvider<LuckPerms> provider =
-                getServer().getServicesManager().getRegistration(LuckPerms.class);
-        if (provider == null) {
-            getLogger().severe("LuckPerms nicht gefunden - that-s-a-ban wird deaktiviert.");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
-        messages = new Messages(this);
+        Messages messages = new Messages(this);
         store = new LinkStore(this);
         store.load();
         store.startAutosave();
 
-        LuckPermsHook hook = new LuckPermsHook(this, provider.getProvider());
-        BedrockDetector bedrock = new BedrockDetector(this);
-        Layer2Service layer2 = new Layer2Service(this, store, hook);
-        countryFilter = new CountryFilter(this);
+        LuckPermsHook hook = null;
+        Layer2Service layer2 = null;
+        LuckPerms luckPerms = findLuckPerms();
+        if (luckPerms != null) {
+            try {
+                hook = new LuckPermsHook(this, luckPerms);
+                layer2 = new Layer2Service(this, store, hook);
+                getLogger().info("LuckPerms-Integration aktiv.");
+            } catch (LinkageError | RuntimeException ex) {
+                hook = null;
+                layer2 = null;
+                warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)", ex);
+            }
+        } else {
+            warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)",
+                    "LuckPerms fehlt oder stellt keinen API-Service bereit.");
+        }
 
-        layer2.cleanupExpired();
-        getServer().getScheduler().runTaskTimer(this, layer2::cleanupExpired, 1200L, 1200L);
+        BedrockDetector bedrock = new BedrockDetector(this);
+        try {
+            countryFilter = new CountryFilter(this);
+        } catch (LinkageError | RuntimeException ex) {
+            countryFilter = null;
+            warnFeatureDisabled("Country-/Region-Filter (IP2Location)", ex);
+        }
+
+        if (layer2 != null) {
+            Layer2Service activeLayer2 = layer2;
+            activeLayer2.cleanupExpired();
+            getServer().getScheduler().runTaskTimer(this, activeLayer2::cleanupExpired, 1200L, 1200L);
+        }
+
         getServer().getPluginManager().registerEvents(
                 new LoginListener(this, layer2, bedrock, countryFilter), this);
 
-        PluginCommand offendCommand = getCommand("offend");
-        if (offendCommand != null) {
-            OffendCommand offend = new OffendCommand(this, layer2, bedrock, store);
-            offendCommand.setExecutor(offend);
-            offendCommand.setTabCompleter(offend);
-        }
+        registerCommand("offend", layer2 == null
+                ? new FeatureUnavailableCommand("Deaktiviert: Dieser Befehl benötigt LuckPerms.")
+                : new OffendCommand(this, layer2, bedrock, store));
+        registerCommand("thatsaban", hook == null || layer2 == null
+                ? new FeatureUnavailableCommand("Deaktiviert: Diese Datenschutzaktionen benötigen LuckPerms.")
+                : new PrivacyAdminCommand(this, store, layer2, hook));
 
-        PluginCommand privacyCommand = getCommand("thatsaban");
-        if (privacyCommand != null) {
-            PrivacyAdminCommand admin = new PrivacyAdminCommand(this, store, layer2, hook);
-            privacyCommand.setExecutor(admin);
-            privacyCommand.setTabCompleter(admin);
-        }
-
-        spectatorManager = new AdminSpectatorManager(this);
-        PluginCommand spectatorCommand = getCommand("adminspec");
-        if (spectatorCommand != null) {
-            AdminSpectatorCommand executor = new AdminSpectatorCommand(spectatorManager);
-            spectatorCommand.setExecutor(executor);
-            spectatorCommand.setTabCompleter(executor);
-        }
-
+        registerSpectatorFeature();
         getServer().getScheduler().runTask(this, this::checkIntegrations);
+        getLogger().info("ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert.");
+    }
+
+    private LuckPerms findLuckPerms() {
+        if (!getServer().getPluginManager().isPluginEnabled("LuckPerms")) return null;
+        try {
+            RegisteredServiceProvider<LuckPerms> provider =
+                    getServer().getServicesManager().getRegistration(LuckPerms.class);
+            return provider == null ? null : provider.getProvider();
+        } catch (LinkageError | RuntimeException ex) {
+            warnFeatureDisabled("LuckPerms-API", ex);
+            return null;
+        }
+    }
+
+    private void registerSpectatorFeature() {
+        if (!getServer().getPluginManager().isPluginEnabled("ProtocolLib")) {
+            registerCommand("adminspec", new FeatureUnavailableCommand(
+                    "Admin-Spectator deaktiviert: ProtocolLib fehlt oder ist nicht aktiviert."));
+            warnFeatureDisabled("Admin-Spectator (ProtocolLib)", "ProtocolLib fehlt oder ist deaktiviert.");
+            return;
+        }
+        try {
+            spectatorManager = new AdminSpectatorManager(this);
+            registerCommand("adminspec", new AdminSpectatorCommand(spectatorManager));
+            getLogger().info("ProtocolLib-Integration aktiv: Admin-Spectator verfügbar.");
+        } catch (LinkageError | RuntimeException ex) {
+            spectatorManager = null;
+            try {
+                com.comphenix.protocol.ProtocolLibrary.getProtocolManager().removePacketListeners(this);
+            } catch (LinkageError | RuntimeException cleanupError) {
+                getLogger().warning("ProtocolLib-Cleanup fehlgeschlagen: " + cleanupError.getClass().getSimpleName());
+            }
+            registerCommand("adminspec", new FeatureUnavailableCommand(
+                    "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."));
+            warnFeatureDisabled("Admin-Spectator (ProtocolLib)", ex);
+        }
+    }
+
+    private void registerCommand(String name, org.bukkit.command.CommandExecutor executor) {
+        PluginCommand command = getCommand(name);
+        if (command == null) {
+            getLogger().warning("Befehl '" + name + "' fehlt in plugin.yml.");
+            return;
+        }
+        command.setExecutor(executor);
+        if (executor instanceof org.bukkit.command.TabCompleter completer) {
+            command.setTabCompleter(completer);
+        }
+    }
+
+    private void warnFeatureDisabled(String feature, Throwable error) {
+        getLogger().warning(feature + " wurde deaktiviert; andere Plugin-Funktionen bleiben aktiv. Ursache: "
+                + error.getClass().getSimpleName());
+    }
+
+    private void warnFeatureDisabled(String feature, String reason) {
+        getLogger().warning(feature + " wurde deaktiviert; andere Plugin-Funktionen bleiben aktiv. Ursache: " + reason);
     }
 
     private void migrateConfig() {
@@ -96,10 +155,16 @@ public final class ThatsABan extends JavaPlugin {
     public void onDisable() {
         if (spectatorManager != null) spectatorManager.shutdown();
         if (store != null) store.save();
-        if (countryFilter != null) countryFilter.close();
+        if (countryFilter != null) {
+            try {
+                countryFilter.close();
+            } catch (LinkageError | RuntimeException ex) {
+                getLogger().warning("Country-Filter konnte nicht geschlossen werden: " + ex.getClass().getSimpleName());
+            }
+        }
     }
 
-    Messages messages() { return messages; }
+    Messages messages() { return new Messages(this); }
 
     private void checkIntegrations() {
         warnMissing("layer1-plugins", "Layer 1");
