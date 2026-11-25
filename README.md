@@ -29,7 +29,7 @@ Anti-Cheat-Connector für **Paper 1.21.11** (Java 21). Das Plugin bringt keine e
 | `/thatsaban unoffend <Spieler|UUID>` | Layer 2 und Offender-Eintrag entfernen | `thatsaban.layer2.remove` |
 | `/thatsaban forget <Spieler|UUID> confirm` | Plugin-Datensatz, Spielername, IP-Verknüpfungen und die Plugin-Layer-2-Nodes löschen | `thatsaban.privacy.erase` |
 
-Die Löschung entfernt die UUID und den Namen aus dem eigenen `data.yml`, die Verknüpfung zu IP-Hashes und die vom Plugin gesetzten LuckPerms-Nodes. Ein HMAC-Hash, der weiterhin anderen Spielern zugeordnet ist, bleibt für diese übrigen Datensätze bestehen. Der LuckPerms-Benutzerdatensatz selbst wird nicht gelöscht, weil er auch unabhängige Berechtigungen anderer Plugins enthalten kann. Diese müssen bei einer umfassenderen Löschanfrage separat geprüft werden.
+Die Löschung entfernt die UUID und den Namen aus dem eigenen `data.yml`, die Verknüpfung zu IP-Hashes und die vom Plugin direkt gesetzten LuckPerms-Nodes. Vererbte Marker aus Gruppen oder kontextgebundene Nodes müssen separat in LuckPerms geprüft werden. Ein HMAC-Hash, der weiterhin anderen Spielern zugeordnet ist, bleibt für diese übrigen Datensätze bestehen. Der LuckPerms-Benutzerdatensatz selbst wird nicht gelöscht, weil er auch unabhängige Berechtigungen anderer Plugins enthalten kann. Diese müssen bei einer umfassenderen Löschanfrage separat geprüft werden.
 
 Namen von Accounts mit IP-Übereinstimmung werden nur Staff mit `thatsaban.notify` bzw. `thatsaban.view-linked-accounts` angezeigt. Das Plugin protokolliert standardmäßig keine Spieler- oder Staff-Namen. Optionales Audit-Logging (`privacy.audit-logging: true`) schreibt UUIDs, keine Namen oder IP-Adressen.
 

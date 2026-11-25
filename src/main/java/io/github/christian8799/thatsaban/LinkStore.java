@@ -25,7 +25,7 @@ import java.util.UUID;
 
 final class LinkStore {
 
-    record PlayerSnapshot(String name, int linkedIpCount, boolean offender, boolean hasStoredData) {}
+    record PlayerSnapshot(String name, int linkedIpCount, boolean offender, boolean layer2Tracked, boolean hasStoredData) {}
 
     private static final Set<PosixFilePermission> OWNER_ONLY =
             EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
@@ -40,6 +40,7 @@ final class LinkStore {
     private final Set<String> layer2Ips = new HashSet<>();
     private final Map<String, Long> ipLastSeen = new HashMap<>();
     private final Map<UUID, Long> offenders = new HashMap<>();
+    private final Map<UUID, Long> layer2LastSeen = new HashMap<>();
     private final Set<UUID> expiredOffenders = new HashSet<>();
 
     private byte[] hmacKey;
@@ -86,7 +87,23 @@ final class LinkStore {
                 try {
                     long timestamp = offenderTimes.getLong(id, 0L);
                     if (timestamp > 0L) {
-                        offenders.put(UUID.fromString(id), timestamp);
+                        UUID uuid = UUID.fromString(id);
+                        offenders.put(uuid, timestamp);
+                        layer2LastSeen.put(uuid, timestamp);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // Ungültigen UUID-Eintrag überspringen.
+                }
+            }
+        }
+
+        ConfigurationSection layer2Times = yaml.getConfigurationSection("layer2-last-seen");
+        if (layer2Times != null) {
+            for (String id : layer2Times.getKeys(false)) {
+                try {
+                    long timestamp = layer2Times.getLong(id, 0L);
+                    if (timestamp > 0L) {
+                        layer2LastSeen.put(UUID.fromString(id), timestamp);
                     }
                 } catch (IllegalArgumentException ignored) {
                     // Ungültigen UUID-Eintrag überspringen.
@@ -100,11 +117,15 @@ final class LinkStore {
                 UUID uuid = UUID.fromString(id);
                 if (!offenders.containsKey(uuid)) {
                     offenders.put(uuid, now);
+                    layer2LastSeen.putIfAbsent(uuid, now);
                     dirty = true;
                 }
             } catch (IllegalArgumentException ignored) {
                 // Ungültige UUID überspringen.
             }
+        }
+        for (UUID uuid : offenders.keySet()) {
+            layer2LastSeen.putIfAbsent(uuid, offenders.get(uuid));
         }
         pruneExpired(now, true);
     }
@@ -261,6 +282,7 @@ final class LinkStore {
         yaml.set("layer2-ips", new ArrayList<>(layer2Ips));
         yaml.set("ip-last-seen", new HashMap<>(ipLastSeen));
         yaml.set("offenders", offenders.keySet().stream().map(UUID::toString).toList());
+        yaml.set("layer2-last-seen", new HashMap<>(layer2LastSeen));
         for (Map.Entry<UUID, Long> entry : offenders.entrySet()) {
             yaml.set("offender-last-seen." + entry.getKey(), entry.getValue());
         }
@@ -313,7 +335,9 @@ final class LinkStore {
 
     synchronized void renewOffender(UUID uuid) {
         if (offenders.containsKey(uuid)) {
-            offenders.put(uuid, System.currentTimeMillis());
+            long now = System.currentTimeMillis();
+            offenders.put(uuid, now);
+            layer2LastSeen.put(uuid, now);
             dirty = true;
         }
     }
@@ -322,6 +346,7 @@ final class LinkStore {
         long now = System.currentTimeMillis();
         pruneExpired(now, false);
         offenders.put(uuid, now);
+        layer2LastSeen.put(uuid, now);
         expiredOffenders.remove(uuid);
         Set<UUID> others = new HashSet<>();
         for (String hash : ipsByPlayer.getOrDefault(uuid, Set.of())) {
@@ -334,8 +359,26 @@ final class LinkStore {
         return others;
     }
 
+    synchronized void trackLayer2(UUID uuid) {
+        layer2LastSeen.put(uuid, System.currentTimeMillis());
+        expiredOffenders.remove(uuid);
+        dirty = true;
+    }
+
+    synchronized void renewLayer2(UUID uuid) {
+        if (layer2LastSeen.containsKey(uuid)) {
+            layer2LastSeen.put(uuid, System.currentTimeMillis());
+            dirty = true;
+        }
+    }
+
+    synchronized boolean hasLayer2Tracking(UUID uuid) {
+        return layer2LastSeen.containsKey(uuid);
+    }
+
     synchronized void unmarkOffender(UUID uuid) {
         boolean changed = offenders.remove(uuid) != null;
+        changed |= layer2LastSeen.remove(uuid) != null;
         changed |= removeOrphanedLayer2Flags(uuid);
         expiredOffenders.remove(uuid);
         if (changed) {
@@ -348,6 +391,7 @@ final class LinkStore {
         ipsByPlayer.remove(uuid);
         names.remove(uuid);
         offenders.remove(uuid);
+        layer2LastSeen.remove(uuid);
         expiredOffenders.remove(uuid);
         for (String hash : hashes) {
             Set<UUID> linked = playersByIp.get(hash);
@@ -373,8 +417,9 @@ final class LinkStore {
         Set<String> hashes = ipsByPlayer.getOrDefault(uuid, Set.of());
         String name = names.get(uuid);
         boolean offender = offenders.containsKey(uuid);
-        return new PlayerSnapshot(name, hashes.size(), offender,
-                name != null || !hashes.isEmpty() || offender);
+        boolean layer2Tracked = layer2LastSeen.containsKey(uuid);
+        return new PlayerSnapshot(name, hashes.size(), offender, layer2Tracked,
+                name != null || !hashes.isEmpty() || offender || layer2Tracked);
     }
 
     synchronized boolean isLayer2Ip(String ipHash) {
@@ -466,14 +511,16 @@ final class LinkStore {
         long offenderRetentionDays = Math.max(1L, Math.min(3650L,
                 plugin.getConfig().getLong("alt-detection.offender-retention-days", 365L)));
         long offenderCutoff = now - offenderRetentionDays * 24L * 60L * 60L * 1000L;
-            for (Map.Entry<UUID, Long> entry : new HashMap<>(offenders).entrySet()) {
-                if (entry.getValue() <= offenderCutoff) {
-                    UUID expiredUuid = entry.getKey();
-                    offenders.remove(expiredUuid);
-                    expiredOffenders.add(expiredUuid);
+        for (Map.Entry<UUID, Long> entry : new HashMap<>(layer2LastSeen).entrySet()) {
+            if (entry.getValue() <= offenderCutoff) {
+                UUID expiredUuid = entry.getKey();
+                layer2LastSeen.remove(expiredUuid);
+                boolean wasOffender = offenders.remove(expiredUuid) != null;
+                expiredOffenders.add(expiredUuid);
+                if (wasOffender) {
                     removeOrphanedLayer2Flags(expiredUuid);
-                    dirty = true;
                 }
+                dirty = true;
             }
         }
     }

@@ -72,6 +72,8 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                             sender.sendMessage("Verknüpfte IP-Hash-Einträge: " + snapshot.linkedIpCount());
                             sender.sendMessage("Offender-Eintrag: "
                                     + (snapshot.offender() ? "vorhanden" : "nicht vorhanden"));
+                            sender.sendMessage("Layer-2-Aufbewahrungseintrag: "
+                                    + (snapshot.layer2Tracked() ? "vorhanden" : "nicht vorhanden"));
                             sender.sendMessage("Plugin-Datensatz vorhanden: "
                                     + (snapshot.hasStoredData() ? "ja" : "nein"));
                             sender.sendMessage("LuckPerms-Layer-2-Marker effektiv: "
@@ -83,10 +85,13 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                         }));
             }
             case "unoffend" -> {
-                layer2.removeLayer2(target).whenComplete((ignored, error) ->
+                layer2.removeLayer2(target).whenComplete((stillMarked, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (error != null) {
                                 sender.sendMessage("Layer 2 konnte nicht entfernt werden.");
+                            } else if (Boolean.TRUE.equals(stillMarked)) {
+                                sender.sendMessage("Direkte Layer-2-Nodes wurden entfernt, aber der Marker ist "
+                                        + "weiterhin effektiv (möglicherweise über eine LuckPerms-Gruppe oder einen Kontext).");
                             } else {
                                 sender.sendMessage("Layer 2 und der Offender-Eintrag wurden entfernt: " + target);
                             }

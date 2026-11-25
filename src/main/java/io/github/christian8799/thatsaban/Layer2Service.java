@@ -42,8 +42,13 @@ final class Layer2Service {
         });
     }
 
-    CompletableFuture<Void> removeLayer2(UUID uuid) {
-        return hook.clearLayer2Async(uuid).thenRun(() -> store.unmarkOffender(uuid));
+    CompletableFuture<Boolean> removeLayer2(UUID uuid) {
+        return hook.clearLayer2Async(uuid)
+                .thenCompose(ignored -> hook.users().loadUser(uuid))
+                .thenApply(user -> {
+                    store.unmarkOffender(uuid);
+                    return hook.has(user, hook.markerNode());
+                });
     }
 
     CompletableFuture<Integer> forgetPlayer(UUID uuid) {
@@ -53,16 +58,16 @@ final class Layer2Service {
     /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
     void cleanupExpired() {
         for (UUID uuid : store.drainExpiredOffenders()) {
-            if (store.isOffender(uuid)) {
+            if (store.hasLayer2Tracking(uuid)) {
                 continue;
             }
             hook.users().loadUser(uuid).thenCompose(user -> {
-                if (store.isOffender(uuid) || !hook.clearLayer2(user)) {
+                if (store.hasLayer2Tracking(uuid) || !hook.clearLayer2(user)) {
                     return CompletableFuture.completedFuture(null);
                 }
                 return hook.save(user);
             }).whenComplete((ignored, error) -> {
-                if (error != null && !store.isOffender(uuid)) {
+                if (error != null && !store.hasLayer2Tracking(uuid)) {
                     store.requeueExpiredOffender(uuid);
                     plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden.");
                 }
@@ -79,11 +84,16 @@ final class Layer2Service {
         }
 
         boolean offender = store.isOffender(uuid);
+        boolean marked = hook.has(user, hook.markerNode());
         if (offender) {
             store.renewOffender(uuid);
+        } else if (marked) {
+            if (store.hasLayer2Tracking(uuid)) {
+                store.renewLayer2(uuid);
+            } else {
+                store.trackLayer2(uuid);
+            }
         }
-
-        boolean marked = hook.has(user, hook.markerNode());
         if (marked && hook.applyLayer2(user)) {
             hook.save(user);
         }
@@ -108,6 +118,7 @@ final class Layer2Service {
                 if (hook.applyLayer2(user)) {
                     hook.save(user);
                 }
+                store.trackLayer2(uuid);
                 notifyStaff("alt-auto-applied-staff", name);
             } else {
                 notifyStaff("alt-suggestion-staff", name);
@@ -136,10 +147,15 @@ final class Layer2Service {
                     return CompletableFuture.completedFuture((String) null);
                 }
                 if (hook.has(user, hook.markerNode())) {
-                    return hook.applyLayer2Async(other).thenApply(v -> (String) null);
+                    return hook.applyLayer2Async(other).thenApply(v -> {
+                        store.trackLayer2(other);
+                        return (String) null;
+                    });
                 }
-                return hook.applyLayer2Async(other).thenApply(v ->
-                        name != null ? name : other.toString());
+                return hook.applyLayer2Async(other).thenApply(v -> {
+                    store.trackLayer2(other);
+                    return name != null ? name : other.toString();
+                });
             }));
         }
         return CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]))
