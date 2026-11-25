@@ -13,8 +13,8 @@ commands:
     usage: /<command> <Spieler>
     permission: thatsaban.offend
   thatsaban:
-    description: Datenschutz-Auskunft, Layer-2-Entfernung und Datenlöschung
-    usage: /<command> <info|unoffend|forget> <Spieler|UUID> [confirm]
+    description: Datenschutz-Auskunft, Account-Netzwerk, Layer-2-Entfernung und Datenlöschung
+    usage: /<command> <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]
 
 permissions:
   thatsaban.admin:
@@ -31,6 +31,9 @@ permissions:
     default: op
   thatsaban.privacy.erase:
     description: Darf Plugin-Daten eines Spielers vollständig löschen
+    default: op
+  thatsaban.network:
+    description: Darf das gespeicherte Alt-Account-Netzwerk einsehen
     default: op
   thatsaban.view-linked-accounts:
     description: Darf Namen von Accounts mit gemeinsamer IP-Verknüpfung sehen
