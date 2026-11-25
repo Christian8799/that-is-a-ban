@@ -22,6 +22,7 @@ final class CountryFilter {
 
     private static final Pattern SUCCESS = Pattern.compile("\\\"success\\\"\\s*:\\s*true");
     private static final Pattern COUNTRY = Pattern.compile("\\\"country_code\\\"\\s*:\\s*\\\"([A-Za-z]{2})\\\"");
+    private static final Pattern REGION = Pattern.compile("\\\"region_code\\\"\\s*:\\s*\\\"([A-Za-z0-9-]+)\\\"");
     private static final long CACHE_TTL_MILLIS = Duration.ofHours(24).toMillis();
 
     private final ThatsABan plugin;
@@ -46,7 +47,7 @@ final class CountryFilter {
         CacheEntry cached = cache.get(ip);
         long now = System.currentTimeMillis();
         if (cached != null && cached.expiresAt() > now) {
-            return cached.german() ? Result.ALLOWED : Result.DENIED;
+            return cached.bavarian() ? Result.ALLOWED : Result.DENIED;
         }
 
         try {
@@ -68,22 +69,24 @@ final class CountryFilter {
                 String body = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
                 Matcher success = SUCCESS.matcher(body);
                 Matcher country = COUNTRY.matcher(body);
-                if (!success.find() || !country.find()) {
-                    throw new IOException("Geolocation response did not contain a valid country code");
+                Matcher region = REGION.matcher(body);
+                if (!success.find() || !country.find() || !region.find()) {
+                    throw new IOException("Geolocation response did not contain valid country and region codes");
                 }
-                boolean german = "DE".equalsIgnoreCase(country.group(1));
-                cache.put(ip, new CacheEntry(german, now + CACHE_TTL_MILLIS));
-                return german ? Result.ALLOWED : Result.DENIED;
+                boolean bavarian = "DE".equalsIgnoreCase(country.group(1))
+                        && "BY".equalsIgnoreCase(region.group(1));
+                cache.put(ip, new CacheEntry(bavarian, now + CACHE_TTL_MILLIS));
+                return bavarian ? Result.ALLOWED : Result.DENIED;
             } finally {
                 connection.disconnect();
             }
         } catch (Exception ex) {
-            plugin.getLogger().warning("Laenderpruefung fuer " + ip + " fehlgeschlagen: "
-                    + ex.getMessage());
-            // Fail closed: Bei aktivierter Laendersperre wird eine nicht pruefbare IP nicht zugelassen.
+            // Keine IP-Adresse protokollieren: Sie ist ein personenbezogenes Datum.
+            plugin.getLogger().warning("GeoIP-Regionspruefung fehlgeschlagen: " + ex.getMessage());
+            // Fail closed: Bei aktivierter Regionssperre wird eine nicht pruefbare IP nicht zugelassen.
             return Result.UNAVAILABLE;
         }
     }
 
-    private record CacheEntry(boolean german, long expiresAt) {}
+    private record CacheEntry(boolean bavarian, long expiresAt) {}
 }
