@@ -500,7 +500,7 @@ final class AdminSpectatorManager implements Listener {
         if (setModifiers.size() == 0) {
             throw new IllegalStateException("Player-Position-Paket enthält keine Relative-Flags.");
         }
-        Set<?> flags = setModifiers.read(0);
+        Set<?> flags = (Set<?>) setModifiers.read(0);
         boolean relativeX = containsRelativeFlag(flags, "X");
         boolean relativeZ = containsRelativeFlag(flags, "Z");
 
