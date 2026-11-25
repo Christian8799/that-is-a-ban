@@ -22,7 +22,7 @@ public final class ThatsABan extends JavaPlugin {
         LuckPermsIntegration luckPerms = null;
         if (getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
             try {
-                luckPerms = new LuckPermsFeatures(this, store);
+                luckPerms = loadLuckPermsIntegration();
                 getLogger().info("LuckPerms-Integration aktiv.");
             } catch (LinkageError | RuntimeException ex) {
                 warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)", ex);
@@ -65,6 +65,40 @@ public final class ThatsABan extends JavaPlugin {
         getLogger().info("ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert.");
     }
 
+    private LuckPermsIntegration loadLuckPermsIntegration() {
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".LuckPermsFeatures",
+                    true, getClassLoader());
+            return (LuckPermsIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class, LinkStore.class)
+                    .newInstance(this, store);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            throw new IllegalStateException("LuckPerms-Integration konnte nicht erstellt werden.", cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("LuckPerms-Integration konnte nicht geladen werden.", ex);
+        }
+    }
+
+    private SpectatorIntegration loadSpectatorIntegration() {
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".ProtocolLibFeatures",
+                    true, getClassLoader());
+            return (SpectatorIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class)
+                    .newInstance(this);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            throw new IllegalStateException("ProtocolLib-Integration konnte nicht erstellt werden.", cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("ProtocolLib-Integration konnte nicht geladen werden.", ex);
+        }
+    }
+
     private void registerSpectatorFeature() {
         if (!getServer().getPluginManager().isPluginEnabled("ProtocolLib")) {
             registerCommand("adminspec", new FeatureUnavailableCommand(
@@ -73,7 +107,7 @@ public final class ThatsABan extends JavaPlugin {
             return;
         }
         try {
-            spectatorFeature = new ProtocolLibFeatures(this);
+            spectatorFeature = loadSpectatorIntegration();
             registerCommand("adminspec", spectatorFeature.command());
             getLogger().info("ProtocolLib-Integration aktiv: Admin-Spectator verfügbar.");
         } catch (LinkageError | RuntimeException ex) {
