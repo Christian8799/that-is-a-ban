@@ -1,9 +1,8 @@
 # that-s-a-ban - Konfiguration
+config-version: 2
 
 layer2:
-  # LuckPerms-Node, der einen Spieler als "Layer 2" markiert.
   marker-permission: "thatsaban.layer2"
-  # Nodes, die bei Layer 2 auf Spielerebene NEGiert werden.
   negated-permissions:
     - "foxav.bypass"
     - "handshaker.bypass"
@@ -16,22 +15,19 @@ bedrock:
   name-prefixes:
     - "."
 
-# Regionale Login-Sperre: GeoIP wird ausschliesslich lokal ausgewertet.
-# Es wird keine Spieler-IP an einen externen GeoIP-Dienst gesendet.
 country-filter:
   enabled: true
-  database-file: "geoip/IP2LOCATION-LITE-DB3.BIN"
+  database-file: "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN"
   allowed-region-names:
     - "Bayern"
     - "Bavaria"
   allow-private-addresses: false
 
-# Datenschutzfreundlicher Standard: IP-Kopplung ist standardmaessig deaktiviert.
-# Bei Aktivierung werden IP-Adressen als gesalzene SHA-256-Hashes gespeichert.
-# Diese Hashes sowie verknuepfte UUIDs/Namen koennen weiterhin personenbezogene
-# (pseudonyme) Daten sein und benoetigen eine eigene Rechtsgrundlage und Loeschfrist.
+# Standardmaessig deaktiviert. Gesalzene IP-Hashes, UUIDs und Spielernamen
+# werden nur bei aktivierter Funktion gespeichert und nach retention-days geloescht.
 alt-detection:
   enabled: false
+  retention-days: 30
   retroactive: true
   ignore-private-addresses: true
   ignored-ips: []
