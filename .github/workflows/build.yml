@@ -43,19 +43,29 @@ jobs:
           curl -fL "$PAPER_URL" -o paper.jar
           curl -fL "$LP_URL" -o plugins/LuckPerms.jar
 
-          # Public test bundle supplied by the repository owner in Dropbox.
+          # The Dropbox folder is downloaded as an outer ZIP. GrimAC is
+          # itself a ZIP inside that bundle and may contain further archives.
           DROPBOX_FOLDER_URL="https://www.dropbox.com/scl/fo/pydnwzw2cxvpj0bxzbj86/AE9rDURI9JqcY3Dauw5V2B4?rlkey=x0k209tuuelcsel0nxt0shmmb&st=g4zv21a1&dl=1"
           curl --fail --location --retry 3 "$DROPBOX_FOLDER_URL" -o integration-bundle.zip
-          mkdir -p integration-bundle integration-unpacked
+          mkdir -p integration-bundle integration-unpacked integration-unpacked/.processed
           unzip -q integration-bundle.zip -d integration-bundle
 
-          # GrimAC is supplied as a nested ZIP. Extract archives, but never
-          # replace the freshly built ThatsABan JAR with an older bundle copy.
-          while IFS= read -r -d '' archive; do
-            unzip -oq "$archive" -d integration-unpacked
-          done < <(find integration-bundle -type f -iname 'grimac-bukkit.zip' -print0)
+          # Recursively extract every nested ZIP (including grimac-bukkit.zip).
+          # Move processed archives out of the search tree to prevent loops.
+          while true; do
+            mapfile -d '' archives < <(find integration-bundle integration-unpacked \
+              -type f -iname '*.zip' ! -path '*/.processed/*' -print0)
+            [ "${#archives[@]}" -gt 0 ] || break
+            for archive in "${archives[@]}"; do
+              echo "Extracting nested archive: $archive"
+              unzip -oq "$archive" -d integration-unpacked
+              mv "$archive" "integration-unpacked/.processed/$(basename "$archive")"
+            done
+          done
 
+          # Use the freshly built ThatsABan JAR, not any copy in the bundle.
           find integration-bundle integration-unpacked -type f -name '*.jar' \
+            ! -path '*/.processed/*' \
             ! -iname 'paper*.jar' \
             ! -iname 'thatsaban*.jar' \
             -print -exec cp -f {} plugins/ \;
@@ -87,8 +97,6 @@ jobs:
           grep -q "Enabling ThatsABan v" server.log
           grep -q "Done (" server.log
 
-          # Fail on plugin load/enable errors; missing optional dependencies
-          # and incompatible integration builds must be visible in CI.
           if grep -Ei "Could not load .*plugins/|Error occurred while enabling|Unsupported API version|InvalidPluginException" server.log; then
             echo "At least one test plugin failed to load or enable."
             exit 1
