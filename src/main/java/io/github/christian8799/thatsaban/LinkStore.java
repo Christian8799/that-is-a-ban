@@ -1,10 +1,12 @@
 package io.github.christian8799.thatsaban;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -36,6 +38,7 @@ final class LinkStore {
 
     private byte[] salt;
     private boolean dirty;
+    private boolean writeBlocked;
 
     LinkStore(ThatsABan plugin) {
         this.plugin = plugin;
@@ -43,7 +46,26 @@ final class LinkStore {
     }
 
     synchronized void load() {
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration yaml = new YamlConfiguration();
+        try {
+            if (file.exists()) {
+                yaml.load(file);
+            }
+        } catch (IOException | InvalidConfigurationException ex) {
+            File backup = createBackup("corrupt");
+            if (backup == null) {
+                writeBlocked = true;
+                plugin.getLogger().severe("data.yml ist fehlerhaft und konnte nicht gesichert werden. "
+                        + "Schreibzugriffe sind blockiert, damit die Originaldatei nicht überschrieben wird.");
+            } else {
+                dirty = true;
+                plugin.getLogger().warning("data.yml enthaelt ungueltiges YAML und wurde gesichert unter "
+                        + backup.getAbsolutePath() + ". Der LinkStore startet leer; "
+                        + "Offender-Markierungen konnten aus der beschaedigten Datei nicht geladen werden. "
+                        + "Ursache: " + ex.getMessage());
+            }
+            return;
+        }
 
         String savedSalt = yaml.getString("salt");
         boolean validSalt = false;
@@ -60,6 +82,20 @@ final class LinkStore {
         }
 
         if (!validSalt) {
+            if (file.exists() && hasDiscardableIpData(yaml)) {
+                File backup = createBackup("bak");
+                if (backup == null) {
+                    writeBlocked = true;
+                    plugin.getLogger().severe("Salt in data.yml fehlt oder ist ungueltig und IP-Daten "
+                            + "konnten nicht gesichert werden. Schreibzugriffe sind blockiert, "
+                            + "damit die Originaldatei nicht ueberschrieben wird.");
+                    return;
+                }
+                plugin.getLogger().warning("Salt in data.yml fehlt oder ist ungueltig. "
+                        + "Die zugehoerigen IP-Links und Layer-2-IP-Markierungen werden verworfen. "
+                        + "Backup: " + backup.getAbsolutePath());
+            }
+
             salt = new byte[16];
             new SecureRandom().nextBytes(salt);
             dirty = true;
@@ -72,35 +108,35 @@ final class LinkStore {
             }
         }
 
-        ConfigurationSection seen = yaml.getConfigurationSection("ip-last-seen");
-        if (seen != null) {
-            for (String hash : seen.getKeys(false)) {
-                long timestamp = seen.getLong(hash, 0L);
-                if (timestamp > 0L) {
-                    ipLastSeen.put(hash, timestamp);
-                }
-            }
-        }
-
-        ConfigurationSection players = yaml.getConfigurationSection("players");
-        if (players != null && validSalt) {
-            for (String key : players.getKeys(false)) {
-                UUID uuid;
-                try {
-                    uuid = UUID.fromString(key);
-                } catch (IllegalArgumentException ex) {
-                    continue;
-                }
-                String name = players.getString(key + ".name");
-                if (name != null) {
-                    names.put(uuid, name);
-                }
-                for (String hash : players.getStringList(key + ".ips")) {
-                    link(uuid, hash);
-                }
-            }
-        }
         if (validSalt) {
+            ConfigurationSection seen = yaml.getConfigurationSection("ip-last-seen");
+            if (seen != null) {
+                for (String hash : seen.getKeys(false)) {
+                    long timestamp = seen.getLong(hash, 0L);
+                    if (timestamp > 0L) {
+                        ipLastSeen.put(hash, timestamp);
+                    }
+                }
+            }
+
+            ConfigurationSection players = yaml.getConfigurationSection("players");
+            if (players != null) {
+                for (String key : players.getKeys(false)) {
+                    UUID uuid;
+                    try {
+                        uuid = UUID.fromString(key);
+                    } catch (IllegalArgumentException ex) {
+                        continue;
+                    }
+                    String name = players.getString(key + ".name");
+                    if (name != null) {
+                        names.put(uuid, name);
+                    }
+                    for (String hash : players.getStringList(key + ".ips")) {
+                        link(uuid, hash);
+                    }
+                }
+            }
             layer2Ips.addAll(yaml.getStringList("layer2-ips"));
         }
 
@@ -121,7 +157,45 @@ final class LinkStore {
         pruneExpired(System.currentTimeMillis());
     }
 
+    private boolean hasDiscardableIpData(YamlConfiguration yaml) {
+        ConfigurationSection players = yaml.getConfigurationSection("players");
+        if (players != null) {
+            for (String key : players.getKeys(false)) {
+                if (!players.getStringList(key + ".ips").isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return !yaml.getStringList("layer2-ips").isEmpty()
+                || (yaml.getConfigurationSection("ip-last-seen") != null
+                && !yaml.getConfigurationSection("ip-last-seen").getKeys(false).isEmpty());
+    }
+
+    private File createBackup(String suffix) {
+        if (!file.exists()) {
+            return null;
+        }
+        long timestamp = System.currentTimeMillis();
+        File backup;
+        do {
+            backup = new File(file.getParentFile(), file.getName() + "." + suffix + "-" + timestamp++);
+        } while (backup.exists());
+
+        try {
+            Files.copy(file.toPath(), backup.toPath());
+            plugin.getLogger().warning("Sicherung von data.yml erstellt: " + backup.getAbsolutePath());
+            return backup;
+        } catch (IOException ex) {
+            plugin.getLogger().severe("data.yml konnte nicht nach " + backup.getAbsolutePath()
+                    + " gesichert werden: " + ex.getMessage());
+            return null;
+        }
+    }
+
     synchronized void save() {
+        if (writeBlocked) {
+            return;
+        }
         pruneExpired(System.currentTimeMillis());
         if (!dirty && file.exists()) {
             return;
