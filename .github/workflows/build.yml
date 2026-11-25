@@ -166,7 +166,7 @@ jobs:
           grep -q "Done (" server.log
 
           for plugin in LuckPerms PacketEvents ThatsABan GrimAC CheatDetector FoxGate HandShaker; do
-            if ! grep -E "(Loading server plugin|Enabling) ${plugin}([[:space:]]| v)" server.log; then
+            if ! grep -Ei "(Loading server plugin|Enabling) ${plugin}([[:space:]]| v)" server.log; then
               echo "Plugin did not reach its loading/enabling stage: $plugin"
               exit 1
             fi
