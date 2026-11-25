@@ -57,3 +57,5 @@ permissions:
   thatsaban.spectator.permanent:
     description: Darf permanente Spectator-Accounts verwalten
     default: op
+    children:
+      thatsaban.spectator: true
