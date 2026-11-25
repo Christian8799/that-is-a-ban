@@ -56,46 +56,9 @@ jobs:
           USER_AGENT="ThatsABan-CI/1.0 (https://github.com/Christian8799/that-is-a-ban)"
           PAPER_URL="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds?channel=STABLE&limit=1" | jq -er 'first(.[] | select(.channel == "STABLE") | .downloads["server:default"].url)')"
           LP_URL="$(curl -fsSL -H "User-Agent: $USER_AGENT" https://metadata.luckperms.net/data/downloads | jq -er '.downloads.bukkit')"
-          PROTOCOLLIB_METADATA_URL="https://repo.dmulloy2.net/repository/public/net/dmulloy2/ProtocolLib/5.5.0-SNAPSHOT/maven-metadata.xml"
-          PROTOCOLLIB_METADATA="$(curl -fsSL --retry 3 "$PROTOCOLLIB_METADATA_URL")"
-          PROTOCOLLIB_VERSION="$(python3 - "$PROTOCOLLIB_METADATA" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-
-          root = ET.fromstring(sys.argv[1])
-
-          def child_text(element, name):
-              for child in element:
-                  if child.tag.rsplit("}", 1)[-1] == name:
-                      return (child.text or "").strip()
-              return None
-
-          snapshots = [
-              element for element in root.iter()
-              if element.tag.rsplit("}", 1)[-1] == "snapshotVersion"
-          ]
-          for snapshot in snapshots:
-              extension = child_text(snapshot, "extension")
-              classifier = child_text(snapshot, "classifier")
-              value = child_text(snapshot, "value")
-              if extension == "jar" and classifier in (None, "") and value:
-                  print(value)
-                  break
-          else:
-              # Fallback for Maven metadata that only publishes timestamp/buildNumber.
-              timestamp = next((child_text(e, "timestamp") for e in root.iter()
-                                if e.tag.rsplit("}", 1)[-1] == "snapshot"), None)
-              build = next((child_text(e, "buildNumber") for e in root.iter()
-                            if e.tag.rsplit("}", 1)[-1] == "snapshot"), None)
-              version = next((child.text for e in root.iter()
-                              if e.tag.rsplit("}", 1)[-1] == "version"
-                              for child in [e] if child.text), None)
-              if not (timestamp and build and version):
-                  raise SystemExit("No unclassified ProtocolLib JAR found in Maven metadata")
-              print(f"{version}-{timestamp}-{build}")
-          PY
-          )"
-          PROTOCOLLIB_URL="https://repo.dmulloy2.net/repository/public/net/dmulloy2/ProtocolLib/5.5.0-SNAPSHOT/ProtocolLib-${PROTOCOLLIB_VERSION}.jar"
+          # Maven publishes a platform-neutral library, not the installable Paper plugin.
+          # Use the official Paper plugin asset from ProtocolLib's dev-build release.
+          PROTOCOLLIB_URL="https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar"
 
           curl --fail --location --retry 3 "$PAPER_URL" -o paper.jar
           curl --fail --location --retry 3 "$LP_URL" -o plugins/LuckPerms.jar
@@ -104,6 +67,22 @@ jobs:
           test -s paper.jar
           test -s plugins/LuckPerms.jar
           test -s plugins/ProtocolLib.jar
+
+          # Verify this is the actual Bukkit/Paper plugin distribution before startup.
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          import re
+
+          with ZipFile(Path("plugins/ProtocolLib.jar")) as archive:
+              if "plugin.yml" not in archive.namelist():
+                  raise SystemExit("Official ProtocolLib Paper JAR has no plugin.yml")
+              descriptor = archive.read("plugin.yml").decode("utf-8", "replace")
+          match = re.search(r"(?im)^name:\\s*['\\"]?([^\\r\\n'\\"]+)", descriptor)
+          if not match or match.group(1).strip() != "ProtocolLib":
+              raise SystemExit("Downloaded JAR is not the ProtocolLib Bukkit/Paper plugin")
+          print("Verified official ProtocolLib plugin descriptor.")
+          PY
 
       - name: Download integration plugins from official Modrinth releases
         env:

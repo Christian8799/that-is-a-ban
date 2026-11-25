@@ -117,6 +117,6 @@ The optional staff-observation workflow is provided by `/adminspec`:
 - `/adminspec permanent add <player|uuid>` permanently enforces Spectator for an account.
 - `/adminspec permanent remove <player|uuid>` removes that enforcement.
 
-Required runtime plugins: **LuckPerms** and **ProtocolLib 5.5.0-SNAPSHOT**. ProtocolLib is a separate dependency and is not bundled into the ThatsABan JAR. During an observation session, the observer's view and sending distances are reduced to four chunks.
+Required runtime plugins: **LuckPerms** and **ProtocolLib 5.5.0-SNAPSHOT**. ProtocolLib is a separate dependency and is not bundled into the ThatsABan JAR. CI downloads the official Paper plugin asset from ProtocolLib's GitHub dev-build release; the Maven artifact is only the platform-neutral library and must not be installed as the server plugin. During an observation session, the observer's view and sending distances are reduced to four chunks. The observer is hidden from all currently online players and players who join during the session.
 
 The coordinate-offset implementation is still under packet-coverage testing. It currently translates chunk lifecycle, block update, multi-block section, selected block-event, entity spawn/teleport, player-position and client movement/interaction packets. This is not yet a guarantee that every coordinate-bearing packet is covered. Keep the feature disabled on production servers until it has been tested with the exact Paper build, client versions and anticheat configuration in use.

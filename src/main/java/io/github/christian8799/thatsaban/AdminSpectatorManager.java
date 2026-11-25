@@ -75,8 +75,11 @@ final class AdminSpectatorManager implements Listener {
         observer.setInvulnerable(true);
         observer.setViewDistance(4);
         observer.setSendViewDistance(4);
-        target.hidePlayer(plugin, observer);
-        observer.teleport(target.getLocation());
+        hideObserverFromAll(observer);
+        if (!observer.teleport(target.getLocation())) {
+            stop(observer, "Teleport zum Zielspieler fehlgeschlagen");
+            return false;
+        }
         observer.setSpectatorTarget(target);
         audit("START", observer.getUniqueId(), target.getUniqueId());
         return true;
@@ -86,8 +89,7 @@ final class AdminSpectatorManager implements Listener {
         Session session = sessions.remove(observer.getUniqueId());
         if (session == null) return false;
         observer.setSpectatorTarget(null);
-        Player target = Bukkit.getPlayer(session.target());
-        if (target != null) target.showPlayer(plugin, observer);
+        showObserverToAll(observer);
         Snapshot s = session.snapshot();
         observer.teleport(s.location());
         observer.setGameMode(s.gameMode());
@@ -98,6 +100,8 @@ final class AdminSpectatorManager implements Listener {
         observer.setWalkSpeed(s.walkSpeed());
         observer.setViewDistance(s.viewDistance());
         observer.setSendViewDistance(s.sendViewDistance());
+        // A permanent Spectator account must remain in Spectator after restoration.
+        enforcePermanent(observer);
         audit("STOP (" + reason + ")", observer.getUniqueId(), session.target());
         return true;
     }
@@ -125,9 +129,31 @@ final class AdminSpectatorManager implements Listener {
         if (!player.isFlying()) player.setFlying(true);
     }
 
+    private void hideObserverFromAll(Player observer) {
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (!viewer.equals(observer)) viewer.hidePlayer(plugin, observer);
+        }
+    }
+
+    private void showObserverToAll(Player observer) {
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (!viewer.equals(observer)) viewer.showPlayer(plugin, observer);
+        }
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        Bukkit.getScheduler().runTask(plugin, () -> enforcePermanent(event.getPlayer()));
+        Player joining = event.getPlayer();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            enforcePermanent(joining);
+            // Also hide observers from players who join during an active session.
+            for (UUID observerId : Set.copyOf(sessions.keySet())) {
+                Player observer = Bukkit.getPlayer(observerId);
+                if (observer != null && !observer.equals(joining)) {
+                    joining.hidePlayer(plugin, observer);
+                }
+            }
+        });
     }
 
     @EventHandler
