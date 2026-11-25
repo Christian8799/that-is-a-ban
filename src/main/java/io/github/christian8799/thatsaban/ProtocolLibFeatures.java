@@ -7,9 +7,9 @@ import org.bukkit.command.CommandExecutor;
 final class ProtocolLibFeatures implements SpectatorIntegration {
     private final AdminSpectatorManager manager;
 
-    ProtocolLibFeatures(ThatsABan plugin) {
+    ProtocolLibFeatures(ThatsABan plugin, VanishIntegration vanish) {
         try {
-            manager = new AdminSpectatorManager(plugin);
+            manager = new AdminSpectatorManager(plugin, vanish);
         } catch (LinkageError | RuntimeException ex) {
             try {
                 ProtocolLibrary.getProtocolManager().removePacketListeners(plugin);

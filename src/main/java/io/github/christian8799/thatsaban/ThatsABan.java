@@ -70,8 +70,8 @@ public final class ThatsABan extends JavaPlugin {
             Class<?> type = Class.forName(getClass().getPackageName() + ".CountryFilter",
                     true, getClass().getClassLoader());
             return (CountryFilterIntegration) type
-                    .getDeclaredConstructor(ThatsABan.class, VanishIntegration.class)
-                    .newInstance(this, vanish);
+                    .getDeclaredConstructor(ThatsABan.class)
+                    .newInstance(this);
         } catch (java.lang.reflect.InvocationTargetException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof LinkageError error) throw error;
@@ -129,8 +129,8 @@ public final class ThatsABan extends JavaPlugin {
             Class<?> type = Class.forName(getClass().getPackageName() + ".ProtocolLibFeatures",
                     true, getClass().getClassLoader());
             return (SpectatorIntegration) type
-                    .getDeclaredConstructor(ThatsABan.class)
-                    .newInstance(this);
+                    .getDeclaredConstructor(ThatsABan.class, VanishIntegration.class)
+                    .newInstance(this, vanish);
         } catch (java.lang.reflect.InvocationTargetException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof LinkageError error) throw error;
