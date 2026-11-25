@@ -32,9 +32,14 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("off")) {
-            player.sendMessage(manager.stop(player, "manuell beendet")
-                    ? "Admin-Beobachtung beendet; dein vorheriger Zustand wurde wiederhergestellt."
-                    : "Du befindest dich gerade nicht in einer Admin-Beobachtung.");
+            boolean stopped = manager.stop(player, "manuell beendet");
+            if (stopped) {
+                player.sendMessage("Admin-Beobachtung beendet; dein vorheriger Zustand wurde wiederhergestellt.");
+            } else if (manager.isObserving(player)) {
+                player.sendMessage("Rückteleport fehlgeschlagen. Du bleibst verborgen im Spectator-Modus; bitte erneut /adminspec off versuchen oder Staff informieren.");
+            } else {
+                player.sendMessage("Du befindest dich gerade nicht in einer Admin-Beobachtung.");
+            }
             return true;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("observe")) {

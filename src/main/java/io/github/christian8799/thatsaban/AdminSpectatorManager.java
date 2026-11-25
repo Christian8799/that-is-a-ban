@@ -56,9 +56,14 @@ final class AdminSpectatorManager implements Listener {
         }, 20L, 20L);
     }
 
+    boolean isObserving(Player observer) {
+        return sessions.containsKey(observer.getUniqueId());
+    }
+
     boolean observe(Player observer, Player target) {
         if (observer.equals(target)) return false;
-        if (sessions.containsKey(observer.getUniqueId())) stop(observer, "Neue Beobachtung gestartet");
+        if (sessions.containsKey(observer.getUniqueId())
+                && !stop(observer, "Neue Beobachtung gestartet")) return false;
         Snapshot snapshot = new Snapshot(observer.getLocation().clone(), observer.getGameMode(),
                 observer.getAllowFlight(), observer.isFlying(), observer.isInvulnerable(),
                 observer.getFlySpeed(), observer.getWalkSpeed(),
