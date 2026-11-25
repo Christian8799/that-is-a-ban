@@ -186,10 +186,9 @@ final class LinkStore {
 
     synchronized void flagIp(String ipHash) {
         long now = System.currentTimeMillis();
-        if (layer2Ips.add(ipHash) || !ipLastSeen.containsKey(ipHash)) {
-            dirty = true;
-        }
+        layer2Ips.add(ipHash);
         ipLastSeen.put(ipHash, now);
+        dirty = true;
     }
 
     synchronized Set<UUID> markOffender(UUID uuid) {
@@ -221,7 +220,8 @@ final class LinkStore {
     }
 
     private void pruneExpired(long now) {
-        long retentionDays = Math.max(1, plugin.getConfig().getLong("alt-detection.retention-days", 30L));
+        long retentionDays = Math.min(3650L,
+                Math.max(1L, plugin.getConfig().getLong("alt-detection.retention-days", 30L)));
         long retentionMillis = retentionDays * 24L * 60L * 60L * 1000L;
         long cutoff = now - retentionMillis;
 
@@ -252,7 +252,9 @@ final class LinkStore {
 
         ipsByPlayer.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         names.keySet().removeIf(uuid -> !ipsByPlayer.containsKey(uuid));
-        offenders.entrySet().removeIf(entry -> entry.getValue() <= cutoff);
+        if (offenders.entrySet().removeIf(entry -> entry.getValue() <= cutoff)) {
+            dirty = true;
+        }
     }
 
     private void link(UUID uuid, String ipHash) {
