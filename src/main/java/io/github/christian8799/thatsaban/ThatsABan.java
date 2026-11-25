@@ -5,6 +5,8 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.List;
+
 public final class ThatsABan extends JavaPlugin {
 
     private Messages messages;
@@ -14,6 +16,7 @@ public final class ThatsABan extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        migrateConfig();
 
         RegisteredServiceProvider<LuckPerms> provider =
                 getServer().getServicesManager().getRegistration(LuckPerms.class);
@@ -44,6 +47,24 @@ public final class ThatsABan extends JavaPlugin {
         }
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
+    }
+
+    private void migrateConfig() {
+        int version = getConfig().getInt("config-version", 0);
+        if (version >= 2) {
+            return;
+        }
+
+        // Alte Installationen koennen noch die externe ipwho.is-Abfrage und
+        // standardmaessig aktive, unbegrenzt gespeicherte IP-Kopplungsdaten nutzen.
+        getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
+        getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
+        getConfig().set("alt-detection.enabled", false);
+        getConfig().set("alt-detection.retention-days", 30);
+        getConfig().set("config-version", 2);
+        saveConfig();
+        getLogger().warning("Datenschutz-Migration: IP-Kopplung wurde deaktiviert. "
+                + "Die lokale GeoIP-Datenbank muss unter plugins/ThatsABan/geoip abgelegt werden.");
     }
 
     @Override
