@@ -30,8 +30,10 @@ public final class ThatsABan extends JavaPlugin {
         LuckPermsHook hook = new LuckPermsHook(this, provider.getProvider());
         BedrockDetector bedrock = new BedrockDetector(this);
         Layer2Service layer2 = new Layer2Service(this, store, hook);
+        CountryFilter countryFilter = new CountryFilter(this);
 
-        getServer().getPluginManager().registerEvents(new LoginListener(this, layer2, bedrock), this);
+        getServer().getPluginManager().registerEvents(
+                new LoginListener(this, layer2, bedrock, countryFilter), this);
 
         PluginCommand command = getCommand("offend");
         if (command != null) {
