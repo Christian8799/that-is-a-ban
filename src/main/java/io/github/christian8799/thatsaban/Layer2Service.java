@@ -35,9 +35,8 @@ final class Layer2Service {
                 return CompletableFuture.completedFuture(new OffendResult(Status.EXEMPT, List.of()));
             }
             boolean already = hook.has(user, hook.markerNode());
-            Set<UUID> others = store.markOffender(uuid);
             return hook.applyLayer2Async(uuid)
-                    .thenCompose(v -> flagAlts(others))
+                    .thenCompose(v -> flagAlts(store.markOffender(uuid)))
                     .thenApply(alts -> new OffendResult(already ? Status.ALREADY : Status.DONE, alts));
         });
     }

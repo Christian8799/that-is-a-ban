@@ -54,7 +54,7 @@ messages:
   exempt: "<yellow><player></yellow> ist ausgenommen (thatsaban.exempt)."
   already: "<yellow><player></yellow> ist bereits in Layer 2."
   done: "<green><player></green> wurde in <red>Layer 2</red> versetzt."
-  done-alts: "<gray>Zusätzlich nach Staff-Bestätigung in Layer 2 versetzt: <white><alts></white>"
+  done-alts: "<gray>Zusätzlich automatisch in Layer 2 versetzt: <white><alts></white>"
   error: "<red>Layer 2 konnte nicht gesetzt werden - siehe Konsole."
   kick-relogin: "<red>Deine Sicherheitsstufe wurde geändert. Bitte verbinde dich erneut."
   alt-suggestion-staff: "<yellow>Prüfung erforderlich:</yellow> <white><player></white> teilt eine markierte IP. Vor einer Einstufung bitte Kontext prüfen; bei Bestätigung /offend <player> verwenden."
