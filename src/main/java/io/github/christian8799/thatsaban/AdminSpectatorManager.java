@@ -16,6 +16,7 @@ import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.util.Vector;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -233,6 +234,18 @@ final class AdminSpectatorManager implements Listener {
                 pos.getX() + deltaX, pos.getY(), pos.getZ() + deltaZ));
     }
 
+    private void translateVectorCoordinates(PacketEvent event, int offsetX, int offsetZ) {
+        var vectors = event.getPacket().getVectors();
+        if (vectors.size() == 0) {
+            throw new IllegalStateException("Paket enthält keinen Positionsvektor: " + event.getPacketType());
+        }
+        Vector position = vectors.read(0);
+        vectors.write(0, new Vector(
+                position.getX() - offsetX,
+                position.getY(),
+                position.getZ() - offsetZ));
+    }
+
     private void registerPacketTranslation() {
         protocol.addPacketListener(new PacketAdapter(plugin, ListenerPriority.HIGHEST,
                 PacketType.Play.Server.MAP_CHUNK,
@@ -247,9 +260,12 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.SPAWN_POSITION,
                 PacketType.Play.Server.SPAWN_ENTITY,
                 PacketType.Play.Server.ENTITY_TELEPORT,
+                PacketType.Play.Server.ENTITY_POSITION_SYNC,
                 PacketType.Play.Server.POSITION,
                 PacketType.Play.Server.EXPLOSION,
                 PacketType.Play.Server.WORLD_PARTICLES,
+                PacketType.Play.Server.CHUNKS_BIOMES,
+                PacketType.Play.Server.DEBUG_CHUNK_VALUE,
                 PacketType.Play.Server.WORLD_EVENT,
                 PacketType.Play.Server.NAMED_SOUND_EFFECT,
                 PacketType.Play.Server.SET_BORDER_CENTER,
@@ -265,7 +281,14 @@ final class AdminSpectatorManager implements Listener {
                 if (session == null) return;
                 try {
                     PacketType type = event.getPacketType();
-                    if (type == PacketType.Play.Server.MAP_CHUNK
+                    // These payloads may contain nested or packed world coordinates.
+                    // Suppress them for the observer until their full wire layout is transformed.
+                    if (type == PacketType.Play.Server.WORLD_PARTICLES
+                            || type == PacketType.Play.Server.CHUNKS_BIOMES
+                            || type == PacketType.Play.Server.DEBUG_CHUNK_VALUE) {
+                        event.setCancelled(true);
+                        return;
+                    } else if (type == PacketType.Play.Server.MAP_CHUNK
                             || type == PacketType.Play.Server.UNLOAD_CHUNK
                             || type == PacketType.Play.Server.LIGHT_UPDATE
                             || type == PacketType.Play.Server.VIEW_CENTRE) {
@@ -284,11 +307,12 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.BLOCK_BREAK_ANIMATION
                             || type == PacketType.Play.Server.SPAWN_POSITION) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
+                    } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
+                        translateVectorCoordinates(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY
                             || type == PacketType.Play.Server.ENTITY_TELEPORT
                             || type == PacketType.Play.Server.POSITION
                             || type == PacketType.Play.Server.EXPLOSION
-                            || type == PacketType.Play.Server.WORLD_PARTICLES
                             || type == PacketType.Play.Server.VEHICLE_MOVE) {
                         translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 2);
                     } else if (type == PacketType.Play.Server.WORLD_EVENT) {
