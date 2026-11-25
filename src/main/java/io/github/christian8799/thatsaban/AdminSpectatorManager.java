@@ -103,8 +103,11 @@ final class AdminSpectatorManager implements Listener {
             registerPacketTranslation();
             Bukkit.getPluginManager().registerEvents(this, plugin);
             for (Player player : Bukkit.getOnlinePlayers()) {
-                boolean restoredSession = restorePending(player);
                 UUID playerId = player.getUniqueId();
+                if (hasPendingRestore(playerId) || pendingPermanentSnapshots.containsKey(playerId)) {
+                    hideObserverFromAll(player);
+                }
+                boolean restoredSession = restorePending(player);
                 if (!hasPendingRestore(playerId)) {
                     if (!permanent.contains(playerId)) {
                         restorePendingPermanent(player);
@@ -115,7 +118,13 @@ final class AdminSpectatorManager implements Listener {
             }
             // Re-enforce against plugins that bypass the Bukkit game-mode event.
             Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-                for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    UUID playerId = player.getUniqueId();
+                    if (!hasPendingRestore(playerId) && !permanent.contains(playerId)) {
+                        restorePendingPermanent(player);
+                    }
+                    enforcePermanent(player);
+                }
             }, 20L, 20L);
         } catch (LinkageError | RuntimeException ex) {
             org.bukkit.event.HandlerList.unregisterAll(this);
