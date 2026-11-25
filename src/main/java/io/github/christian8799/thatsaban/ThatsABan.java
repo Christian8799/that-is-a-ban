@@ -7,7 +7,7 @@ import java.util.List;
 public final class ThatsABan extends JavaPlugin {
     private Messages messages;
     private LinkStore store;
-    private CountryFilter countryFilter;
+    private CountryFilterIntegration countryFilter;
     private SpectatorIntegration spectatorFeature;
 
     @Override
@@ -34,7 +34,7 @@ public final class ThatsABan extends JavaPlugin {
 
         BedrockDetector bedrock = new BedrockDetector(this);
         try {
-            countryFilter = new CountryFilter(this);
+            countryFilter = loadCountryFilter();
             if (!countryFilter.isAvailable()) {
                 warnFeatureDisabled("Country-/Region-Filter",
                         "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar.");
@@ -65,10 +65,27 @@ public final class ThatsABan extends JavaPlugin {
         getLogger().info("ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert.");
     }
 
+    private CountryFilterIntegration loadCountryFilter() {
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".CountryFilter",
+                    true, getClass().getClassLoader());
+            return (CountryFilterIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class)
+                    .newInstance(this);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            throw new IllegalStateException("Country-Filter konnte nicht erstellt werden.", cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Country-Filter konnte nicht geladen werden.", ex);
+        }
+    }
+
     private LuckPermsIntegration loadLuckPermsIntegration() {
         try {
             Class<?> type = Class.forName(getClass().getPackageName() + ".LuckPermsFeatures",
-                    true, getClassLoader());
+                    true, getClass().getClassLoader());
             return (LuckPermsIntegration) type
                     .getDeclaredConstructor(ThatsABan.class, LinkStore.class)
                     .newInstance(this, store);

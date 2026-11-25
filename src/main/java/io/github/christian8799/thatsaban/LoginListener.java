@@ -11,10 +11,10 @@ final class LoginListener implements Listener {
     private final ThatsABan plugin;
     private final LuckPermsIntegration luckPerms;
     private final BedrockDetector bedrock;
-    private final CountryFilter countryFilter;
+    private final CountryFilterIntegration countryFilter;
 
     LoginListener(ThatsABan plugin, LuckPermsIntegration luckPerms, BedrockDetector bedrock,
-                  CountryFilter countryFilter) {
+                  CountryFilterIntegration countryFilter) {
         this.plugin = plugin;
         this.luckPerms = luckPerms;
         this.bedrock = bedrock;
@@ -28,13 +28,13 @@ final class LoginListener implements Listener {
         InetAddress address = event.getAddress();
 
         if (countryFilter != null && countryFilter.isAvailable()) {
-            CountryFilter.Result country = countryFilter.check(address);
-            if (country == CountryFilter.Result.DENIED) {
+            CountryFilterIntegration.Result country = countryFilter.check(address);
+            if (country == CountryFilterIntegration.Result.DENIED) {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                         plugin.messages().plain("country-denied"));
                 return;
             }
-            if (country == CountryFilter.Result.UNAVAILABLE) {
+            if (country == CountryFilterIntegration.Result.UNAVAILABLE) {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                         plugin.messages().plain("country-lookup-failed"));
                 return;

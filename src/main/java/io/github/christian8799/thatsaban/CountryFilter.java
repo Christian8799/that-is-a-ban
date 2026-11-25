@@ -16,9 +16,7 @@ import java.util.stream.Collectors;
  * Prueft die Region ausschliesslich mit einer lokalen IP2Location-BIN-Datenbank.
  * Es werden keine IP-Adressen an externe GeoIP-Dienste uebertragen oder protokolliert.
  */
-final class CountryFilter {
-
-    enum Result { ALLOWED, DENIED, UNAVAILABLE }
+final class CountryFilter implements CountryFilterIntegration {
 
     private final ThatsABan plugin;
     private final IP2Location database = new IP2Location();
