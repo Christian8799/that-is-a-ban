@@ -2,49 +2,41 @@
 
 layer2:
   # LuckPerms-Node, der einen Spieler als "Layer 2" markiert.
-  # Wird in LuckPerms gespeichert, ist also permanent und per LuckPerms einsehbar.
   marker-permission: "thatsaban.layer2"
-
-  # Nodes, die bei Layer 2 auf Spielerebene NEGIERT werden.
-  # Die Gruppe "default" bekommt diese Nodes einmalig auf TRUE (siehe README),
-  # dadurch gelten FoxGate und HandShaker nur noch fuer Layer-2-Spieler.
+  # Nodes, die bei Layer 2 auf Spielerebene NEGiert werden.
   negated-permissions:
-    - "foxav.bypass"        # FoxGate
-    - "handshaker.bypass"   # HandShaker
-
-  # Wer diesen Node hat, kann nicht per /offend oder IP-Kopplung in Layer 2 landen.
+    - "foxav.bypass"
+    - "handshaker.bypass"
   exempt-permission: "thatsaban.exempt"
 
 offend:
-  # Online-Spieler nach /offend kicken, damit die Layer-2-Pruefungen
-  # (FoxGate, HandShaker) beim erneuten Beitritt sofort greifen.
   kick-online-target: false
 
 bedrock:
-  # Bedrock-Spieler sind immun. Erkennung ueber Floodgate-/Geyser-API,
-  # Floodgate-UUID und diese Namenspraefixe (Floodgate-Standard ist ".").
   name-prefixes:
     - "."
 
-# Nur IP-Adressen, die laut GeoIP-Datenbank Bayern (Deutschland, Regioncode BY) zugeordnet sind,
-# duerfen verbinden. Die oeffentliche IP wird dazu an ipwho.is uebermittelt. Bei Ausfall der
-# Abfrage wird fail-closed abgelehnt, damit die Regionssperre nicht versehentlich offen bleibt.
+# Regionale Login-Sperre: GeoIP wird ausschliesslich lokal ausgewertet.
+# Es wird keine Spieler-IP an einen externen GeoIP-Dienst gesendet.
 country-filter:
   enabled: true
+  database-file: "geoip/IP2LOCATION-LITE-DB3.BIN"
+  allowed-region-names:
+    - "Bayern"
+    - "Bavaria"
   allow-private-addresses: false
-  timeout-ms: 3000
 
+# Datenschutzfreundlicher Standard: IP-Kopplung ist standardmaessig deaktiviert.
+# Bei Aktivierung werden IP-Adressen als gesalzene SHA-256-Hashes gespeichert.
+# Diese Hashes sowie verknuepfte UUIDs/Namen koennen weiterhin personenbezogene
+# (pseudonyme) Daten sein und benoetigen eine eigene Rechtsgrundlage und Loeschfrist.
 alt-detection:
-  enabled: true
-  # Beim /offend auch alle bereits bekannten Accounts derselben IP(s) in Layer 2 versetzen
+  enabled: false
   retroactive: true
-  # Loopback-/LAN-Adressen ignorieren (sonst landet bei Proxy ohne IP-Weitergabe jeder in Layer 2)
   ignore-private-addresses: true
-  # IPs, die nie gekoppelt werden (z.B. Schule, Uni, Mobilfunk-Gateway)
   ignored-ips: []
 
 integrations:
-  # Nur fuer Warnungen beim Start: Plugin-Namen, die installiert sein sollten
   layer1-plugins:
     - "GrimAC"
     - "CheatDetector"
@@ -64,5 +56,5 @@ messages:
   error: "<red>Layer 2 konnte nicht gesetzt werden - siehe Konsole."
   kick-relogin: "<red>Deine Sicherheitsstufe wurde geaendert. Bitte verbinde dich erneut."
   alt-flagged-staff: "<white><player></white> wurde wegen gleicher IP automatisch in Layer 2 versetzt."
-  country-denied: "<red>Verbindungen sind nur mit einer deutschen IP-Adresse erlaubt."
-  country-lookup-failed: "<red>Deine IP-Adresse konnte geografisch nicht zugeordnet werden. Bitte versuche es spaeter erneut."
+  country-denied: "<red>Verbindungen sind nur mit einer bayerischen IP-Adresse erlaubt."
+  country-lookup-failed: "<red>Deine IP-Adresse konnte lokal nicht geografisch zugeordnet werden. Bitte versuche es spaeter erneut."
