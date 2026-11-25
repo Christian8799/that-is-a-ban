@@ -92,7 +92,7 @@ Bedrock-Spieler werden von /offend und Layer-2-Aktionen ausgenommen. Die Erkennu
 
 ---
 
-# Konfiguration vollständig
+## Konfiguration vollständig
 
 Die aktive Konfigurationsdatei liegt unter:
 
@@ -102,7 +102,7 @@ plugins/ThatsABan/config.yml
 
 Alle vom Betreiber vorgesehenen Konfigurationsoptionen der ausgelieferten config.yml sind in den folgenden Abschnitten aufgeführt. Der vollständige Standardinhalt steht hier ebenfalls als Vorlage.
 
-## Vollständige Standardkonfiguration
+### Vollständige Standardkonfiguration
 
 ~~~yaml
 # that-s-a-ban - Konfiguration
@@ -182,7 +182,7 @@ messages:
 - Die Werte in der Tabelle beschreiben die ausgelieferten Standardwerte. Bei älteren Konfigurationsdateien können automatische Migrationen einzelne Werte ergänzen oder auf datenschutzfreundliche Defaults setzen.
 - Änderungen werden beim nächsten Plugin-/Serverstart eingelesen.
 
-## Layer 2 und Offend
+### Layer 2 und Offend
 
 | Schlüssel | Standard | Bedeutung und zulässige Werte |
 |---|---:|---|
@@ -194,13 +194,13 @@ messages:
 
 Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Gruppenstruktur vergeben werden. That'sABan legt keine Anti-Cheat-Regeln für die externen Plugins fest.
 
-## Datenschutz und HMAC-Schlüssel
+### Datenschutz und HMAC-Schlüssel
 
 | Schlüssel | Standard | Bedeutung und zulässige Werte |
 |---|---|---|
 | privacy.hmac-key-path | leer | Optionaler absoluter Dateipfad für den geheimen HMAC-Schlüssel. Leer bedeutet plugins/ThatsABan/ip-hmac.key. |
 | THATSABAN_HMAC_KEY_PATH | nicht gesetzt | Umgebungsvariable, die privacy.hmac-key-path übersteuert. Verwende einen absoluten Pfad außerhalb des Plugin-Ordners, wenn du den Schlüssel getrennt ablegen möchtest. |
-| privacy.audit-logging | false | Bei true protokolliert das Plugin ausgewählte Staff-Aktionen mit UUIDs. Spielernamen und IP-Adressen werden dabei nicht in diese Audit-Einträge geschrieben. |
+| privacy.audit-logging | false | Bei true protokolliert das Plugin erfolgreiche /offend-Einstufungen mit der UUID des ausführenden Staff-Accounts (oder CONSOLE) und der Ziel-UUID. Spielernamen und IP-Adressen werden dabei nicht in diese Audit-Einträge geschrieben. |
 
 **Wichtig für den HMAC-Schlüssel:**
 
@@ -210,7 +210,7 @@ Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Grup
 - Der getrennte Speicherort schützt nicht vor einem kompromittierten Serverkonto oder Backups, die sowohl Datenbankdatei als auch Schlüssel enthalten.
 - data.yml und die Schlüsseldatei werden mit restriktiven Dateirechten angelegt. Die tatsächlichen Rechte und Server-Backups müssen vom Betreiber zusätzlich kontrolliert werden.
 
-## Bedrock-Erkennung
+### Bedrock-Erkennung
 
 | Schlüssel | Standard | Bedeutung |
 |---|---|---|
@@ -218,7 +218,7 @@ Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Grup
 
 Die Standardkonfiguration erkennt zusätzlich Floodgate-UUIDs sowie Spieler über die Floodgate- und Geyser-APIs, sofern diese verfügbar sind. Ändere die Präfixliste nur, wenn sie zu deiner Geyser-/Floodgate-Konfiguration passt. Ein zu allgemeines Präfix kann versehentlich Java-Spieler als Bedrock einstufen.
 
-## Country-/Region-Filter
+### Country-/Region-Filter
 
 | Schlüssel | Standard | Bedeutung und zulässige Werte |
 |---|---|---|
@@ -234,7 +234,7 @@ Verhalten bei Fehlern:
 - Ist die Datenbank geladen, schlägt aber eine einzelne GeoIP-Abfrage fehl oder liefert kein verwertbares Ergebnis, wird der Login abgelehnt. Das ist ein Fail-closed-Verhalten.
 - Die GeoIP-Zuordnung ist nur eine Näherung. Sie kann VPNs, Mobilfunknetze, Proxys und falsch zugeordnete IP-Blöcke nicht zuverlässig erkennen.
 
-## Alt-Account-Erkennung
+### Alt-Account-Erkennung
 
 Die IP-basierte Erkennung ist standardmäßig ausgeschaltet. Sie muss bewusst aktiviert werden.
 
@@ -273,7 +273,7 @@ Setze auto-apply nur dann auf true, wenn du die Konsequenzen bewusst akzeptierst
 
 IPv6-Adressen werden vor der HMAC-Bildung auf /64 gekürzt. Es werden keine Roh-IP-Adressen in der LinkStore-Datenbank gespeichert. Die HMAC-Werte bleiben trotzdem pseudonyme, potenziell personenbezogene Daten.
 
-## Integrationslisten
+### Integrationslisten
 
 | Schlüssel | Standard | Bedeutung |
 |---|---|---|
@@ -282,7 +282,7 @@ IPv6-Adressen werden vor der HMAC-Bildung auf /64 gekürzt. Es werden keine Roh-
 
 Die Listen sind Diagnose-/Integrationshinweise. Sie installieren, konfigurieren oder aktivieren die genannten Plugins nicht selbst. Die tatsächliche Layer-2-Berechtigungssteuerung erfolgt über layer2.negated-permissions und LuckPerms.
 
-## Nachrichten
+### Nachrichten
 
 Alle Einträge unter messages können angepasst werden. Die Nachrichten werden mit Adventure MiniMessage verarbeitet. Du kannst daher MiniMessage-Formatierungen wie <red>, <green>, <yellow>, <gray>, <white>, <bold> und weitere unterstützte Tags verwenden.
 
@@ -305,7 +305,7 @@ Alle Einträge unter messages können angepasst werden. Die Nachrichten werden m
 
 Der Prefix wird bei den Chat-Nachrichten ergänzt. Die beiden Country-Filter-Nachrichten werden ohne Prefix als Login-Ablehnungsgrund verwendet. Platzhalter sollten unverändert in der Nachricht bleiben, damit das Plugin sie mit den tatsächlichen Werten ersetzen kann.
 
-## Automatisch verwaltete Spectator-Daten
+### Automatisch verwaltete Spectator-Daten
 
 Die Admin-Spectator-Funktion speichert ihren Zustand bei Bedarf zusätzlich in config.yml. Diese Schlüssel sind **keine manuellen Konfigurationsoptionen**:
 
@@ -321,7 +321,7 @@ Für Admin-Spectator gibt es derzeit keine weiteren Betreiber-Settings in config
 
 ---
 
-# Befehle
+## Befehle
 
 ## Layer 2
 
@@ -344,7 +344,7 @@ Die Löschung entfernt keine unabhängigen LuckPerms-Berechtigungen, die von and
 
 ---
 
-# Permissions
+## Permissions
 
 Die folgenden Standardwerte stammen aus plugin.yml. op bedeutet, dass die Berechtigung standardmäßig Operatoren gewährt wird. false bedeutet, dass sie standardmäßig niemandem gewährt wird.
 
@@ -369,7 +369,7 @@ Für permanente Spectator-Verwaltung werden sowohl thatsaban.spectator als auch 
 
 ---
 
-# Geschützte Admin-Beobachtung
+## Geschützte Admin-Beobachtung
 
 Die Admin-Beobachtung wird über ProtocolLib bereitgestellt. Sie verschiebt die dem beobachtenden Client übermittelten Koordinaten in einen getrennten Koordinatenraum und filtert beziehungsweise unterdrückt nicht sicher übersetzbare Positionsdaten. Das Ziel selbst wird nicht teleportiert.
 
@@ -385,7 +385,7 @@ Die Admin-Beobachtung wird über ProtocolLib bereitgestellt. Sie verschiebt die 
 
 Der Zielspieler muss bei observe online sein. Permanente Accounts können über einen bekannten Spielernamen oder eine UUID verwaltet werden; die Verwaltung funktioniert auch über die Serverkonsole.
 
-## Abhängigkeiten und Verhalten
+### Abhängigkeiten und Verhalten
 
 - ProtocolLib ist für /adminspec zwingend erforderlich. Die verwendete Paper-Server-Plugin-Version ist ProtocolLib 5.5.0-SNAPSHOT aus dem offiziellen ProtocolLib-Dev-Build. Das plattformneutrale Maven-Artefakt allein ist kein installierbares Server-Plugin.
 - SuperVanish wird nur für den expliziten vanish-Modus und die Vanish-Durchsetzung permanenter Accounts verwendet.
@@ -396,7 +396,7 @@ Der Zielspieler muss bei observe online sein. Permanente Accounts können über 
 - /adminspec off stellt den gespeicherten Ort, Spielmodus, Flugzustand, Invulnerable-Zustand, Bewegungsgeschwindigkeiten, Sichtweiten und gegebenenfalls den vorherigen Vanish-Zustand wieder her.
 - Permanente Accounts werden beim Login und regelmäßig erneut auf Spectator/Unsichtbarkeit geprüft.
 
-## Paket- und Kompatibilitätshinweise
+### Paket- und Kompatibilitätshinweise
 
 Die Funktion ist versionssensibel und darf nicht als vollständige Anti-Cheat- oder Anonymitätsgarantie verstanden werden. Die Implementierung übersetzt bekannte Positionspakete, unterdrückt aber Pakettypen und Payloads, deren Positionsdaten nicht zuverlässig transformiert werden können. Dazu gehören unter anderem bestimmte Partikel-/Explosionsdaten und benutzerdefinierte Plugin-Payloads. Das kann Funktionen anderer Plugins für den beobachtenden Moderator einschränken, beispielsweise Voice-Chat-Daten.
 
@@ -406,7 +406,7 @@ Vor einem Produktionseinsatz müssen die exakte Paper-Version, ProtocolLib-Versi
 
 ---
 
-# Alt-Account-Netzwerk: Grenzen und Fehlalarme
+## Alt-Account-Netzwerk: Grenzen und Fehlalarme
 
 Das Netzwerk zeigt Accounts, die im Beobachtungszeitraum dieselben IP-HMACs verwendet haben. Es ist keine Identitätsfeststellung.
 
@@ -422,7 +422,7 @@ Die Standardwerte enabled: false, auto-apply: false und retroactive: false sind 
 
 ---
 
-# Datenschutz und DSGVO
+## Datenschutz und DSGVO
 
 Die technischen Schutzmaßnahmen sind keine pauschale DSGVO-Konformitätsgarantie. Der Serverbetreiber bleibt verantwortlich für Zweck, Rechtsgrundlage, Erforderlichkeit, Speicherdauer, Zugriffsrechte und Spielerinformationen. Eine Vorlage und ein Muster-Verarbeitungsverzeichnis befinden sich in [docs/PRIVACY.md](docs/PRIVACY.md).
 
@@ -433,7 +433,7 @@ Die technischen Schutzmaßnahmen sind keine pauschale DSGVO-Konformitätsgaranti
 - IP-Adressen können unabhängig davon in Proxy-, Firewall-, Hoster-, Paper- oder anderen Plugin-Logs auftauchen. Diese Systeme benötigen eigene Aufbewahrungs- und Löschkonzepte.
 - Das Löschen eines That'sABan-Datensatzes löscht nicht den gesamten LuckPerms-Benutzerdatensatz, da dieser auch unabhängige Berechtigungen enthalten kann.
 
-## Ältere Plugin-Versionen
+### Ältere Plugin-Versionen
 
 Plugin-Stände vor Commit b34c644 verwendeten für die GeoIP-Prüfung den externen Dienst ipwho.is. Dabei wurde die Roh-IP als Teil der HTTPS-URL übertragen; in früheren Fehlerpfaden konnte sie außerdem in Logs auftauchen. Verwende keine Versionen vor b34c644.
 
@@ -441,7 +441,7 @@ Das frühere GitHub-Actions-Artefakt aus Run #43 basierte auf einem älteren Com
 
 ---
 
-# GeoIP-Datenbank installieren
+## GeoIP-Datenbank installieren
 
 1. Lade die **IP2Location LITE DB3 BIN**-Datenbank von [IP2Location LITE](https://lite.ip2location.com/database/db3-ip-country-region-city) herunter.
 2. Beachte die aktuelle IP2Location-Lizenz. Die Datenbank wird weder im Repository noch in der Plugin-JAR ausgeliefert.
@@ -462,7 +462,7 @@ Die IP2Location-Java-Bibliothek wird unter MIT-Lizenz eingebunden. Für die GeoI
 
 ---
 
-# Proxy- und Netzwerkbetrieb
+## Proxy- und Netzwerkbetrieb
 
 Hinter BungeeCord oder Velocity muss die echte Spieler-IP korrekt an Paper weitergereicht werden. Ohne korrektes Forwarding kann That'sABan nur die Proxy-IP sehen. Das verfälscht sowohl die GeoIP-Regionsprüfung als auch das IP-basierte Account-Netzwerk.
 
@@ -475,7 +475,7 @@ Prüfe daher:
 
 ---
 
-# Build
+## Build
 
 Voraussetzungen: Java 21 und Gradle.
 
@@ -487,7 +487,7 @@ Das Plugin-Artefakt liegt anschließend unter build/libs/. Der GitHub-Actions-Wo
 
 ---
 
-# Fehlerbehebung
+## Fehlerbehebung
 
 | Symptom / Loghinweis | Mögliche Ursache und Maßnahme |
 |---|---|
