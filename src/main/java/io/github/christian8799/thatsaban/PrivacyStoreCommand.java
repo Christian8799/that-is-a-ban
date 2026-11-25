@@ -153,12 +153,28 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
             return options.stream().filter(value -> value.startsWith(prefix)).toList();
         }
         if (args.length == 2) {
+            String action = args[0].toLowerCase(Locale.ROOT);
+            String permission = switch (action) {
+                case "info" -> "thatsaban.privacy.read";
+                case "network" -> "thatsaban.network";
+                case "unoffend" -> "thatsaban.layer2.remove";
+                case "forget" -> "thatsaban.privacy.erase";
+                default -> null;
+            };
+            if (permission == null || (!sender.hasPermission(permission)
+                    && !sender.hasPermission("thatsaban.admin"))) return List.of();
             String prefix = args[1].toLowerCase(Locale.ROOT);
             return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).toList();
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("network")) return List.of("1", "2", "3");
-        if (args.length == 3 && args[0].equalsIgnoreCase("forget")) return List.of("confirm");
+        if (args.length == 3 && args[0].equalsIgnoreCase("network")
+                && (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))) {
+            return List.of("1", "2", "3");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("forget")
+                && (sender.hasPermission("thatsaban.privacy.erase") || sender.hasPermission("thatsaban.admin"))) {
+            return List.of("confirm");
+        }
         return List.of();
     }
 }
