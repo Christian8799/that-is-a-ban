@@ -6,6 +6,8 @@ import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
+import com.comphenix.protocol.wrappers.MovingObjectPositionBlock;
+import com.comphenix.protocol.wrappers.WrappedPositionMoveRotation;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -17,8 +19,11 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
+import org.bukkit.World;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -50,7 +55,9 @@ final class AdminSpectatorManager implements Listener {
         }
         Bukkit.getPluginManager().registerEvents(this, plugin);
         registerPacketTranslation();
-        for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!restorePending(player)) enforcePermanent(player);
+        }
         // Re-enforce against plugins that bypass the Bukkit game-mode event.
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
@@ -58,13 +65,15 @@ final class AdminSpectatorManager implements Listener {
     }
 
     boolean isObserving(Player observer) {
-        return sessions.containsKey(observer.getUniqueId());
+        return sessions.containsKey(observer.getUniqueId())
+                || hasPendingRestore(observer.getUniqueId());
     }
 
     boolean observe(Player observer, Player target) {
         if (observer.equals(target)) return false;
         if (sessions.containsKey(observer.getUniqueId())
                 && !stop(observer, "Neue Beobachtung gestartet")) return false;
+        if (hasPendingRestore(observer.getUniqueId()) && !restorePending(observer)) return false;
         Snapshot snapshot = new Snapshot(observer.getLocation().clone(), observer.getGameMode(),
                 observer.getAllowFlight(), observer.isFlying(), observer.isInvulnerable(),
                 observer.getFlySpeed(), observer.getWalkSpeed(),
@@ -74,6 +83,9 @@ final class AdminSpectatorManager implements Listener {
         int offsetZ = (2000 + random.nextInt(8001)) * 16;
         if (random.nextBoolean()) offsetX = -offsetX;
         if (random.nextBoolean()) offsetZ = -offsetZ;
+        // Persist the pre-observation state before changing the player's position or mode.
+        // This also allows recovery after a process crash or plugin/server restart.
+        savePendingRestore(observer.getUniqueId(), snapshot);
         sessions.put(observer.getUniqueId(), new Session(target.getUniqueId(), snapshot, offsetX, offsetZ));
         // Hide before changing mode or moving: otherwise the initial spectator
         // transition can briefly expose the moderator at their real location.
@@ -95,40 +107,33 @@ final class AdminSpectatorManager implements Listener {
 
     boolean stop(Player observer, String reason) {
         UUID observerId = observer.getUniqueId();
-        Session session = sessions.remove(observerId);
-        if (session == null) return false;
+        Session session = sessions.get(observerId);
+        if (session == null) return restorePending(observer);
+        if (!sessions.remove(observerId, session)) return false;
 
-        // Stop translating packets before sending the return teleport. Otherwise
-        // the client would receive the saved server coordinates in the shifted
-        // coordinate space and could be left at an invalid client-side position.
-        observer.setSpectatorTarget(null);
-        if (!observer.teleport(session.snapshot().location())) {
-            // Fail closed: keep the session active and the moderator hidden.
-            sessions.put(observerId, session);
-            observer.setGameMode(GameMode.SPECTATOR);
-            observer.setAllowFlight(true);
-            observer.setFlying(true);
-            plugin.getLogger().severe("Admin-Spectator-Rückteleport fehlgeschlagen; Spieler bleibt verborgen: " + observerId);
-            audit("STOP_FAILED (" + reason + ")", observerId, session.target());
-            return false;
+        // Serialize packet translation with restoration. A Netty callback which
+        // captured this session before removal must finish before the unshifted
+        // return teleport is sent.
+        synchronized (session) {
+            observer.setSpectatorTarget(null);
+            if (!observer.teleport(session.snapshot().location())) {
+                // Fail closed: keep the session active and the moderator hidden.
+                sessions.put(observerId, session);
+                observer.setGameMode(GameMode.SPECTATOR);
+                observer.setAllowFlight(true);
+                observer.setFlying(true);
+                plugin.getLogger().severe("Admin-Spectator-Rückteleport fehlgeschlagen; Spieler bleibt verborgen: " + observerId);
+                audit("STOP_FAILED (" + reason + ")", observerId, session.target());
+                return false;
+            }
+
+            restoreSnapshot(observer, session.snapshot());
+            clearPendingRestore(observerId);
+            // Reveal only after the unshifted return teleport and state restoration succeeded.
+            showObserverToAll(observer);
+            audit("STOP (" + reason + ")", observerId, session.target());
+            return true;
         }
-
-        Snapshot s = session.snapshot();
-        observer.setGameMode(s.gameMode());
-        observer.setAllowFlight(s.allowFlight());
-        observer.setFlying(s.flying() && s.allowFlight());
-        observer.setInvulnerable(s.invulnerable());
-        observer.setFlySpeed(s.flySpeed());
-        observer.setWalkSpeed(s.walkSpeed());
-        observer.setViewDistance(s.viewDistance());
-        observer.setSendViewDistance(s.sendViewDistance());
-
-        // A permanent Spectator account must remain in Spectator after restoration.
-        enforcePermanent(observer);
-        // Reveal only after the unshifted return teleport succeeded.
-        showObserverToAll(observer);
-        audit("STOP (" + reason + ")", observerId, session.target());
-        return true;
     }
 
     void addPermanent(UUID uuid) {
@@ -145,6 +150,118 @@ final class AdminSpectatorManager implements Listener {
         plugin.getConfig().set("admin-spectator.permanent-players", permanent.stream().map(UUID::toString).sorted().toList());
         plugin.saveConfig();
         audit("PERMANENT_REMOVE", uuid, uuid);
+    }
+
+    private String pendingRestorePath(UUID uuid) {
+        return "admin-spectator.pending-restores." + uuid;
+    }
+
+    private boolean hasPendingRestore(UUID uuid) {
+        return plugin.getConfig().contains(pendingRestorePath(uuid) + ".world-uuid");
+    }
+
+    private void savePendingRestore(UUID uuid, Snapshot snapshot) {
+        String path = pendingRestorePath(uuid);
+        Location location = snapshot.location();
+        World world = location.getWorld();
+        if (world == null) throw new IllegalStateException("Kann Admin-Spectator-Zustand ohne Welt nicht sichern.");
+        plugin.getConfig().set(path + ".world-uuid", world.getUID().toString());
+        plugin.getConfig().set(path + ".world-name", world.getName());
+        plugin.getConfig().set(path + ".x", location.getX());
+        plugin.getConfig().set(path + ".y", location.getY());
+        plugin.getConfig().set(path + ".z", location.getZ());
+        plugin.getConfig().set(path + ".yaw", location.getYaw());
+        plugin.getConfig().set(path + ".pitch", location.getPitch());
+        plugin.getConfig().set(path + ".game-mode", snapshot.gameMode().name());
+        plugin.getConfig().set(path + ".allow-flight", snapshot.allowFlight());
+        plugin.getConfig().set(path + ".flying", snapshot.flying());
+        plugin.getConfig().set(path + ".invulnerable", snapshot.invulnerable());
+        plugin.getConfig().set(path + ".fly-speed", snapshot.flySpeed());
+        plugin.getConfig().set(path + ".walk-speed", snapshot.walkSpeed());
+        plugin.getConfig().set(path + ".view-distance", snapshot.viewDistance());
+        plugin.getConfig().set(path + ".send-view-distance", snapshot.sendViewDistance());
+        plugin.saveConfig();
+    }
+
+    private void clearPendingRestore(UUID uuid) {
+        plugin.getConfig().set(pendingRestorePath(uuid), null);
+        plugin.saveConfig();
+    }
+
+    private boolean restorePending(Player player) {
+        UUID uuid = player.getUniqueId();
+        String path = pendingRestorePath(uuid);
+        if (!hasPendingRestore(uuid)) return false;
+
+        World world = null;
+        String worldId = plugin.getConfig().getString(path + ".world-uuid", "");
+        try {
+            if (!worldId.isBlank()) world = Bukkit.getWorld(UUID.fromString(worldId));
+        } catch (IllegalArgumentException ignored) {
+            plugin.getLogger().warning("Ungültige Welt-UUID bei gespeicherter Spectator-Wiederherstellung: " + uuid);
+        }
+        if (world == null) {
+            String worldName = plugin.getConfig().getString(path + ".world-name", "");
+            if (!worldName.isBlank()) world = Bukkit.getWorld(worldName);
+        }
+        if (world == null) {
+            hideObserverFromAll(player);
+            player.setGameMode(GameMode.SPECTATOR);
+            player.setAllowFlight(true);
+            player.setFlying(true);
+            plugin.getLogger().severe("Wiederherstellungswelt nicht verfügbar; Spieler bleibt verborgen im Spectator-Modus: " + uuid);
+            return false;
+        }
+
+        Location location = new Location(world,
+                plugin.getConfig().getDouble(path + ".x"),
+                plugin.getConfig().getDouble(path + ".y"),
+                plugin.getConfig().getDouble(path + ".z"),
+                (float) plugin.getConfig().getDouble(path + ".yaw"),
+                (float) plugin.getConfig().getDouble(path + ".pitch"));
+        hideObserverFromAll(player);
+        player.setSpectatorTarget(null);
+        if (!player.teleport(location)) {
+            player.setGameMode(GameMode.SPECTATOR);
+            player.setAllowFlight(true);
+            player.setFlying(true);
+            plugin.getLogger().severe("Gespeicherte Spectator-Position konnte nicht wiederhergestellt werden; Spieler bleibt verborgen: " + uuid);
+            return false;
+        }
+
+        GameMode gameMode;
+        try {
+            gameMode = GameMode.valueOf(plugin.getConfig().getString(path + ".game-mode", "SURVIVAL"));
+        } catch (IllegalArgumentException ex) {
+            gameMode = GameMode.SURVIVAL;
+            plugin.getLogger().warning("Ungültiger gespeicherter Gamemode; verwende SURVIVAL für " + uuid);
+        }
+        Snapshot snapshot = new Snapshot(location, gameMode,
+                plugin.getConfig().getBoolean(path + ".allow-flight"),
+                plugin.getConfig().getBoolean(path + ".flying"),
+                plugin.getConfig().getBoolean(path + ".invulnerable"),
+                (float) plugin.getConfig().getDouble(path + ".fly-speed", 0.1),
+                (float) plugin.getConfig().getDouble(path + ".walk-speed", 0.2),
+                plugin.getConfig().getInt(path + ".view-distance", player.getViewDistance()),
+                plugin.getConfig().getInt(path + ".send-view-distance", player.getSendViewDistance()));
+        restoreSnapshot(player, snapshot);
+        clearPendingRestore(uuid);
+        showObserverToAll(player);
+        audit("RECOVER", uuid, uuid);
+        return true;
+    }
+
+    private void restoreSnapshot(Player player, Snapshot snapshot) {
+        player.setGameMode(snapshot.gameMode());
+        player.setAllowFlight(snapshot.allowFlight());
+        player.setFlying(snapshot.flying() && snapshot.allowFlight());
+        player.setInvulnerable(snapshot.invulnerable());
+        player.setFlySpeed(snapshot.flySpeed());
+        player.setWalkSpeed(snapshot.walkSpeed());
+        player.setViewDistance(snapshot.viewDistance());
+        player.setSendViewDistance(snapshot.sendViewDistance());
+        // Permanent Spectator wins over the pre-observation game mode.
+        enforcePermanent(player);
     }
 
     private void enforcePermanent(Player player) {
@@ -179,8 +296,8 @@ final class AdminSpectatorManager implements Listener {
             }
         }
 
-        // Enforce permanent Spectator immediately rather than one tick later.
-        enforcePermanent(joining);
+        // Recover an interrupted observation before revealing the joining account.
+        if (!restorePending(joining)) enforcePermanent(joining);
     }
 
     @EventHandler
@@ -200,9 +317,10 @@ final class AdminSpectatorManager implements Listener {
         // session behind, or the next login would inherit the old hidden state.
         Session own = sessions.remove(quitter.getUniqueId());
         if (own != null) {
+            // Keep the persisted snapshot so the next login can restore the original
+            // location and player settings before this account becomes visible.
             quitter.setSpectatorTarget(null);
-            showObserverToAll(quitter);
-            audit("ABORT_QUIT", quitter.getUniqueId(), own.target());
+            audit("ABORT_QUIT_PENDING_RECOVERY", quitter.getUniqueId(), own.target());
         }
 
         // If the observed player leaves, the observer is still online and can be
@@ -240,10 +358,49 @@ final class AdminSpectatorManager implements Listener {
             throw new IllegalStateException("Paket enthält keinen Positionsvektor: " + event.getPacketType());
         }
         Vector position = vectors.read(0);
-        vectors.write(0, new Vector(
-                position.getX() - offsetX,
-                position.getY(),
-                position.getZ() - offsetZ));
+        vectors.write(0, translated(position, -offsetX, -offsetZ));
+    }
+
+    private Vector translated(Vector position, int deltaX, int deltaZ) {
+        return new Vector(position.getX() + deltaX, position.getY(), position.getZ() + deltaZ);
+    }
+
+    private void translatePositionMoveRotation(PacketEvent event, int offsetX, int offsetZ) {
+        var positions = event.getPacket().getPositionMoveRotation();
+        if (positions.size() == 0) {
+            throw new IllegalStateException("Paket enthält keine Position/Rotation: " + event.getPacketType());
+        }
+        WrappedPositionMoveRotation position = positions.read(0);
+        position.setPosition(translated(position.getPosition(), -offsetX, -offsetZ));
+        positions.write(0, position);
+    }
+
+    private void translateExplosion(PacketEvent event, int offsetX, int offsetZ) {
+        // Explosion origin uses a Vec3; affected blocks use absolute BlockPositions.
+        translateVectorCoordinates(event, offsetX, offsetZ);
+        var blockPositions = event.getPacket().getBlockPositionCollectionModifier();
+        if (blockPositions.size() > 0) {
+            List<com.comphenix.protocol.wrappers.BlockPosition> original = blockPositions.read(0);
+            List<com.comphenix.protocol.wrappers.BlockPosition> translated = new ArrayList<>(original.size());
+            for (var block : original) {
+                translated.add(new com.comphenix.protocol.wrappers.BlockPosition(
+                        block.getX() - offsetX, block.getY(), block.getZ() - offsetZ));
+            }
+            blockPositions.write(0, translated);
+        }
+    }
+
+    private void translateUseItemOn(PacketEvent event, int offsetX, int offsetZ) {
+        var hits = event.getPacket().getMovingBlockPositions();
+        if (hits.size() == 0) {
+            throw new IllegalStateException("Paket enthält keinen Blocktreffer: " + event.getPacketType());
+        }
+        MovingObjectPositionBlock hit = hits.read(0);
+        var block = hit.getBlockPosition();
+        hit.setBlockPosition(new com.comphenix.protocol.wrappers.BlockPosition(
+                block.getX() + offsetX, block.getY(), block.getZ() + offsetZ));
+        hit.setPosVector(translated(hit.getPosVector(), offsetX, offsetZ));
+        hits.write(0, hit);
     }
 
     private void registerPacketTranslation() {
@@ -289,7 +446,9 @@ final class AdminSpectatorManager implements Listener {
             public void onPacketSending(PacketEvent event) {
                 Session session = sessions.get(event.getPlayer().getUniqueId());
                 if (session == null) return;
-                try {
+                synchronized (session) {
+                    if (sessions.get(event.getPlayer().getUniqueId()) != session) return;
+                    try {
                     PacketType type = event.getPacketType();
                     // These payloads may contain nested or packed world coordinates.
                     // Suppress them for the observer until their full wire layout is transformed.
@@ -327,13 +486,15 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.SPAWN_POSITION
                             || type == PacketType.Play.Server.OPEN_SIGN_EDITOR) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
-                    } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
+                    } else if (type == PacketType.Play.Server.SPAWN_ENTITY) {
                         translateVectorCoordinates(event, session.offsetX(), session.offsetZ());
-                    } else if (type == PacketType.Play.Server.SPAWN_ENTITY
-                            || type == PacketType.Play.Server.ENTITY_TELEPORT
+                    } else if (type == PacketType.Play.Server.ENTITY_TELEPORT
                             || type == PacketType.Play.Server.POSITION
-                            || type == PacketType.Play.Server.EXPLOSION
-                            || type == PacketType.Play.Server.VEHICLE_MOVE) {
+                            || type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
+                        translatePositionMoveRotation(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.EXPLOSION) {
+                        translateExplosion(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.VEHICLE_MOVE) {
                         translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 2);
                     } else if (type == PacketType.Play.Server.WORLD_EVENT) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
@@ -350,9 +511,10 @@ final class AdminSpectatorManager implements Listener {
                         // The initial world-border packet begins with its X/Z center coordinates.
                         translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 1);
                     }
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Konnte ausgehendes Paket für Admin-Spectator nicht transformieren: " + ex.getMessage());
-                    event.setCancelled(true);
+                    } catch (Exception ex) {
+                        plugin.getLogger().warning("Konnte ausgehendes Paket für Admin-Spectator nicht transformieren: " + ex.getMessage());
+                        event.setCancelled(true);
+                    }
                 }
             }
 
@@ -360,7 +522,13 @@ final class AdminSpectatorManager implements Listener {
             public void onPacketReceiving(PacketEvent event) {
                 Session session = sessions.get(event.getPlayer().getUniqueId());
                 if (session == null) return;
-                try {
+                synchronized (session) {
+                    if (sessions.get(event.getPlayer().getUniqueId()) != session) return;
+                    try {
+                    if (event.getPacketType() == PacketType.Play.Client.USE_ITEM_ON) {
+                        translateUseItemOn(event, session.offsetX(), session.offsetZ());
+                        return;
+                    }
                     var modifier = event.getPacket().getBlockPositionModifier();
                     if (modifier.size() > 0) {
                         var pos = modifier.read(0);
@@ -374,9 +542,10 @@ final class AdminSpectatorManager implements Listener {
                         event.getPacket().getDoubles().write(0, event.getPacket().getDoubles().read(0) + session.offsetX());
                         event.getPacket().getDoubles().write(2, event.getPacket().getDoubles().read(2) + session.offsetZ());
                     }
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Konnte eingehendes Interaktionspaket nicht transformieren: " + ex.getMessage());
-                    event.setCancelled(true);
+                    } catch (Exception ex) {
+                        plugin.getLogger().warning("Konnte eingehendes Interaktionspaket nicht transformieren: " + ex.getMessage());
+                        event.setCancelled(true);
+                    }
                 }
             }
         });
