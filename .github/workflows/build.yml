@@ -95,22 +95,34 @@ jobs:
               "FoxGate": {"foxgate"},
               "HandShaker": {"handshaker", "hand shaker"},
           }
+
           for line in Path("integration-plugin-map.txt").read_text().splitlines():
               plugin, jar_path = line.split("\t", 1)
               jar = Path(jar_path)
-              if not jar.is_file() or not jar.stat().st_size:
+              if not jar.is_file() or jar.stat().st_size == 0:
                   raise SystemExit(f"Missing or empty plugin JAR: {jar}")
+
               with ZipFile(jar) as archive:
-                  descriptors = [n for n in ("plugin.yml", "paper-plugin.yml") if n in archive.namelist()]
+                  descriptors = [
+                      name for name in ("plugin.yml", "paper-plugin.yml")
+                      if name in archive.namelist()
+                  ]
                   if not descriptors:
                       raise SystemExit(f"{jar.name} has no Paper/Bukkit plugin descriptor")
-                  descriptor = "\\n".join(archive.read(n).decode("utf-8", "replace") for n in descriptors)
+                  descriptor = "\n".join(
+                      archive.read(name).decode("utf-8", "replace")
+                      for name in descriptors
+                  )
+
               match = re.search(r"(?im)^name:\s*(.+)$", descriptor)
               if not match:
                   raise SystemExit(f"Could not read plugin name from {jar.name}")
+
               actual = match.group(1).strip().strip("'").strip('"').lower()
               if actual not in expected[plugin]:
-                  raise SystemExit(f"{jar.name}: expected {plugin}, descriptor declares {actual!r}")
+                  raise SystemExit(
+                      f"{jar.name}: expected {plugin}, descriptor declares {actual!r}"
+                  )
               print(f"Verified {plugin}: {jar.name}")
           PY
 
