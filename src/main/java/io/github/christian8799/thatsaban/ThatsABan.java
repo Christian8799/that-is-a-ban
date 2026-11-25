@@ -102,7 +102,7 @@ public final class ThatsABan extends JavaPlugin {
     private SpectatorIntegration loadSpectatorIntegration() {
         try {
             Class<?> type = Class.forName(getClass().getPackageName() + ".ProtocolLibFeatures",
-                    true, getClassLoader());
+                    true, getClass().getClassLoader());
             return (SpectatorIntegration) type
                     .getDeclaredConstructor(ThatsABan.class)
                     .newInstance(this);

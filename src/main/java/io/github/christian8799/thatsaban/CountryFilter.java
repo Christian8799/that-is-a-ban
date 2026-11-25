@@ -50,28 +50,30 @@ final class CountryFilter implements CountryFilterIntegration {
         }
     }
 
-    boolean isAvailable() {
+    @Override
+    public boolean isAvailable() {
         return !plugin.getConfig().getBoolean("country-filter.enabled", true) || databaseReady;
     }
 
-    Result check(InetAddress address) {
+    @Override
+    public CountryFilterIntegration.Result check(InetAddress address) {
         FileConfiguration cfg = plugin.getConfig();
         if (!cfg.getBoolean("country-filter.enabled", true)) {
-            return Result.ALLOWED;
+            return CountryFilterIntegration.Result.ALLOWED;
         }
         if (cfg.getBoolean("country-filter.allow-private-addresses", false)
                 && (address.isAnyLocalAddress() || address.isLoopbackAddress()
                 || address.isLinkLocalAddress() || address.isSiteLocalAddress())) {
-            return Result.ALLOWED;
+            return CountryFilterIntegration.Result.ALLOWED;
         }
         if (!databaseReady) {
-            return Result.UNAVAILABLE;
+            return CountryFilterIntegration.Result.UNAVAILABLE;
         }
 
         try {
             IPResult result = database.IPQuery(address.getHostAddress());
             if (result == null || !"OK".equalsIgnoreCase(result.getStatus())) {
-                return Result.UNAVAILABLE;
+                return CountryFilterIntegration.Result.UNAVAILABLE;
             }
 
             String country = result.getCountryShort();
@@ -85,16 +87,17 @@ final class CountryFilter implements CountryFilterIntegration {
             boolean allowed = "DE".equalsIgnoreCase(country)
                     && region != null
                     && allowedRegions.contains(region);
-            return allowed ? Result.ALLOWED : Result.DENIED;
+            return allowed ? CountryFilterIntegration.Result.ALLOWED : CountryFilterIntegration.Result.DENIED;
         } catch (Exception ex) {
             // Keine IP, keinen Datenbankinhalt und keine Exception-Details protokollieren.
             plugin.getLogger().warning("Lokale GeoIP-Abfrage fehlgeschlagen "
                     + "(Details werden aus Datenschutzgruenden nicht protokolliert).");
-            return Result.UNAVAILABLE;
+            return CountryFilterIntegration.Result.UNAVAILABLE;
         }
     }
 
-    void close() {
+    @Override
+    public void close() {
         if (databaseReady) {
             database.Close();
             databaseReady = false;
