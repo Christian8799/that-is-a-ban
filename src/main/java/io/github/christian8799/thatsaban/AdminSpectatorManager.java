@@ -203,6 +203,25 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
+    private void translateDoubleCoordinates(PacketEvent event, int offsetX, int offsetZ, int xIndex, int zIndex) {
+        var doubles = event.getPacket().getDoubles();
+        if (doubles.size() <= Math.max(xIndex, zIndex)) {
+            throw new IllegalStateException("Paket enthält nicht die erwarteten Koordinatenfelder: " + event.getPacketType());
+        }
+        doubles.write(xIndex, doubles.read(xIndex) - offsetX);
+        doubles.write(zIndex, doubles.read(zIndex) - offsetZ);
+    }
+
+    private void translateBlockPosition(PacketEvent event, int deltaX, int deltaZ) {
+        var positions = event.getPacket().getBlockPositionModifier();
+        if (positions.size() == 0) {
+            throw new IllegalStateException("Paket enthält keine Blockposition: " + event.getPacketType());
+        }
+        var pos = positions.read(0);
+        positions.write(0, new com.comphenix.protocol.wrappers.BlockPosition(
+                pos.getX() + deltaX, pos.getY(), pos.getZ() + deltaZ));
+    }
+
     private void registerPacketTranslation() {
         protocol.addPacketListener(new PacketAdapter(plugin, ListenerPriority.HIGHEST,
                 PacketType.Play.Server.MAP_CHUNK,
@@ -218,6 +237,13 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.SPAWN_ENTITY,
                 PacketType.Play.Server.ENTITY_TELEPORT,
                 PacketType.Play.Server.POSITION,
+                PacketType.Play.Server.EXPLOSION,
+                PacketType.Play.Server.WORLD_PARTICLES,
+                PacketType.Play.Server.WORLD_EVENT,
+                PacketType.Play.Server.NAMED_SOUND_EFFECT,
+                PacketType.Play.Server.SET_BORDER_CENTER,
+                PacketType.Play.Server.INITIALIZE_BORDER,
+                PacketType.Play.Server.VEHICLE_MOVE,
                 PacketType.Play.Client.BLOCK_DIG,
                 PacketType.Play.Client.USE_ITEM_ON,
                 PacketType.Play.Client.POSITION,
@@ -246,17 +272,28 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.BLOCK_ACTION
                             || type == PacketType.Play.Server.BLOCK_BREAK_ANIMATION
                             || type == PacketType.Play.Server.SPAWN_POSITION) {
-                        var pos = event.getPacket().getBlockPositionModifier().read(0);
-                        event.getPacket().getBlockPositionModifier().write(0,
-                                new com.comphenix.protocol.wrappers.BlockPosition(pos.getX() - session.offsetX(),
-                                        pos.getY(), pos.getZ() - session.offsetZ()));
+                        translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY
                             || type == PacketType.Play.Server.ENTITY_TELEPORT
-                            || type == PacketType.Play.Server.POSITION) {
-                        if (event.getPacket().getDoubles().size() >= 3) {
-                            event.getPacket().getDoubles().write(0, event.getPacket().getDoubles().read(0) - session.offsetX());
-                            event.getPacket().getDoubles().write(2, event.getPacket().getDoubles().read(2) - session.offsetZ());
+                            || type == PacketType.Play.Server.POSITION
+                            || type == PacketType.Play.Server.EXPLOSION
+                            || type == PacketType.Play.Server.WORLD_PARTICLES
+                            || type == PacketType.Play.Server.VEHICLE_MOVE) {
+                        translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 2);
+                    } else if (type == PacketType.Play.Server.WORLD_EVENT) {
+                        translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
+                    } else if (type == PacketType.Play.Server.NAMED_SOUND_EFFECT) {
+                        // Sound packet coordinates use fixed-point block coordinates multiplied by eight.
+                        var ints = event.getPacket().getIntegers();
+                        if (ints.size() >= 3) {
+                            ints.write(0, ints.read(0) - session.offsetX() * 8);
+                            ints.write(2, ints.read(2) - session.offsetZ() * 8);
                         }
+                    } else if (type == PacketType.Play.Server.SET_BORDER_CENTER) {
+                        translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 1);
+                    } else if (type == PacketType.Play.Server.INITIALIZE_BORDER) {
+                        // The initial world-border packet begins with its X/Z center coordinates.
+                        translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 1);
                     }
                 } catch (Exception ex) {
                     plugin.getLogger().warning("Konnte ausgehendes Paket für Admin-Spectator nicht transformieren: " + ex.getMessage());
