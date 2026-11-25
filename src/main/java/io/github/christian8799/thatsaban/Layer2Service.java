@@ -59,15 +59,22 @@ final class Layer2Service {
         }
 
         FileConfiguration cfg = plugin.getConfig();
-        if (!cfg.getBoolean("alt-detection.enabled", true) || ignored(address)) {
+        if (!cfg.getBoolean("alt-detection.enabled", true)) {
+            return;
+        }
+
+        boolean offender = store.isOffender(uuid);
+        if (offender) {
+            store.renewOffender(uuid); // Auch bei ignorierten Proxy-/IP-Adressen Login-Aktivität erfassen
+        }
+        if (ignored(address)) {
             return;
         }
 
         String hash = store.hash(address);
         store.record(uuid, name, hash);
 
-        if (store.isOffender(uuid)) {
-            store.renewOffender(uuid); // Aktivität erneuert die Offender-Aufbewahrungsfrist
+        if (offender) {
             store.flagIp(hash); // neue IP eines Ausloesers ebenfalls markieren
             return;
         }
