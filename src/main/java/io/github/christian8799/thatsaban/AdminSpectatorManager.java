@@ -7,6 +7,7 @@ import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.wrappers.MovingObjectPositionBlock;
+import com.comphenix.protocol.wrappers.ChunkCoordIntPair;
 import com.comphenix.protocol.wrappers.WrappedPositionMoveRotation;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -363,6 +364,28 @@ final class AdminSpectatorManager implements Listener {
         doubles.write(zIndex, doubles.read(zIndex) - offsetZ);
     }
 
+    private void translateChunkCoordinates(PacketEvent event, int offsetX, int offsetZ) {
+        int chunkOffsetX = offsetX / 16;
+        int chunkOffsetZ = offsetZ / 16;
+        var chunkPairs = event.getPacket().getChunkCoordIntPairs();
+        if (chunkPairs.size() > 0) {
+            ChunkCoordIntPair pair = chunkPairs.read(0);
+            chunkPairs.write(0, new ChunkCoordIntPair(
+                    pair.getChunkX() - chunkOffsetX,
+                    pair.getChunkZ() - chunkOffsetZ));
+            return;
+        }
+
+        // Older ProtocolLib mappings expose chunk coordinates as two integer fields.
+        var integers = event.getPacket().getIntegers();
+        if (integers.size() >= 2) {
+            integers.write(0, integers.read(0) - chunkOffsetX);
+            integers.write(1, integers.read(1) - chunkOffsetZ);
+            return;
+        }
+        throw new IllegalStateException("Paket enthält keine unterstützte Chunk-Koordinate: " + event.getPacketType());
+    }
+
     private void translateBlockPosition(PacketEvent event, int deltaX, int deltaZ) {
         var positions = event.getPacket().getBlockPositionModifier();
         if (positions.size() == 0) {
@@ -529,8 +552,7 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.UNLOAD_CHUNK
                             || type == PacketType.Play.Server.LIGHT_UPDATE
                             || type == PacketType.Play.Server.VIEW_CENTRE) {
-                        event.getPacket().getIntegers().write(0, event.getPacket().getIntegers().read(0) - session.offsetX() / 16);
-                        event.getPacket().getIntegers().write(1, event.getPacket().getIntegers().read(1) - session.offsetZ() / 16);
+                        translateChunkCoordinates(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.MULTI_BLOCK_CHANGE) {
                         var section = event.getPacket().getSectionPositions().read(0);
                         event.getPacket().getSectionPositions().write(0,
