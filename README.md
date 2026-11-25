@@ -323,14 +323,14 @@ Für Admin-Spectator gibt es derzeit keine weiteren Betreiber-Settings in config
 
 ## Befehle
 
-## Layer 2
+### Layer 2
 
 | Befehl | Beschreibung | Berechtigung |
 |---|---|---|
 | /offend <Spieler> | Setzt einen Java-Spieler nach bewusster Staff-Entscheidung in Layer 2 | thatsaban.offend |
 | /thatsaban unoffend <Spieler\|UUID> | Entfernt die vom Plugin verwaltete Layer-2-/Offender-Einstufung | thatsaban.layer2.remove oder thatsaban.admin |
 
-## Datenschutz- und Netzwerkbefehle
+### Datenschutz- und Netzwerkbefehle
 
 | Befehl | Beschreibung | Berechtigung |
 |---|---|---|
@@ -373,7 +373,7 @@ Für permanente Spectator-Verwaltung werden sowohl thatsaban.spectator als auch 
 
 Die Admin-Beobachtung wird über ProtocolLib bereitgestellt. Sie verschiebt die dem beobachtenden Client übermittelten Koordinaten in einen getrennten Koordinatenraum und filtert beziehungsweise unterdrückt nicht sicher übersetzbare Positionsdaten. Das Ziel selbst wird nicht teleportiert.
 
-## Befehle
+### Befehle
 
 | Befehl | Wirkung |
 |---|---|
