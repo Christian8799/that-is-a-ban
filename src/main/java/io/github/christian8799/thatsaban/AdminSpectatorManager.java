@@ -50,6 +50,7 @@ final class AdminSpectatorManager implements Listener {
     private final VanishIntegration vanish;
     private boolean vanishFailureLogged;
     private boolean vanishUnavailable;
+    private boolean permanentDataSavePending;
     private boolean packetListenerRegistered;
 
     private record PermanentSnapshot(GameMode gameMode, boolean allowFlight, boolean flying,
@@ -119,6 +120,7 @@ final class AdminSpectatorManager implements Listener {
             }
             // Re-enforce against plugins that bypass the Bukkit game-mode event.
             Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                if (permanentDataSavePending) savePermanentData();
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     UUID playerId = player.getUniqueId();
                     if (!hasPendingRestore(playerId) && !permanent.contains(playerId)) {
@@ -386,6 +388,7 @@ final class AdminSpectatorManager implements Listener {
         plugin.getConfig().set(pendingPath, serializePermanentSnapshots(pendingPermanentSnapshots));
         try {
             plugin.saveConfig();
+            permanentDataSavePending = false;
             return true;
         } catch (RuntimeException ex) {
             plugin.getConfig().set(playersPath, oldPlayers);
@@ -503,6 +506,7 @@ final class AdminSpectatorManager implements Listener {
         if (permanentSnapshots.containsKey(uuid)) return;
         permanentSnapshots.put(uuid, capturePermanentSnapshot(player));
         if (!savePermanentData()) {
+            permanentDataSavePending = true;
             plugin.getLogger().warning("Vorheriger Zustand des permanenten Spectator-Accounts bleibt bis zum nächsten erfolgreichen Speichern nur im Arbeitsspeicher: "
                     + uuid);
         }
