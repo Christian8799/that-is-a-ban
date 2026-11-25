@@ -181,8 +181,9 @@ final class Layer2Service {
             player = "unbekannt";
         }
         var message = plugin.messages().get(messageKey, Placeholder.unparsed("player", player));
-        Bukkit.getScheduler().runTask(plugin,
-                () -> Bukkit.broadcast(message, "thatsaban.notify"));
+        Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getOnlinePlayers().stream()
+                .filter(player -> player.hasPermission("thatsaban.notify"))
+                .forEach(player -> player.sendMessage(message)));
     }
 
     private boolean ignored(InetAddress address) {

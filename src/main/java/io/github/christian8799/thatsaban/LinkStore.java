@@ -10,6 +10,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.InvalidPathException;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.GeneralSecurityException;
@@ -33,6 +36,7 @@ final class LinkStore {
     private final ThatsABan plugin;
     private final File file;
     private final File keyFile;
+    private final boolean invalidKeyPath;
 
     private final Map<UUID, String> names = new HashMap<>();
     private final Map<UUID, Set<String>> ipsByPlayer = new HashMap<>();
@@ -51,7 +55,29 @@ final class LinkStore {
     LinkStore(ThatsABan plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "data.yml");
-        this.keyFile = new File(plugin.getDataFolder(), "ip-hmac.key");
+
+        String configuredKeyPath = System.getenv("THATSABAN_HMAC_KEY_PATH");
+        if (configuredKeyPath == null || configuredKeyPath.isBlank()) {
+            configuredKeyPath = plugin.getConfig().getString("privacy.hmac-key-path", "");
+        }
+        File resolvedKeyFile = new File(plugin.getDataFolder(), "ip-hmac.key");
+        boolean rejectedKeyPath = false;
+        if (configuredKeyPath != null && !configuredKeyPath.isBlank()) {
+            try {
+                Path supplied = Paths.get(configuredKeyPath);
+                Path requested = supplied.toAbsolutePath().normalize();
+                Path pluginDirectory = plugin.getDataFolder().toPath().toAbsolutePath().normalize();
+                if (!supplied.isAbsolute() || requested.startsWith(pluginDirectory)) {
+                    rejectedKeyPath = true;
+                } else {
+                    resolvedKeyFile = requested.toFile();
+                }
+            } catch (InvalidPathException ex) {
+                rejectedKeyPath = true;
+            }
+        }
+        this.keyFile = resolvedKeyFile;
+        this.invalidKeyPath = rejectedKeyPath;
     }
 
     synchronized void load() {
@@ -139,7 +165,17 @@ final class LinkStore {
     }
 
     private boolean loadHmacKey() {
+        if (invalidKeyPath) {
+            writeBlocked = true;
+            plugin.getLogger().severe("privacy.hmac-key-path bzw. THATSABAN_HMAC_KEY_PATH muss ein absoluter Pfad "
+                    + "außerhalb des Plugin-Ordners sein. IP-Verarbeitung und LinkStore-Schreibzugriffe sind blockiert.");
+            return false;
+        }
         try {
+            File parent = keyFile.getAbsoluteFile().getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                throw new IOException("Schlüsselverzeichnis konnte nicht erstellt werden");
+            }
             if (keyFile.isFile()) {
                 byte[] existing = Files.readAllBytes(keyFile.toPath());
                 if (existing.length == 32) {

@@ -21,7 +21,9 @@ Beim Betrieb des Minecraft-Servers können folgende Daten verarbeitet werden:
 - LuckPerms-Berechtigungsnodes zur Umsetzung bzw. Entfernung der Layer-2-Einstufung.
 - Technische Ereignisse und Fehlerdaten, soweit sie in Paper-, Proxy-, Hoster- oder Plugin-Logs anfallen.
 
-Konkreter Zweck: [z. B. Schutz vor Umgehung serverseitiger Anti-Cheat-Maßnahmen, Durchsetzung dokumentierter Serverregeln, Schutz der Integrität des Spielbetriebs]. Eine bloße allgemeine Sicherheitsbehauptung reicht nicht; den konkreten Zweck und die Erforderlichkeit beschreiben.
+**Zweck 1 – Anti-Cheat und Mehrfachkonten:** [konkreten Schutz vor Umgehung serverseitiger Anti-Cheat-Maßnahmen und die betroffenen Serverregeln beschreiben]. Eine bloße allgemeine Sicherheitsbehauptung reicht nicht; den konkreten Zweck und die Erforderlichkeit beschreiben.
+
+**Zweck 2 – Regionsbeschränkung auf Bayern:** Die IP-Adresse wird bereits beim Verbindungsaufbau flüchtig verarbeitet, um sie mit einer lokal gespeicherten GeoIP-Datenbank abzugleichen und Verbindungen außerhalb der freigegebenen Region abzulehnen. Der Betreiber muss diesen Zweck separat festlegen und prüfen. Die GeoIP-Zuordnung ist nur eine Näherung: VPNs, Mobilfunk, Proxys und fehlerhafte oder veraltete Datenbankeinträge können Spieler fälschlich ausschließen. Dokumentiere, warum eine Regionsbeschränkung erforderlich ist, warum mildere Mittel (z. B. freiwillige Auswahl oder manuelle Prüfung) nicht ausreichen und wie Fehlzuordnungen angefochten bzw. korrigiert werden können.
 
 ### Rechtsgrundlage und Interessenabwägung
 
@@ -33,6 +35,8 @@ Als mögliche Rechtsgrundlage kommt – nach individueller Prüfung – Art. 6 A
 4. **Ergebnis:** [begründetes Ergebnis und Datum der Prüfung].
 
 Art. 6 Abs. 1 lit. f DSGVO darf nicht pauschal als Rechtsgrundlage eingetragen werden. Bei Minderjährigen ist die vernünftige Erwartung der betroffenen Personen besonders sorgfältig zu berücksichtigen.
+
+Für die **Regionsbeschränkung** ist eine eigene Interessenabwägung zu dokumentieren: berechtigtes Interesse an einer regional begrenzten Community bzw. einem regionalen Angebot, Erforderlichkeit einer IP-basierten GeoIP-Prüfung, mögliche mildere Mittel, Auswirkungen eines falschen Ausschlusses, Genauigkeit/Aktualität der Datenbank, VPN-/Mobilfunk-/Proxy-Nutzung und ein praktikabler Kontaktweg zur Überprüfung. Die Abwägung für Anti-Cheat deckt diesen eigenständigen Zweck nicht automatisch ab.
 
 ### Empfänger und Übermittlungen
 
@@ -62,6 +66,10 @@ Für die Plugin-Daten stehen Staff-Befehle zur Verfügung:
 - `/thatsaban forget <Spieler|UUID> confirm`
 
 Diese Befehle decken nicht automatisch Daten in Paper-Logs, Proxy-Logs, Hosting-Systemen, anderen Plugins oder unabhängigen LuckPerms-Daten ab. Eine Anfrage muss daher systemübergreifend geprüft werden.
+
+### Zeitpunkt der Information
+
+Da die IP-Adresse bereits beim Verbindungsaufbau für die Regionsprüfung verarbeitet wird, müssen die erforderlichen Informationen den Spielern **vor dem Verbindungsaufbau bzw. vor dem Login** zugänglich sein. Ein bloßer Hinweis nach dem Login reicht für diese Verarbeitung nicht aus. Platziere die Datenschutzhinweise z. B. in der Serverliste (MOTD mit Link/kurzem Hinweis), auf der Website oder in einer anderen vor dem Beitritt erreichbaren Informationsquelle. Prüfe, ob der vollständige Hinweis ohne vorherige Datenverarbeitung erreichbar ist.
 
 ### Pflichtinformationen ergänzen
 
@@ -108,7 +116,8 @@ Dokumentiere mindestens Verarbeitung, Notwendigkeit/Verhältnismäßigkeit, Risi
 - [ ] `alt-detection.enabled` nur nach dokumentierter Prüfung aktivieren.
 - [ ] `alt-detection.auto-apply: false` und `alt-detection.retroactive: false` beibehalten, sofern keine begründete Einzelfallentscheidung etwas anderes rechtfertigt.
 - [ ] Speicherdauern und Zugriffsberechtigungen regelmäßig prüfen.
-- [ ] `plugins/ThatsABan/ip-hmac.key` sicher aufbewahren und nicht veröffentlichen oder in Backups mit breitem Zugriff ablegen.
+- [ ] `plugins/ThatsABan/ip-hmac.key` bzw. den konfigurierten externen HMAC-Schlüsselpfad sicher aufbewahren und nicht veröffentlichen oder in Backups mit breitem Zugriff ablegen.
+- [ ] Regionsbeschränkung als eigenen Zweck mit eigener Interessenabwägung dokumentieren und Spieler vor dem Verbindungsaufbau informieren.
 - [ ] Zugriffsrechte auf `data.yml`, Schlüsseldatei, LuckPerms-Speicher und Logs prüfen.
 - [ ] Betroffenenanfragen auch bei Hoster, Proxy, Paper, LuckPerms und weiteren Plugins bearbeiten.
 - [ ] Alte Plugin-Versionen vor Commit `b34c644` nicht mehr einsetzen; historische Logs und alte Backup-Dateien nach dem Löschkonzept prüfen.

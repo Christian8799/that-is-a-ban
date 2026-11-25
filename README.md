@@ -14,7 +14,7 @@ Anti-Cheat-Connector für **Paper 1.21.11** (Java 21). Das Plugin bringt keine e
 - **`/offend <Spieler>`** ist eine bewusste Staff-Entscheidung und setzt den Spieler in Layer 2.
 - Layer 2 verwendet den LuckPerms-Marker `thatsaban.layer2` sowie die in `layer2.negated-permissions` konfigurierten Nodes.
 - **IP-Kopplung ist standardmäßig deaktiviert** (`alt-detection.enabled: false`). Wird sie aktiviert, speichert das Plugin keine Roh-IP, sondern HMAC-SHA-256-Werte. IPv6 wird vor dem HMAC auf /64 gekürzt.
-- Der geheime HMAC-Schlüssel liegt getrennt in `plugins/ThatsABan/ip-hmac.key`; `data.yml` und der Schlüssel werden mit owner-only-Dateirechten angelegt. Der Schlüssel darf nicht gelöscht oder mit anderen Servern geteilt werden. Geht er verloren, werden gespeicherte IP-Verknüpfungen beim nächsten Start verworfen.
+- Der geheime HMAC-Schlüssel liegt getrennt in `plugins/ThatsABan/ip-hmac.key`. Über `privacy.hmac-key-path` oder vorrangig `THATSABAN_HMAC_KEY_PATH` kann ein **absoluter Pfad außerhalb des Plugin-Ordners** festgelegt werden. `data.yml` und Schlüsseldatei erhalten owner-only-Dateirechte. Der Schlüssel darf nicht gelöscht oder mit anderen Servern geteilt werden. Geht er verloren, werden gespeicherte IP-Verknüpfungen beim nächsten Start verworfen. Bei der erstmaligen Umstellung den bisherigen Schlüssel sicher an den neuen Pfad verschieben, bevor der Server startet; ein neu erzeugter Schlüssel kann alte HMAC-Zuordnungen nicht mehr auflösen. Der externe Pfad trennt die Dateien organisatorisch, schützt aber nicht vor einem kompromittierten Serverkonto oder vor Backups, die beide Pfade gemeinsam erfassen.
 - IP-Hashes und zugehörige Spielerreferenzen werden nach `alt-detection.retention-days` gelöscht (Standard: 30 Tage).
 - Plugin-verwaltete Layer-2-Markierungen (einschließlich Offender) laufen nach `alt-detection.offender-retention-days` ab (Standard: **365 Tage seit dem letzten Login**, maximal 3650 Tage). Abgelaufene Layer-2-Nodes werden auch bei Offline-Spielern aus LuckPerms entfernt.
 - **Shared-IP-Fehlalarme:** Familie, WG, Schule, CGNAT und Mobilfunk können dieselbe öffentliche IP verwenden. Deshalb sind `alt-detection.auto-apply` und `alt-detection.retroactive` standardmäßig `false`. Eine Übereinstimmung erzeugt zunächst nur einen Hinweis für Staff mit `thatsaban.notify`. Erst nach Prüfung kann Staff mit `/offend <Spieler>` bestätigen. Automatische oder rückwirkende Einstufung ist nur nach bewusster Konfigurationsänderung aktiv.
@@ -31,7 +31,9 @@ Anti-Cheat-Connector für **Paper 1.21.11** (Java 21). Das Plugin bringt keine e
 
 Die Löschung entfernt die UUID und den Namen aus dem eigenen `data.yml`, die Verknüpfung zu IP-Hashes und die vom Plugin direkt gesetzten LuckPerms-Nodes. Vererbte Marker aus Gruppen oder kontextgebundene Nodes müssen separat in LuckPerms geprüft werden. Ein HMAC-Hash, der weiterhin anderen Spielern zugeordnet ist, bleibt für diese übrigen Datensätze bestehen. Der LuckPerms-Benutzerdatensatz selbst wird nicht gelöscht, weil er auch unabhängige Berechtigungen anderer Plugins enthalten kann. Diese müssen bei einer umfassenderen Löschanfrage separat geprüft werden.
 
-Namen von Accounts mit IP-Übereinstimmung werden nur Staff mit `thatsaban.notify` bzw. `thatsaban.view-linked-accounts` angezeigt. Das Plugin protokolliert standardmäßig keine Spieler- oder Staff-Namen. Optionales Audit-Logging (`privacy.audit-logging: true`) schreibt UUIDs, keine Namen oder IP-Adressen.
+Namen von Accounts mit IP-Übereinstimmung werden nur Staff mit `thatsaban.notify` bzw. `thatsaban.view-linked-accounts` angezeigt. Staff-Hinweise werden ausschließlich an online Spieler mit `thatsaban.notify` gesendet, nicht an die Konsole. Das Plugin protokolliert standardmäßig keine Spieler- oder Staff-Namen. Optionales Audit-Logging (`privacy.audit-logging: true`) schreibt UUIDs, keine Namen oder IP-Adressen.
+- `thatsaban.admin` ist eine übergeordnete Permission für alle drei Datenschutzbefehle; alternativ können die engeren Permissions einzeln vergeben werden.
+- Auf Dateisystemen ohne POSIX-Rechte verwendet das Plugin einen Java-`File`-Fallback zum Einschränken der Lese-/Schreibrechte. Kann dieser Fallback die Rechte nicht setzen, werden LinkStore-Schreibzugriffe blockiert. Die tatsächliche Zugriffskontrolle des Betriebssystems muss der Betreiber zusätzlich prüfen.
 
 ## Lokale GeoIP-Datenbank einrichten
 
@@ -61,6 +63,7 @@ Layer-2-Spieler erhalten diese Nodes auf Spielerebene negiert.
 
 | Permission | Standard | Bedeutung |
 |---|---|---|
+| `thatsaban.admin` | op | Übergeordnete Berechtigung für alle Datenschutzbefehle |
 | `thatsaban.offend` | op | `/offend` benutzen |
 | `thatsaban.privacy.read` | op | Plugin-Auskunft |
 | `thatsaban.layer2.remove` | op | Layer 2 entfernen |

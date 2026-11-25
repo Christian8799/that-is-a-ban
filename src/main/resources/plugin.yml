@@ -18,7 +18,7 @@ commands:
 
 permissions:
   thatsaban.admin:
-    description: Basisberechtigung für Datenschutz-Administrationsbefehle
+    description: Übergeordnete Berechtigung für alle Datenschutz-Administrationsbefehle
     default: op
   thatsaban.offend:
     description: Darf /offend benutzen

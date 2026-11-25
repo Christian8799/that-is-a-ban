@@ -45,7 +45,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("Benutzung: /thatsaban <info|unoffend|forget> <Spieler|UUID> [confirm]");
             return true;
         }
-        if (!sender.hasPermission(permission)) {
+        if (!sender.hasPermission(permission) && !sender.hasPermission("thatsaban.admin")) {
             sender.sendMessage("Dafür fehlt die Berechtigung " + permission + ".");
             return true;
         }
@@ -146,9 +146,9 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> options = new ArrayList<>();
-            if (sender.hasPermission("thatsaban.privacy.read")) options.add("info");
-            if (sender.hasPermission("thatsaban.layer2.remove")) options.add("unoffend");
-            if (sender.hasPermission("thatsaban.privacy.erase")) options.add("forget");
+            if (sender.hasPermission("thatsaban.privacy.read") || sender.hasPermission("thatsaban.admin")) options.add("info");
+            if (sender.hasPermission("thatsaban.layer2.remove") || sender.hasPermission("thatsaban.admin")) options.add("unoffend");
+            if (sender.hasPermission("thatsaban.privacy.erase") || sender.hasPermission("thatsaban.admin")) options.add("forget");
             String prefix = args[0].toLowerCase(Locale.ROOT);
             return options.stream().filter(s -> s.startsWith(prefix)).toList();
         }
@@ -160,7 +160,8 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                 case "forget" -> "thatsaban.privacy.erase";
                 default -> null;
             };
-            if (permission == null || !sender.hasPermission(permission)) {
+            if (permission == null || (!sender.hasPermission(permission)
+                    && !sender.hasPermission("thatsaban.admin"))) {
                 return List.of();
             }
             String prefix = args[1].toLowerCase(Locale.ROOT);

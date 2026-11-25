@@ -12,6 +12,9 @@ offend:
   kick-online-target: false
 
 privacy:
+  # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
+  # Umgebungsvariable THATSABAN_HMAC_KEY_PATH hat Vorrang.
+  hmac-key-path: ""
   # Standardmäßig keine spielerbezogenen Audit-Einträge in Paper-Logs schreiben.
   # Bei Aktivierung werden nur UUIDs (keine Spielernamen/IP-Adressen) protokolliert.
   audit-logging: false
