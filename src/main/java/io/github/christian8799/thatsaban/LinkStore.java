@@ -45,12 +45,30 @@ final class LinkStore {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
 
         String savedSalt = yaml.getString("salt");
-        if (savedSalt == null) {
+        boolean validSalt = false;
+        if (savedSalt != null) {
+            try {
+                byte[] parsed = HexFormat.of().parseHex(savedSalt);
+                if (parsed.length == 16) {
+                    salt = parsed;
+                    validSalt = true;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Wird unten kontrolliert mit einem neuen Salt wiederhergestellt.
+            }
+        }
+
+        if (!validSalt) {
             salt = new byte[16];
             new SecureRandom().nextBytes(salt);
             dirty = true;
-        } else {
-            salt = HexFormat.of().parseHex(savedSalt);
+            if (savedSalt != null) {
+                plugin.getLogger().warning("data.yml enthaelt einen ungueltigen Salt. "
+                        + "Gespeicherte IP-Verknuepfungen werden verworfen; Offender-Markierungen bleiben erhalten.");
+            } else if (file.exists()) {
+                plugin.getLogger().warning("Salt fehlt in data.yml. Gespeicherte IP-Verknuepfungen "
+                        + "werden verworfen; Offender-Markierungen bleiben erhalten.");
+            }
         }
 
         ConfigurationSection players = yaml.getConfigurationSection("players");
@@ -66,12 +84,16 @@ final class LinkStore {
                 if (name != null) {
                     names.put(uuid, name);
                 }
-                for (String hash : players.getStringList(key + ".ips")) {
-                    link(uuid, hash);
+                if (validSalt) {
+                    for (String hash : players.getStringList(key + ".ips")) {
+                        link(uuid, hash);
+                    }
                 }
             }
         }
-        layer2Ips.addAll(yaml.getStringList("layer2-ips"));
+        if (validSalt) {
+            layer2Ips.addAll(yaml.getStringList("layer2-ips"));
+        }
         for (String id : yaml.getStringList("offenders")) {
             try {
                 offenders.add(UUID.fromString(id));
