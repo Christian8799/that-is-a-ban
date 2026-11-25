@@ -88,6 +88,22 @@ final class Layer2Service {
         }
     }
 
+    /**
+     * Records a Bedrock account for the account graph without applying Layer 2 logic.
+     * Bedrock players remain immune to /offend; this only enables transparent network evidence.
+     */
+    void recordNetworkLogin(UUID uuid, String name, InetAddress address) {
+        FileConfiguration cfg = plugin.getConfig();
+        if (!cfg.getBoolean("alt-detection.enabled", false) || store.isWriteBlocked() || ignored(address)) {
+            return;
+        }
+        User user = hook.userNow(uuid);
+        if (hook.has(user, hook.exemptNode())) {
+            return;
+        }
+        store.record(uuid, name, store.hash(address));
+    }
+
     /** Läuft beim Async-Pre-Login für jeden Java-Spieler. */
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
