@@ -3,9 +3,9 @@ main: io.github.christian8799.thatsaban.ThatsABan
 version: ${version}
 api-version: "1.21.11"
 author: Christian8799
-description: Anti-Cheat-Connector - Layer 1/2, Datenschutzbefehle, IP-Kopplung und LuckPerms
+description: Anti-Cheat-Connector with privacy tools and protected admin spectating
 depend: [LuckPerms]
-softdepend: [GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
+softdepend: [ProtocolLib, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
 
 commands:
   offend:
@@ -15,10 +15,14 @@ commands:
   thatsaban:
     description: Datenschutz-Auskunft, Account-Netzwerk, Layer-2-Entfernung und Datenlöschung
     usage: /<command> <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]
+  adminspec:
+    description: Geschützte Admin-Beobachtung verwalten
+    usage: /<command> <observe|off|permanent> [Spieler]
+    permission: thatsaban.spectator
 
 permissions:
   thatsaban.admin:
-    description: Übergeordnete Berechtigung für alle Datenschutz-Administrationsbefehle
+    description: Übergeordnete Berechtigung für Datenschutz-Administrationsbefehle
     default: op
   thatsaban.offend:
     description: Darf /offend benutzen
@@ -42,8 +46,14 @@ permissions:
     description: Erhält Hinweise zu IP-Übereinstimmungen, die Staff prüfen soll
     default: op
   thatsaban.layer2:
-    description: Marker-Node für Layer 2 (wird per LuckPerms gesetzt)
+    description: Marker-Node für Layer 2
     default: false
   thatsaban.exempt:
     description: Ausnahme von /offend und IP-Kopplung
     default: false
+  thatsaban.spectator:
+    description: Darf geschützte Admin-Beobachtung verwenden
+    default: op
+  thatsaban.spectator.permanent:
+    description: Darf permanente Spectator-Accounts verwalten
+    default: op

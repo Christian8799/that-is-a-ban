@@ -8,10 +8,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.List;
 
 public final class ThatsABan extends JavaPlugin {
-
     private Messages messages;
     private LinkStore store;
     private CountryFilter countryFilter;
+    private AdminSpectatorManager spectatorManager;
 
     @Override
     public void onEnable() {
@@ -38,7 +38,6 @@ public final class ThatsABan extends JavaPlugin {
 
         layer2.cleanupExpired();
         getServer().getScheduler().runTaskTimer(this, layer2::cleanupExpired, 1200L, 1200L);
-
         getServer().getPluginManager().registerEvents(
                 new LoginListener(this, layer2, bedrock, countryFilter), this);
 
@@ -54,6 +53,14 @@ public final class ThatsABan extends JavaPlugin {
             PrivacyAdminCommand admin = new PrivacyAdminCommand(this, store, layer2, hook);
             privacyCommand.setExecutor(admin);
             privacyCommand.setTabCompleter(admin);
+        }
+
+        spectatorManager = new AdminSpectatorManager(this);
+        PluginCommand spectatorCommand = getCommand("adminspec");
+        if (spectatorCommand != null) {
+            AdminSpectatorCommand executor = new AdminSpectatorCommand(this, spectatorManager);
+            spectatorCommand.setExecutor(executor);
+            spectatorCommand.setTabCompleter(executor);
         }
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
@@ -87,17 +94,12 @@ public final class ThatsABan extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (store != null) {
-            store.save();
-        }
-        if (countryFilter != null) {
-            countryFilter.close();
-        }
+        if (spectatorManager != null) spectatorManager.shutdown();
+        if (store != null) store.save();
+        if (countryFilter != null) countryFilter.close();
     }
 
-    Messages messages() {
-        return messages;
-    }
+    Messages messages() { return messages; }
 
     private void checkIntegrations() {
         warnMissing("layer1-plugins", "Layer 1");
