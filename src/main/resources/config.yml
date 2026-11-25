@@ -26,9 +26,9 @@ bedrock:
   name-prefixes:
     - "."
 
-# Nur IP-Adressen, die laut GeoIP-Datenbank Deutschland zugeordnet sind, duerfen verbinden.
-# Die oeffentliche IP wird dazu an ipwho.is uebermittelt. Bei Ausfall der Abfrage wird
-# fail-closed abgelehnt, damit die Laendersperre nicht versehentlich offen bleibt.
+# Nur IP-Adressen, die laut GeoIP-Datenbank Bayern (Deutschland, Regioncode BY) zugeordnet sind,
+# duerfen verbinden. Die oeffentliche IP wird dazu an ipwho.is uebermittelt. Bei Ausfall der
+# Abfrage wird fail-closed abgelehnt, damit die Regionssperre nicht versehentlich offen bleibt.
 country-filter:
   enabled: true
   allow-private-addresses: false
