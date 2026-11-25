@@ -8,7 +8,7 @@ public final class ThatsABan extends JavaPlugin {
     private Messages messages;
     private LinkStore store;
     private CountryFilter countryFilter;
-    private AdminSpectatorManager spectatorManager;
+    private SpectatorIntegration spectatorFeature;
 
     @Override
     public void onEnable() {
@@ -73,16 +73,11 @@ public final class ThatsABan extends JavaPlugin {
             return;
         }
         try {
-            spectatorManager = new AdminSpectatorManager(this);
-            registerCommand("adminspec", new AdminSpectatorCommand(spectatorManager));
+            spectatorFeature = new ProtocolLibFeatures(this);
+            registerCommand("adminspec", spectatorFeature.command());
             getLogger().info("ProtocolLib-Integration aktiv: Admin-Spectator verfügbar.");
         } catch (LinkageError | RuntimeException ex) {
-            spectatorManager = null;
-            try {
-                com.comphenix.protocol.ProtocolLibrary.getProtocolManager().removePacketListeners(this);
-            } catch (LinkageError | RuntimeException cleanupError) {
-                getLogger().warning("ProtocolLib-Cleanup fehlgeschlagen: " + cleanupError.getClass().getSimpleName());
-            }
+            spectatorFeature = null;
             registerCommand("adminspec", new FeatureUnavailableCommand(
                     "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."));
             warnFeatureDisabled("Admin-Spectator (ProtocolLib)", ex);
@@ -136,7 +131,7 @@ public final class ThatsABan extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (spectatorManager != null) spectatorManager.shutdown();
+        if (spectatorFeature != null) spectatorFeature.shutdown();
         if (store != null) store.save();
         if (countryFilter != null) {
             try {
