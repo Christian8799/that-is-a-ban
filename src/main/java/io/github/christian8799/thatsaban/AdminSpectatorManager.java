@@ -88,11 +88,26 @@ final class AdminSpectatorManager implements Listener {
     }
 
     boolean stop(Player observer, String reason) {
-        Session session = sessions.remove(observer.getUniqueId());
+        UUID observerId = observer.getUniqueId();
+        Session session = sessions.remove(observerId);
         if (session == null) return false;
+
+        // Stop translating packets before sending the return teleport. Otherwise
+        // the client would receive the saved server coordinates in the shifted
+        // coordinate space and could be left at an invalid client-side position.
         observer.setSpectatorTarget(null);
+        if (!observer.teleport(session.snapshot().location())) {
+            // Fail closed: keep the session active and the moderator hidden.
+            sessions.put(observerId, session);
+            observer.setGameMode(GameMode.SPECTATOR);
+            observer.setAllowFlight(true);
+            observer.setFlying(true);
+            plugin.getLogger().severe("Admin-Spectator-Rückteleport fehlgeschlagen; Spieler bleibt verborgen: " + observerId);
+            audit("STOP_FAILED (" + reason + ")", observerId, session.target());
+            return false;
+        }
+
         Snapshot s = session.snapshot();
-        observer.teleport(s.location());
         observer.setGameMode(s.gameMode());
         observer.setAllowFlight(s.allowFlight());
         observer.setFlying(s.flying() && s.allowFlight());
@@ -101,11 +116,12 @@ final class AdminSpectatorManager implements Listener {
         observer.setWalkSpeed(s.walkSpeed());
         observer.setViewDistance(s.viewDistance());
         observer.setSendViewDistance(s.sendViewDistance());
+
         // A permanent Spectator account must remain in Spectator after restoration.
         enforcePermanent(observer);
-        // Reveal the moderator only after they have returned to the saved location.
+        // Reveal only after the unshifted return teleport succeeded.
         showObserverToAll(observer);
-        audit("STOP (" + reason + ")", observer.getUniqueId(), session.target());
+        audit("STOP (" + reason + ")", observerId, session.target());
         return true;
     }
 
@@ -147,16 +163,18 @@ final class AdminSpectatorManager implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player joining = event.getPlayer();
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            enforcePermanent(joining);
-            // Also hide observers from players who join during an active session.
-            for (UUID observerId : Set.copyOf(sessions.keySet())) {
-                Player observer = Bukkit.getPlayer(observerId);
-                if (observer != null && !observer.equals(joining)) {
-                    joining.hidePlayer(plugin, observer);
-                }
+
+        // Apply visibility synchronously in the join event, before the joining
+        // player can receive a post-join world/entity update containing an observer.
+        for (UUID observerId : Set.copyOf(sessions.keySet())) {
+            Player observer = Bukkit.getPlayer(observerId);
+            if (observer != null && !observer.equals(joining)) {
+                joining.hidePlayer(plugin, observer);
             }
-        });
+        }
+
+        // Enforce permanent Spectator immediately rather than one tick later.
+        enforcePermanent(joining);
     }
 
     @EventHandler
