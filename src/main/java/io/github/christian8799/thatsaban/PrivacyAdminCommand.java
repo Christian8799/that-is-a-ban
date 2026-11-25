@@ -60,6 +60,9 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
         switch (action) {
             case "info" -> {
                 LinkStore.PlayerSnapshot snapshot = store.snapshot(target);
+                if (store.isWriteBlocked()) {
+                    sender.sendMessage("WARNUNG: LinkStore ist schreibgeschützt; die Auskunft kann unvollständig sein.");
+                }
                 hook.users().loadUser(target).whenComplete((user, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (error != null || user == null) {
