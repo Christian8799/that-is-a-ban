@@ -1,0 +1,58 @@
+# that-s-a-ban - Konfiguration
+
+layer2:
+  # LuckPerms-Node, der einen Spieler als "Layer 2" markiert.
+  # Wird in LuckPerms gespeichert, ist also permanent und per LuckPerms einsehbar.
+  marker-permission: "thatsaban.layer2"
+
+  # Nodes, die bei Layer 2 auf Spielerebene NEGIERT werden.
+  # Die Gruppe "default" bekommt diese Nodes einmalig auf TRUE (siehe README),
+  # dadurch gelten FoxGate und HandShaker nur noch fuer Layer-2-Spieler.
+  negated-permissions:
+    - "foxav.bypass"        # FoxGate
+    - "handshaker.bypass"   # HandShaker
+
+  # Wer diesen Node hat, kann nicht per /offend oder IP-Kopplung in Layer 2 landen.
+  exempt-permission: "thatsaban.exempt"
+
+offend:
+  # Online-Spieler nach /offend kicken, damit die Layer-2-Pruefungen
+  # (FoxGate, HandShaker) beim erneuten Beitritt sofort greifen.
+  kick-online-target: false
+
+bedrock:
+  # Bedrock-Spieler sind immun. Erkennung ueber Floodgate-/Geyser-API,
+  # Floodgate-UUID und diese Namenspraefixe (Floodgate-Standard ist ".").
+  name-prefixes:
+    - "."
+
+alt-detection:
+  enabled: true
+  # Beim /offend auch alle bereits bekannten Accounts derselben IP(s) in Layer 2 versetzen
+  retroactive: true
+  # Loopback-/LAN-Adressen ignorieren (sonst landet bei Proxy ohne IP-Weitergabe jeder in Layer 2)
+  ignore-private-addresses: true
+  # IPs, die nie gekoppelt werden (z.B. Schule, Uni, Mobilfunk-Gateway)
+  ignored-ips: []
+
+integrations:
+  # Nur fuer Warnungen beim Start: Plugin-Namen, die installiert sein sollten
+  layer1-plugins:
+    - "GrimAC"
+    - "CheatDetector"
+  layer2-plugins:
+    - "FoxGate"
+    - "HandShaker"
+
+messages:
+  prefix: "<gray>[<red>that-s-a-ban</red>]</gray> "
+  usage: "<red>Benutzung: /offend Spielername"
+  player-not-found: "<red>Spieler <white><player></white> ist dem Server nicht bekannt."
+  bedrock-immune: "<yellow><player></yellow> ist ein Bedrock-Spieler und immun gegen /offend."
+  exempt: "<yellow><player></yellow> ist ausgenommen (thatsaban.exempt)."
+  already: "<yellow><player></yellow> ist bereits in Layer 2."
+  done: "<green><player></green> wurde dauerhaft in <red>Layer 2</red> versetzt."
+  done-alts: "<gray>Zusaetzlich in Layer 2 versetzt (gleiche IP): <white><alts></white>"
+  error: "<red>Layer 2 konnte nicht gesetzt werden - siehe Konsole."
+  kick-relogin: "<red>Deine Sicherheitsstufe wurde geaendert. Bitte verbinde dich erneut."
+  alt-flagged-staff: "<white><player></white> wurde wegen gleicher IP automatisch in Layer 2 versetzt."
