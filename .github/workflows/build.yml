@@ -1,8 +1,21 @@
 name: Build
 
 on:
+  # PRs are validated on every update. Push validation is reserved for main,
+  # avoiding duplicate builds for commits on an open pull-request branch.
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
