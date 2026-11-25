@@ -168,8 +168,17 @@ final class AdminSpectatorManager implements Listener {
                 observer.getViewDistance(), observer.getSendViewDistance(),
                 observer.getSpectatorTarget() == null ? null : observer.getSpectatorTarget().getUniqueId());
         // Chunk-aligned offsets preserve local block coordinates while changing absolute client coordinates.
-        int offsetX = createOffset(target.getLocation().getX());
-        int offsetZ = createOffset(target.getLocation().getZ());
+        double targetX = target.getLocation().getX();
+        double targetZ = target.getLocation().getZ();
+        int offsetX = createOffset(targetX);
+        int offsetZ = createOffset(targetZ);
+        if (Math.abs(targetX - offsetX) > 29_000_000.0
+                || Math.abs(targetZ - offsetZ) > 29_000_000.0) {
+            observer.sendMessage("Der Zielspieler befindet sich zu nahe an der Weltgrenze. "
+                    + "Eine sichere Koordinatenverschiebung ist dort nicht möglich.");
+            audit("START_OUT_OF_RANGE", observerId, target.getUniqueId());
+            return false;
+        }
         boolean wasVanished = false;
         if (vanishMode) {
             try {
