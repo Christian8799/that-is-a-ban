@@ -1,111 +1,96 @@
 # That's a Ban
 
-**That's a Ban** ist ein Anti-Cheat-Connector und ein Werkzeug für Datenschutz- und Moderationsabläufe auf **Paper 1.21.11**. Das Plugin implementiert keine eigenen Cheat-Erkennungsregeln. Es verbindet vorhandene Plugins und steuert über LuckPerms, welche Anti-Cheat-Integrationen für Spieler in Layer 1 beziehungsweise Layer 2 greifen.
+**That's a Ban** is a Paper plugin that connects existing anti-cheat plugins with staff moderation and privacy tools. It does **not** implement its own cheat-detection checks. Layer 1/Layer 2 permission handling is provided through LuckPerms.
 
-Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Admin-Beobachtung, eine lokale GeoIP-Regionsprüfung und – wenn ausdrücklich aktiviert – ein pseudonymisiertes Alt-Account-Netzwerk.
+The plugin also includes an optional protected admin spectator mode, a local GeoIP region filter, and an opt-in pseudonymous account-link network.
 
-## Inhaltsverzeichnis
+**Documentation:** [English](README.md) · [Deutsch](README.de.md)
 
-- [Kompatibilität und optionale Plugins](#kompatibilität-und-optionale-plugins)
-- [Schnellstart](#schnellstart)
-- [Funktionsweise: Layer 1 und Layer 2](#funktionsweise-layer-1-und-layer-2)
-- [Konfiguration vollständig](#konfiguration-vollständig)
-  - [Konfigurationsdatei](#vollständige-standardkonfiguration)
-  - [Layer 2 und Offend](#layer-2-und-offend)
-  - [Datenschutz und HMAC-Schlüssel](#datenschutz-und-hmac-schlüssel)
-  - [Bedrock-Erkennung](#bedrock-erkennung)
-  - [Country-/Region-Filter](#countryregion-filter)
-  - [Alt-Account-Erkennung](#alt-account-erkennung)
-  - [Integrationslisten](#integrationslisten)
-  - [Nachrichten](#nachrichten)
-  - [Automatisch verwaltete Spectator-Daten](#automatisch-verwaltete-spectator-daten)
-- [Befehle](#befehle)
+## Contents
+
+- [Requirements and optional integrations](#requirements-and-optional-integrations)
+- [Installation](#installation)
+- [How Layer 1 and Layer 2 work](#how-layer-1-and-layer-2-work)
+- [Configuration reference](#configuration-reference)
+- [Commands](#commands)
 - [Permissions](#permissions)
-- [Geschützte Admin-Beobachtung](#geschützte-admin-beobachtung)
-- [Alt-Account-Netzwerk: Grenzen und Fehlalarme](#alt-account-netzwerk-grenzen-und-fehlalarme)
-- [Datenschutz und DSGVO](#datenschutz-und-dsgvo)
-- [GeoIP-Datenbank installieren](#geoip-datenbank-installieren)
-- [Proxy- und Netzwerkbetrieb](#proxy--und-netzwerkbetrieb)
+- [Protected admin spectator](#protected-admin-spectator)
+- [Account-network limitations](#account-network-limitations)
+- [Privacy and GDPR](#privacy-and-gdpr)
+- [Install the GeoIP database](#install-the-geoip-database)
+- [Proxy and network setup](#proxy-and-network-setup)
 - [Build](#build)
-- [Fehlerbehebung](#fehlerbehebung)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Kompatibilität und optionale Plugins
+## Requirements and optional integrations
 
-| Komponente | Status | Zweck |
+| Component | Status | Purpose |
 |---|---|---|
-| Paper 1.21.11 | Erforderlich | Serverplattform |
-| Java 21 | Erforderlich | Laufzeit und Build |
-| LuckPerms | Optional, für Layer 2 erforderlich | Berechtigungsmarker, Layer-2-Nodes, /offend und LuckPerms-abhängige Datenschutzaktionen |
-| ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung |
-| SuperVanish | Optional | Expliziter Vanish-Modus und Vanish-Durchsetzung permanenter Admin-Accounts |
-| IP2Location LITE DB3 BIN (IPv6) | Externe Datei, optional für den restlichen Pluginbetrieb | Lokaler Country-/Region-Filter |
-| GrimAC, CheatDetector | Optionale Integrationen | In der Standardkonfiguration für Layer 1 aufgeführt |
-| FoxGate, HandShaker | Optionale Integrationen | In der Standardkonfiguration für Layer 2 aufgeführt |
-| Geyser/Floodgate | Optional | Zusätzliche Erkennung von Bedrock-Spielern |
+| Paper 1.21.11 | Required | Server platform |
+| Java 21 | Required | Runtime and build |
+| LuckPerms | Optional; required for Layer 2 | Permission markers, Layer 2 nodes, `/offend`, and LuckPerms-backed privacy actions |
+| ProtocolLib 5.5.0-SNAPSHOT | Optional; required for `/adminspec` | Packet translation for protected admin spectating |
+| SuperVanish | Optional | Explicit vanish observation mode and permanent-admin vanish enforcement |
+| IP2Location LITE DB3 BIN (IPv6) | External optional file | Local country/region filter |
+| GrimAC, CheatDetector | Optional integrations | Listed as Layer 1 integrations by default |
+| FoxGate, HandShaker | Optional integrations | Listed as Layer 2 integrations by default |
+| Geyser/Floodgate | Optional | Additional Bedrock-player detection |
 
-Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Fehlt eine optionale Integration, wird nach Möglichkeit nur die davon abhängige Funktion deaktiviert:
+Optional plugins are not bundled into the That'sABan JAR. If an integration is unavailable, only its dependent feature should be disabled where possible:
 
-- Ohne LuckPerms bleiben der LinkStore, die lokale GeoIP-Prüfung und die Store-basierten Teile von /thatsaban info und /thatsaban network verfügbar. Layer 2, /offend, /thatsaban unoffend und /thatsaban forget benötigen LuckPerms.
-- Ohne ProtocolLib oder bei inkompatiblen Paket-Mappings wird /adminspec deaktiviert.
-- Ohne SuperVanish ist die normale Admin-Beobachtung weiterhin verfügbar. Der explizite Befehl mit dem Argument vanish benötigt SuperVanish. Permanente Admin-Accounts werden ohne SuperVanish über Bukkit-Spieler-Sichtbarkeit verborgen.
-- Fehlt die lokale GeoIP-Datenbank, wird nur der Country-/Region-Filter deaktiviert. Ist die Datenbank vorhanden, schlägt aber eine einzelne GeoIP-Abfrage fehl, wird der Login aus Sicherheitsgründen abgelehnt.
+- Without LuckPerms, the LinkStore, local GeoIP checks, and store-backed `/thatsaban info` and `/thatsaban network` remain available. Layer 2, `/offend`, `/thatsaban unoffend`, and `/thatsaban forget` require LuckPerms.
+- Without ProtocolLib, or if required packet mappings are incompatible, `/adminspec` is disabled.
+- Without SuperVanish, normal admin spectating remains available. The explicit `vanish` argument requires SuperVanish. Permanent admin accounts are hidden using Bukkit visibility as a fallback.
+- If the GeoIP database is missing or unreadable at startup, only the country/region filter is disabled. If the database is loaded but an individual lookup fails, the login is denied (fail closed).
 
-## Schnellstart
+## Installation
 
-1. Paper 1.21.11 mit Java 21 installieren.
-2. Die That'sABan-JAR in den Ordner plugins legen und den Server einmal starten. Dadurch wird plugins/ThatsABan/config.yml angelegt.
-3. Server stoppen und config.yml nach Bedarf anpassen.
-4. Für Layer 2 LuckPerms installieren. Für /adminspec ProtocolLib 5.5.0-SNAPSHOT installieren.
-5. Wenn der Country-/Region-Filter verwendet werden soll, die IP2Location-Datenbank wie unter [GeoIP-Datenbank installieren](#geoip-datenbank-installieren) beschrieben ablegen.
-6. Server starten und die Startmeldungen auf deaktivierte optionale Funktionen oder fehlende Integrationen prüfen.
-7. Permissions gezielt an Staff vergeben. Die vollständige Liste steht unter [Permissions](#permissions).
+1. Install Paper 1.21.11 and Java 21.
+2. Put the That'sABan JAR in the server's `plugins` directory and start the server once. This creates `plugins/ThatsABan/config.yml`.
+3. Stop the server and edit the configuration as needed.
+4. Install LuckPerms for Layer 2. Install the ProtocolLib 5.5.0-SNAPSHOT **server plugin build** for `/adminspec`.
+5. If you use the country/region filter, install the IP2Location database as described in [Install the GeoIP database](#install-the-geoip-database).
+6. Start the server and check the startup log for disabled optional features or missing integrations.
+7. Grant staff permissions deliberately; see [Permissions](#permissions).
 
-Nach Änderungen an config.yml den Server neu starten. Das Plugin stellt keinen eigenen /reload-Befehl bereit. Die Konfiguration sollte nicht während des Betriebs manuell editiert werden.
+Restart the server after changing `config.yml`. There is no plugin-specific reload command. Do not edit the file while the server is running.
 
-### Layer-2-Bypass für die Standardgruppe
+### Layer 2 bypass for the default group
 
-Die in der Standardkonfiguration verwendeten Layer-2-Integrationen sind FoxGate und HandShaker. Damit diese Plugins für normale Spieler umgehen, während That'sABan den Bypass für Layer-2-Spieler entzieht, müssen die Bypass-Nodes in LuckPerms für die Standardgruppe gesetzt sein:
+The default Layer 2 integration list contains FoxGate and HandShaker. To make their bypass permissions available to normal players, while That'sABan removes those bypasses from Layer 2 players, set the nodes on the LuckPerms default group:
 
-~~~text
+```text
 /lp group default permission set foxav.bypass true
 /lp group default permission set handshaker.bypass true
-~~~
+```
 
-Die konkreten Permission-Nodes müssen zu den tatsächlich installierten Versionen der jeweiligen Anti-Cheat-Plugins passen. Wenn du andere Plugins verwendest, passe sowohl die Nodes unter layer2.negated-permissions als auch die Integrationsliste an.
+The exact nodes must match the installed versions of your anti-cheat plugins. If you use different plugins, update both `layer2.negated-permissions` and the integration list.
 
 ---
 
-## Funktionsweise: Layer 1 und Layer 2
+## How Layer 1 and Layer 2 work
 
-Die Integrationen werden über die LuckPerms-Berechtigungen gesteuert:
-
-| Ebene | Bedeutung |
+| Layer | Meaning |
 |---|---|
-| Layer 1 | Standardzustand. Die unter integrations.layer1-plugins aufgeführten Anti-Cheat-Plugins sollen für normale Spieler aktiv sein. |
-| Layer 2 | Zusätzliche Staff-Einstufung. /offend setzt den Marker thatsaban.layer2 und entzieht die unter layer2.negated-permissions konfigurierten Bypass-Nodes. |
+| Layer 1 | Default state. Anti-cheat plugins listed in `integrations.layer1-plugins` are expected to protect ordinary players. |
+| Layer 2 | Additional staff classification. `/offend` applies the `thatsaban.layer2` marker and removes the configured bypass permissions. |
 
-That'sABan führt keine eigenen Cheat-Checks aus und bannt Spieler nicht automatisch aufgrund eines Netzwerk-Treffers.
+That'sABan does not run cheat checks itself and does not automatically ban players because of an account-network match.
 
-Bedrock-Spieler werden von /offend und Layer-2-Aktionen ausgenommen. Die Erkennung nutzt Floodgate-/Geyser-APIs, die Floodgate-UUID-Eigenschaft und zusätzlich die konfigurierbaren Namenspräfixe.
+Bedrock players are excluded from `/offend` and Layer 2 actions. Detection uses Floodgate/Geyser APIs when available, Floodgate UUID information, and configurable name prefixes.
 
 ---
 
-## Konfiguration vollständig
+## Configuration reference
 
-Die aktive Konfigurationsdatei liegt unter:
+The active file is `plugins/ThatsABan/config.yml`. Every operator-editable option shipped in the current default configuration is documented below. The complete default file is included first as a copyable reference.
 
-~~~text
-plugins/ThatsABan/config.yml
-~~~
+### Complete default configuration
 
-Alle vom Betreiber vorgesehenen Konfigurationsoptionen der ausgelieferten config.yml sind in den folgenden Abschnitten aufgeführt. Der vollständige Standardinhalt steht hier ebenfalls als Vorlage.
-
-### Vollständige Standardkonfiguration
-
-~~~yaml
-# that-s-a-ban - Konfiguration
+```yaml
+# That's a Ban configuration (values match the shipped defaults)
 config-version: 3
 
 layer2:
@@ -119,11 +104,10 @@ offend:
   kick-online-target: false
 
 privacy:
-  # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
-  # Umgebungsvariable THATSABAN_HMAC_KEY_PATH hat Vorrang.
+  # Optional absolute path outside the plugin folder; empty = plugins/ThatsABan/ip-hmac.key.
+  # THATSABAN_HMAC_KEY_PATH environment variable takes precedence.
   hmac-key-path: ""
-  # Standardmäßig keine spielerbezogenen Audit-Einträge in Paper-Logs schreiben.
-  # Bei Aktivierung werden nur UUIDs (keine Spielernamen/IP-Adressen) protokolliert.
+  # Disabled by default. When enabled, audit entries contain UUIDs, not player names/IPs.
   audit-logging: false
 
 bedrock:
@@ -138,13 +122,12 @@ country-filter:
     - "Bavaria"
   allow-private-addresses: false
 
-# Datenschutzfreundliche Voreinstellungen: IP-Kopplung bleibt ausgeschaltet.
 alt-detection:
   enabled: false
   retention-days: 30
-  offender-retention-days: 365 # Endliche Frist seit letzter Aktivität; maximal 3650 Tage
-  auto-apply: false # false = nur Staff-Vorschläge; /offend erfordert eine bewusste Bestätigung
-  retroactive: false # Bereits bekannte IP-Übereinstimmungen nicht automatisch rückwirkend einstufen
+  offender-retention-days: 365
+  auto-apply: false
+  retroactive: false
   ignore-private-addresses: true
   ignored-ips: []
 
@@ -171,88 +154,87 @@ messages:
   alt-auto-applied-staff: "<red>Automatische Einstufung:</red> <white><player></white> wurde wegen einer IP-Übereinstimmung in Layer 2 versetzt."
   country-denied: "<red>Verbindungen sind nur mit einer bayerischen IP-Adresse erlaubt."
   country-lookup-failed: "<red>Deine IP-Adresse konnte lokal nicht geografisch zugeordnet werden. Bitte versuche es später erneut."
-~~~
+```
 
-### Allgemeine Regeln
+### General YAML rules
 
-- YAML-Einrückungen sind relevant. Verwende Leerzeichen, keine Tabs.
-- Bei Listen müssen die Einträge unter dem jeweiligen Schlüssel eingerückt und mit einem Bindestrich begonnen werden.
-- Strings mit Sonderzeichen, Doppelpunkten oder MiniMessage-Tags sollten in Anführungszeichen stehen.
-- config-version ist eine interne Migrationsnummer. Nicht manuell erhöhen oder zurücksetzen.
-- Die Werte in der Tabelle beschreiben die ausgelieferten Standardwerte. Bei älteren Konfigurationsdateien können automatische Migrationen einzelne Werte ergänzen oder auf datenschutzfreundliche Defaults setzen.
-- Änderungen werden beim nächsten Plugin-/Serverstart eingelesen.
+- YAML indentation matters. Use spaces, never tabs.
+- Indent list entries below their key and prefix each item with `-`.
+- Quote strings containing special characters, colons, or MiniMessage tags.
+- `config-version` is an internal migration version. Do not change it manually.
+- Older configuration files may be migrated and receive privacy-friendly defaults.
+- Changes take effect after the next server/plugin start.
 
-### Layer 2 und Offend
+### Complete list of operator-editable options
 
-| Schlüssel | Standard | Bedeutung und zulässige Werte |
-|---|---:|---|
-| config-version | 3 | Interne Versionsnummer für Konfigurationsmigrationen. Nicht manuell ändern. |
-| layer2.marker-permission | thatsaban.layer2 | LuckPerms-Marker, der einen Spieler als Layer 2 kennzeichnet. Muss mit der für den Server gewünschten Marker-Node übereinstimmen. |
-| layer2.negated-permissions | foxav.bypass, handshaker.bypass | Liste der Bypass-Permissions, die That'sABan einem Layer-2-Spieler entzieht beziehungsweise negiert. Passe die Nodes an deine Anti-Cheat-Plugins an. |
-| layer2.exempt-permission | thatsaban.exempt | Spieler mit dieser Permission sind von /offend und der IP-Kopplung ausgenommen. |
-| offend.kick-online-target | false | Bei true wird ein online Zielspieler nach erfolgreicher /offend-Einstufung mit der konfigurierten Nachricht kick-relogin getrennt. Bei false bleibt er online. |
-
-Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Gruppenstruktur vergeben werden. That'sABan legt keine Anti-Cheat-Regeln für die externen Plugins fest.
-
-### Datenschutz und HMAC-Schlüssel
-
-| Schlüssel | Standard | Bedeutung und zulässige Werte |
+| Key | Default | Description and accepted values |
 |---|---|---|
-| privacy.hmac-key-path | leer | Optionaler absoluter Dateipfad für den geheimen HMAC-Schlüssel. Leer bedeutet plugins/ThatsABan/ip-hmac.key. |
-| THATSABAN_HMAC_KEY_PATH | nicht gesetzt | Umgebungsvariable, die privacy.hmac-key-path übersteuert. Verwende einen absoluten Pfad außerhalb des Plugin-Ordners, wenn du den Schlüssel getrennt ablegen möchtest. |
-| privacy.audit-logging | false | Bei true protokolliert das Plugin erfolgreiche /offend-Einstufungen mit der UUID des ausführenden Staff-Accounts (oder CONSOLE) und der Ziel-UUID. Spielernamen und IP-Adressen werden dabei nicht in diese Audit-Einträge geschrieben. |
+| `config-version` | `3` | Internal migration version. Do not edit manually. |
+| `layer2.marker-permission` | `thatsaban.layer2` | LuckPerms marker node identifying a Layer 2 player. |
+| `layer2.negated-permissions` | `foxav.bypass`, `handshaker.bypass` | List of bypass nodes removed/negated for Layer 2 players. Adapt these to your installed anti-cheat plugins. |
+| `layer2.exempt-permission` | `thatsaban.exempt` | Players with this node are exempt from `/offend` and IP linking. |
+| `offend.kick-online-target` | `false` | If true, kick an online target after a successful `/offend` action using `messages.kick-relogin`. |
+| `privacy.hmac-key-path` | empty | Optional absolute path for the HMAC secret. Empty uses `plugins/ThatsABan/ip-hmac.key`. |
+| `THATSABAN_HMAC_KEY_PATH` | unset | Environment variable overriding `privacy.hmac-key-path`. Use an absolute path to store the key outside the plugin folder. |
+| `privacy.audit-logging` | `false` | Logs successful `/offend` actions with actor and target UUIDs only; no player names or IP addresses. |
+| `bedrock.name-prefixes` | `["."]` | Additional Bedrock name prefixes. A matching non-empty prefix classifies the player as Bedrock. |
+| `country-filter.enabled` | `true` | Enables/disables GeoIP region checks during login. |
+| `country-filter.database-file` | `geoip/IP2LOCATION-LITE-DB3.IPV6.BIN` | Database path relative to the plugin data folder. |
+| `country-filter.allowed-region-names` | `Bayern`, `Bavaria` | Allowed region names. The filter also requires country code Germany (`DE`). |
+| `country-filter.allow-private-addresses` | `false` | If true, private, loopback, link-local and any-local addresses bypass GeoIP lookup. |
+| `alt-detection.enabled` | `false` | Master switch for IP-based account linking. When false, no new IP links are collected and the network feature is disabled. |
+| `alt-detection.retention-days` | `30` | Retention period for IP HMACs and links, in days. Effective range: 1–3650. |
+| `alt-detection.offender-retention-days` | `365` | Retention for plugin-managed Layer 2/offender marks since last activity. Effective range: 1–3650 days. |
+| `alt-detection.auto-apply` | `false` | If true, matching accounts can automatically be classified into Layer 2. If false, staff receive suggestions only. |
+| `alt-detection.retroactive` | `false` | If true, existing stored IP matches are considered at login. This does not enable automatic classification by itself. |
+| `alt-detection.ignore-private-addresses` | `true` | Excludes loopback, private, link-local and any-local addresses from IP linking. |
+| `alt-detection.ignored-ips` | `[]` | Exact IP text values excluded from linking. Values must match Java's host-address representation. |
+| `integrations.layer1-plugins` | `GrimAC`, `CheatDetector` | Plugin names checked/reported as Layer 1 integrations at startup. Diagnostic list only; does not install or configure them. |
+| `integrations.layer2-plugins` | `FoxGate`, `HandShaker` | Plugin names checked/reported as Layer 2 integrations at startup. Actual permission changes use `layer2.negated-permissions` and LuckPerms. |
+| `messages.*` | see below | All message values can be customized using Adventure MiniMessage. |
 
-**Wichtig für den HMAC-Schlüssel:**
+#### Message keys and placeholders
 
-- Der Schlüssel darf nicht gelöscht oder zwischen Servern geteilt werden.
-- Bei Verlust des Schlüssels können gespeicherte IP-HMAC-Verknüpfungen nicht mehr mit neu erfassten Adressen verglichen werden.
-- Bei einem erstmaligen Wechsel des Speicherorts muss der bisherige Schlüssel bei gestopptem Server sicher an den neuen Pfad verschoben werden, bevor der Server wieder startet. Ein neu erzeugter Schlüssel kann die alten HMAC-Zuordnungen nicht auflösen.
-- Der getrennte Speicherort schützt nicht vor einem kompromittierten Serverkonto oder Backups, die sowohl Datenbankdatei als auch Schlüssel enthalten.
-- data.yml und die Schlüsseldatei werden mit restriktiven Dateirechten angelegt. Die tatsächlichen Rechte und Server-Backups müssen vom Betreiber zusätzlich kontrolliert werden.
+All `messages.*` values can be edited. Adventure MiniMessage tags such as `<red>`, `<green>`, `<yellow>`, `<gray>`, `<white>`, and `<bold>` are supported.
 
-### Bedrock-Erkennung
-
-| Schlüssel | Standard | Bedeutung |
+| Key | Purpose | Placeholders |
 |---|---|---|
-| bedrock.name-prefixes | ["."] | Liste von Namenspräfixen, die als zusätzliche Bedrock-Erkennung gelten. Ein Name, der mit einem nichtleeren Eintrag beginnt, wird als Bedrock erkannt. |
+| `messages.prefix` | Prefix added by the message helper | — |
+| `messages.usage` | `/offend` usage message | — |
+| `messages.player-not-found` | Target player is unknown | `<player>` |
+| `messages.bedrock-immune` | Target is a Bedrock player | `<player>` |
+| `messages.exempt` | Target has the exempt permission | `<player>` |
+| `messages.already` | Target is already Layer 2 | `<player>` |
+| `messages.done` | Layer 2 assignment succeeded | `<player>` |
+| `messages.done-alts` | Additional accounts classified | `<alts>` |
+| `messages.error` | Layer 2 action failed | — |
+| `messages.kick-relogin` | Kick message when `offend.kick-online-target` is true | — |
+| `messages.alt-suggestion-staff` | Staff suggestion when auto-apply is off | `<player>` |
+| `messages.alt-auto-applied-staff` | Staff notice after automatic classification | `<player>` |
+| `messages.country-denied` | Login rejected because the region is not allowed | — |
+| `messages.country-lookup-failed` | GeoIP lookup failed for this login | — |
 
-Die Standardkonfiguration erkennt zusätzlich Floodgate-UUIDs sowie Spieler über die Floodgate- und Geyser-APIs, sofern diese verfügbar sind. Ändere die Präfixliste nur, wenn sie zu deiner Geyser-/Floodgate-Konfiguration passt. Ein zu allgemeines Präfix kann versehentlich Java-Spieler als Bedrock einstufen.
+The prefix is added to messages sent through the message helper. Country-filter messages are used as login-denial reasons without the prefix. Keep placeholders unchanged so the plugin can replace them.
 
-### Country-/Region-Filter
+### Plugin-managed configuration data (do not edit)
 
-| Schlüssel | Standard | Bedeutung und zulässige Werte |
-|---|---|---|
-| country-filter.enabled | true | Aktiviert oder deaktiviert die GeoIP-Regionsprüfung beim Login. Bei false wird keine Regionssperre angewendet. |
-| country-filter.database-file | geoip/IP2LOCATION-LITE-DB3.IPV6.BIN | Pfad zur lokalen IP2Location-BIN-Datei relativ zum Plugin-Datenordner. |
-| country-filter.allowed-region-names | Bayern, Bavaria | Liste erlaubter Regionsnamen. Die Prüfung akzeptiert nur Deutschland (DE) und eine passende Region aus dieser Liste. Groß-/Kleinschreibung und diakritische Zeichen werden bei der Regionsnormalisierung vereinheitlicht. |
-| country-filter.allow-private-addresses | false | Bei true werden lokale/private, Loopback-, Link-Local- und Any-Local-Adressen ohne GeoIP-Abfrage zugelassen. Bei false werden sie normal geprüft. |
+The spectator feature stores state in the main config file when necessary. These keys are internal state, **not operator settings**:
 
-Verhalten bei Fehlern:
+| Key | Purpose |
+|---|---|
+| `admin-spectator.permanent-players` | UUIDs of permanently forced Spectator accounts |
+| `admin-spectator.permanent-snapshots` | Saved original state of permanent accounts |
+| `admin-spectator.pending-permanent-restores` | Restores queued for offline/later processing |
 
-- Ist country-filter.enabled false, wird die Regionsprüfung übersprungen.
-- Ist die Datenbankdatei beim Start nicht vorhanden oder nicht lesbar, wird der Country-/Region-Filter vollständig deaktiviert und im Log gemeldet. Andere Funktionen laufen weiter.
-- Ist die Datenbank geladen, schlägt aber eine einzelne GeoIP-Abfrage fehl oder liefert kein verwertbares Ergebnis, wird der Login abgelehnt. Das ist ein Fail-closed-Verhalten.
-- Die GeoIP-Zuordnung ist nur eine Näherung. Sie kann VPNs, Mobilfunknetze, Proxys und falsch zugeordnete IP-Blöcke nicht zuverlässig erkennen.
+Do not manually edit, delete, or rename these sections. Doing so can prevent restoration of the original game mode or vanish state.
 
-### Alt-Account-Erkennung
+There are currently no additional operator-configurable spectator settings in `config.yml`. The four-chunk observation/sending distance, packet handling, and restoration behavior are implemented in code.
 
-Die IP-basierte Erkennung ist standardmäßig ausgeschaltet. Sie muss bewusst aktiviert werden.
+### Alt-detection examples
 
-| Schlüssel | Standard | Bedeutung und zulässige Werte |
-|---|---:|---|
-| alt-detection.enabled | false | Hauptschalter. Bei false werden keine neuen IP-Verknüpfungen erfasst und die Netzwerkfunktion ist deaktiviert. |
-| alt-detection.retention-days | 30 | Aufbewahrungsdauer für IP-HMACs und zugehörige Verknüpfungen in Tagen. Effektiver Wertebereich: 1 bis 3650 Tage. |
-| alt-detection.offender-retention-days | 365 | Aufbewahrungsdauer für vom Plugin verwaltete Layer-2-/Offender-Markierungen seit der letzten Aktivität. Effektiver Wertebereich: 1 bis 3650 Tage. |
-| alt-detection.auto-apply | false | Bei true können erkannte Accounts mit einer bereits als Layer 2 markierten IP automatisch in Layer 2 eingestuft werden. Bei false erhalten Staff nur einen Hinweis. |
-| alt-detection.retroactive | false | Bei true werden bereits gespeicherte IP-Übereinstimmungen bei der Login-Prüfung berücksichtigt. Bei false werden nur neue Übereinstimmungen verarbeitet. |
-| alt-detection.ignore-private-addresses | true | Ignoriert Loopback-, private, Link-Local- und Any-Local-Adressen für die IP-Kopplung. |
-| alt-detection.ignored-ips | [] | Liste exakter IP-Textwerte, die von der IP-Kopplung ausgeschlossen werden. Die Einträge müssen der von Java gelieferten Host-Adressdarstellung entsprechen. |
+**Enable network collection with manual staff review:**
 
-### Empfohlene Aktivierung mit manueller Staff-Prüfung
-
-Wenn du das Netzwerk bewusst nutzen möchtest, aber keine automatische Einstufung willst, ändere nur:
-
-~~~yaml
+```yaml
 alt-detection:
   enabled: true
   retention-days: 30
@@ -261,244 +243,200 @@ alt-detection:
   retroactive: false
   ignore-private-addresses: true
   ignored-ips: []
-~~~
+```
 
-Damit werden erkannte Übereinstimmungen zunächst nur Staff-Mitgliedern mit thatsaban.notify gemeldet. Staff kann den Sachverhalt prüfen und bei ausreichender Grundlage /offend <Spieler> verwenden.
+Matches are reported to staff with `thatsaban.notify`; staff can review the context and deliberately use `/offend <player>`.
 
-### Automatische und rückwirkende Einstufung
+Set `auto-apply: true` only if you accept automatic Layer 2 classification. Set `retroactive: true` only if previously stored matches should also be considered. `retroactive` alone does not enable auto-apply.
 
-Setze auto-apply nur dann auf true, wenn du die Konsequenzen bewusst akzeptierst. Setze retroactive nur dann auf true, wenn bereits gespeicherte IP-Übereinstimmungen ebenfalls geprüft werden sollen. retroactive allein aktiviert keine automatische Einstufung: Bei auto-apply false werden weiterhin nur Hinweise versendet.
+**Important:** A shared IP address does not prove that two accounts belong to the same person. Families, shared homes, schools, CGNAT, mobile networks and VPN exits can connect unrelated players. Treat the network as a staff lead, never as an automatic ban reason.
 
-**Wichtig:** Gemeinsame IP-Adressen sind kein Identitätsnachweis. Familie, Wohngemeinschaft, Schule, CGNAT, Mobilfunk und VPN-Ausgänge können unbeteiligte Accounts verbinden. Das Netzwerk ist ein Hinweis für Staff, kein automatischer Bann-Grund.
+IPv6 addresses are truncated to /64 before HMAC generation. Raw IP addresses are not stored in the LinkStore database. HMAC values are still pseudonymous and may remain personal data.
 
-IPv6-Adressen werden vor der HMAC-Bildung auf /64 gekürzt. Es werden keine Roh-IP-Adressen in der LinkStore-Datenbank gespeichert. Die HMAC-Werte bleiben trotzdem pseudonyme, potenziell personenbezogene Daten.
+### HMAC key handling
 
-### Integrationslisten
-
-| Schlüssel | Standard | Bedeutung |
-|---|---|---|
-| integrations.layer1-plugins | GrimAC, CheatDetector | Plugin-Namen, die beim Start auf Vorhandensein geprüft und als Layer-1-Integrationen gemeldet werden. |
-| integrations.layer2-plugins | FoxGate, HandShaker | Plugin-Namen, die beim Start auf Vorhandensein geprüft und als Layer-2-Integrationen gemeldet werden. |
-
-Die Listen sind Diagnose-/Integrationshinweise. Sie installieren, konfigurieren oder aktivieren die genannten Plugins nicht selbst. Die tatsächliche Layer-2-Berechtigungssteuerung erfolgt über layer2.negated-permissions und LuckPerms.
-
-### Nachrichten
-
-Alle Einträge unter messages können angepasst werden. Die Nachrichten werden mit Adventure MiniMessage verarbeitet. Du kannst daher MiniMessage-Formatierungen wie <red>, <green>, <yellow>, <gray>, <white>, <bold> und weitere unterstützte Tags verwenden.
-
-| Schlüssel | Verwendung | Platzhalter |
-|---|---|---|
-| messages.prefix | Präfix für Chat-Nachrichten, die über den Nachrichten-Helper gesendet werden | keine |
-| messages.usage | Benutzungshinweis für /offend | keine |
-| messages.player-not-found | Zielspieler wurde nicht gefunden | <player> |
-| messages.bedrock-immune | Ziel ist ein Bedrock-Spieler | <player> |
-| messages.exempt | Ziel besitzt die Exempt-Permission | <player> |
-| messages.already | Ziel ist bereits in Layer 2 | <player> |
-| messages.done | Layer-2-Einstufung erfolgreich | <player> |
-| messages.done-alts | Zusätzlich eingestufte Accounts | <alts> |
-| messages.error | Layer-2-Aktion fehlgeschlagen | keine |
-| messages.kick-relogin | Kick-Nachricht bei offend.kick-online-target | keine |
-| messages.alt-suggestion-staff | Staff-Hinweis bei IP-Übereinstimmung ohne Auto-Apply | <player> |
-| messages.alt-auto-applied-staff | Staff-Hinweis bei automatischer Einstufung | <player> |
-| messages.country-denied | Login außerhalb der erlaubten Region | keine |
-| messages.country-lookup-failed | GeoIP-Abfrage nicht verfügbar/fehlgeschlagen | keine |
-
-Der Prefix wird bei den Chat-Nachrichten ergänzt. Die beiden Country-Filter-Nachrichten werden ohne Prefix als Login-Ablehnungsgrund verwendet. Platzhalter sollten unverändert in der Nachricht bleiben, damit das Plugin sie mit den tatsächlichen Werten ersetzen kann.
-
-### Automatisch verwaltete Spectator-Daten
-
-Die Admin-Spectator-Funktion speichert ihren Zustand bei Bedarf zusätzlich in config.yml. Diese Schlüssel sind **keine manuellen Konfigurationsoptionen**:
-
-| Pfad | Zweck |
-|---|---|
-| admin-spectator.permanent-players | UUID-Liste der dauerhaft festgelegten Spectator-Accounts |
-| admin-spectator.permanent-snapshots | Gespeicherter ursprünglicher Zustand permanenter Accounts |
-| admin-spectator.pending-permanent-restores | Wiederherstellungen, die für später/offline vorgemerkt wurden |
-
-Diese Abschnitte werden vom Plugin verwaltet. Nicht manuell bearbeiten, löschen oder umbenennen. Ein manueller Eingriff kann dazu führen, dass der ursprüngliche Spielmodus oder Vanish-Zustand nicht mehr wiederhergestellt werden kann.
-
-Für Admin-Spectator gibt es derzeit keine weiteren Betreiber-Settings in config.yml. Die Beobachtungsdistanz (vier Chunks), Paketbehandlung und Wiederherstellungslogik sind fest im Plugin implementiert.
+- Never delete the key or share it between unrelated servers.
+- If the key is lost, existing IP-HMAC links can no longer be compared with newly collected addresses.
+- To move the key for the first time, stop the server and securely move the existing key to the new location before restarting. A newly generated key cannot reproduce existing hashes.
+- A separate key path does not protect against a compromised server account or backups containing both the database and key.
+- The plugin creates `data.yml` and the key with restrictive file permissions, but operators must also secure filesystem access and backups.
 
 ---
 
-## Befehle
+## Commands
 
 ### Layer 2
 
-| Befehl | Beschreibung | Berechtigung |
+| Command | Description | Permission |
 |---|---|---|
-| /offend <Spieler> | Setzt einen Java-Spieler nach bewusster Staff-Entscheidung in Layer 2 | thatsaban.offend |
-| /thatsaban unoffend <Spieler\|UUID> | Entfernt die vom Plugin verwaltete Layer-2-/Offender-Einstufung | thatsaban.layer2.remove oder thatsaban.admin |
+| `/offend <player>` | Deliberately classifies a Java player into Layer 2 | `thatsaban.offend` |
+| `/thatsaban unoffend <player|UUID>` | Removes the plugin-managed Layer 2/offender classification | `thatsaban.layer2.remove` or `thatsaban.admin` |
 
-### Datenschutz- und Netzwerkbefehle
+### Privacy and account-network commands
 
-| Befehl | Beschreibung | Berechtigung |
+| Command | Description | Permission |
 |---|---|---|
-| /thatsaban info <Spieler\|UUID> | Zeigt den gespeicherten Plugin-Datensatz und – wenn LuckPerms verfügbar ist – relevante Layer-2-Informationen | thatsaban.privacy.read oder thatsaban.admin |
-| /thatsaban network <Spieler\|UUID> [1-3] | Zeigt direkte/indirekte IP-HMAC-Verbindungen. Standardtiefe 2, maximal 3; maximal 50 weitere Accounts | thatsaban.network oder thatsaban.admin |
-| /thatsaban forget <Spieler\|UUID> confirm | Löscht Plugin-Datensatz, gespeicherte Spielerreferenzen, IP-Verknüpfungen und die direkt vom Plugin verwalteten Layer-2-Nodes | thatsaban.privacy.erase oder thatsaban.admin |
+| `/thatsaban info <player|UUID>` | Shows the stored plugin record and, when LuckPerms is available, relevant Layer 2 details | `thatsaban.privacy.read` or `thatsaban.admin` |
+| `/thatsaban network <player|UUID> [1-3]` | Shows direct/indirect IP-HMAC links. Default depth 2, maximum depth 3 and 50 additional accounts | `thatsaban.network` or `thatsaban.admin` |
+| `/thatsaban forget <player|UUID> confirm` | Deletes the plugin record, player references, IP links and directly plugin-managed Layer 2 nodes | `thatsaban.privacy.erase` or `thatsaban.admin` |
 
-Wenn LuckPerms fehlt, bleiben /thatsaban info und /thatsaban network als Store-basierte Auskunft verfügbar. /thatsaban network setzt weiterhin voraus, dass alt-detection.enabled true ist und der LinkStore lesbar ist. Ohne LuckPerms können /thatsaban unoffend und /thatsaban forget nicht ausgeführt werden.
+Without LuckPerms, `/thatsaban info` and `/thatsaban network` remain available as store-only queries. The network command still requires `alt-detection.enabled: true` and a writable LinkStore. `unoffend` and `forget` require LuckPerms.
 
-Die Löschung entfernt keine unabhängigen LuckPerms-Berechtigungen, die von anderen Plugins oder Gruppen vergeben wurden. Vererbte oder kontextgebundene Nodes müssen separat geprüft werden.
+Deletion does not remove unrelated LuckPerms permissions assigned by other plugins or groups. Inherited or context-specific nodes must be reviewed separately.
 
 ---
 
 ## Permissions
 
-Die folgenden Standardwerte stammen aus plugin.yml. op bedeutet, dass die Berechtigung standardmäßig Operatoren gewährt wird. false bedeutet, dass sie standardmäßig niemandem gewährt wird.
+Defaults below come from `plugin.yml`. `op` means granted to server operators by default; `false` means not granted by default.
 
-| Permission | Standard | Zweck |
+| Permission | Default | Purpose |
 |---|---|---|
-| thatsaban.admin | op | Zusätzliche Sammelberechtigung, die die Datenschutzbefehle als Alternative zu ihren Einzel-Permissions akzeptieren |
-| thatsaban.offend | op | /offend verwenden |
-| thatsaban.privacy.read | op | /thatsaban info verwenden |
-| thatsaban.layer2.remove | op | /thatsaban unoffend verwenden |
-| thatsaban.privacy.erase | op | /thatsaban forget verwenden |
-| thatsaban.network | op | /thatsaban network verwenden |
-| thatsaban.notify | op | Staff-Hinweise zu IP-Übereinstimmungen erhalten |
-| thatsaban.view-linked-accounts | op | Namen verknüpfter Accounts sehen; ohne diese Permission werden UUIDs angezeigt |
-| thatsaban.spectator | op | /adminspec verwenden |
-| thatsaban.spectator.permanent | op | Permanente Spectator-Accounts verwalten; diese Permission erbt in plugin.yml thatsaban.spectator |
-| thatsaban.layer2 | false | LuckPerms-Marker für Layer 2 |
-| thatsaban.exempt | false | Ausnahme von /offend und IP-Kopplung |
+| `thatsaban.admin` | op | Additional umbrella permission accepted by privacy administration commands |
+| `thatsaban.offend` | op | Use `/offend` |
+| `thatsaban.privacy.read` | op | Use `/thatsaban info` |
+| `thatsaban.layer2.remove` | op | Use `/thatsaban unoffend` |
+| `thatsaban.privacy.erase` | op | Use `/thatsaban forget` |
+| `thatsaban.network` | op | Use `/thatsaban network` |
+| `thatsaban.notify` | op | Receive staff notices about IP matches |
+| `thatsaban.view-linked-accounts` | op | See linked account names; otherwise UUIDs are shown |
+| `thatsaban.spectator` | op | Use `/adminspec` |
+| `thatsaban.spectator.permanent` | op | Manage permanent spectator accounts; plugin.yml declares this as a child of `thatsaban.spectator` |
+| `thatsaban.layer2` | false | LuckPerms marker node for Layer 2 |
+| `thatsaban.exempt` | false | Exemption from `/offend` and IP linking |
 
-Die Berechtigungen für Datenschutzbefehle können einzeln vergeben werden. thatsaban.admin ist keine automatische Bukkit-Permission-Vererbung für sämtliche anderen Plugin-Permissions; der Datenschutz-Befehlscode akzeptiert sie ausdrücklich als Alternative.
+Privacy command handlers explicitly accept `thatsaban.admin` as an alternative to their individual permissions. It is not a Bukkit permission inheritance rule for every other plugin permission.
 
-Für permanente Spectator-Verwaltung werden sowohl thatsaban.spectator als auch thatsaban.spectator.permanent geprüft. Durch die definierte Child-Permission wird thatsaban.spectator beim Vergeben von thatsaban.spectator.permanent mitgewährt.
+Permanent spectator management checks `thatsaban.spectator.permanent`; the child permission also grants `thatsaban.spectator`.
 
 ---
 
-## Geschützte Admin-Beobachtung
+## Protected admin spectator
 
-Die Admin-Beobachtung wird über ProtocolLib bereitgestellt. Sie verschiebt die dem beobachtenden Client übermittelten Koordinaten in einen getrennten Koordinatenraum und filtert beziehungsweise unterdrückt nicht sicher übersetzbare Positionsdaten. Das Ziel selbst wird nicht teleportiert.
+Admin spectating requires ProtocolLib. It translates the coordinates sent to the observing client into a separate coordinate space and filters or suppresses position payloads that cannot safely be translated. The target player is not teleported.
 
-### Befehle
+### Commands
 
-| Befehl | Wirkung |
+| Command | Effect |
 |---|---|
-| /adminspec observe <Spieler> | Startet die geschützte Beobachtung ohne SuperVanish |
-| /adminspec observe <Spieler> vanish | Startet die Beobachtung und aktiviert zusätzlich SuperVanish |
-| /adminspec off | Beendet die Beobachtung und stellt den gespeicherten Zustand des Moderators wieder her |
-| /adminspec permanent add <Spieler\|UUID> | Erzwingt dauerhaft Spectator für den Account und speichert dessen vorherigen Zustand |
-| /adminspec permanent remove <Spieler\|UUID> | Entfernt die dauerhafte Erzwingung und stellt den gespeicherten Zustand wieder her |
+| `/adminspec observe <player>` | Starts protected observation without SuperVanish |
+| `/adminspec observe <player> vanish` | Starts observation and additionally activates SuperVanish |
+| `/adminspec off` | Ends observation and restores the moderator's saved state |
+| `/adminspec permanent add <player|UUID>` | Permanently enforces Spectator for the account and saves its previous state |
+| `/adminspec permanent remove <player|UUID>` | Removes permanent enforcement and restores the saved state |
 
-Der Zielspieler muss bei observe online sein. Permanente Accounts können über einen bekannten Spielernamen oder eine UUID verwaltet werden; die Verwaltung funktioniert auch über die Serverkonsole.
+The target must be online for `observe`. Permanent accounts can be managed by known player name or UUID, including from the server console.
 
-### Abhängigkeiten und Verhalten
+### Dependencies and behavior
 
-- ProtocolLib ist für /adminspec zwingend erforderlich. Die verwendete Paper-Server-Plugin-Version ist ProtocolLib 5.5.0-SNAPSHOT aus dem offiziellen ProtocolLib-Dev-Build. Das plattformneutrale Maven-Artefakt allein ist kein installierbares Server-Plugin.
-- SuperVanish wird nur für den expliziten vanish-Modus und die Vanish-Durchsetzung permanenter Accounts verwendet.
-- Ohne SuperVanish bleibt der normale Beobachtungsmodus verfügbar. Permanente Accounts werden dann über Bukkit-Spieler-Sichtbarkeit verborgen.
-- Der Beobachter wird vor Spielern verborgen, die bereits online sind oder während der Sitzung beitreten.
-- Während einer Beobachtung werden Sicht- und Sende-Sichtweite des Beobachters auf vier Chunks reduziert.
-- Beim Wechsel des beobachteten Ziels bleibt der Koordinatenoffset gleich. Ziele, für die dieser Offset außerhalb des sicheren Client-Koordinatenbereichs läge, werden abgelehnt.
-- /adminspec off stellt den gespeicherten Ort, Spielmodus, Flugzustand, Invulnerable-Zustand, Bewegungsgeschwindigkeiten, Sichtweiten und gegebenenfalls den vorherigen Vanish-Zustand wieder her.
-- Permanente Accounts werden beim Login und regelmäßig erneut auf Spectator/Unsichtbarkeit geprüft.
+- ProtocolLib is required for `/adminspec`. Use the ProtocolLib 5.5.0-SNAPSHOT Paper/server plugin build. A platform-neutral Maven artifact is not an installable server plugin.
+- SuperVanish is used only for the explicit `vanish` mode and vanish enforcement for permanent accounts.
+- Without SuperVanish, normal observation remains available. Permanent accounts are hidden using Bukkit player visibility.
+- The observer is hidden from players who are already online and players who join during the session.
+- The observer's view and send distances are reduced to four chunks during observation.
+- The coordinate offset remains stable when switching targets. A target is rejected if the translated position would exceed the safe client coordinate range.
+- `/adminspec off` restores the saved location, game mode, flight state, invulnerability, movement speeds, view distances and, where applicable, the previous vanish state.
+- Permanent accounts are re-enforced on login and periodically.
 
-### Paket- und Kompatibilitätshinweise
+### Packet coverage and compatibility
 
-Die Funktion ist versionssensibel und darf nicht als vollständige Anti-Cheat- oder Anonymitätsgarantie verstanden werden. Die Implementierung übersetzt bekannte Positionspakete, unterdrückt aber Pakettypen und Payloads, deren Positionsdaten nicht zuverlässig transformiert werden können. Dazu gehören unter anderem bestimmte Partikel-/Explosionsdaten und benutzerdefinierte Plugin-Payloads. Das kann Funktionen anderer Plugins für den beobachtenden Moderator einschränken, beispielsweise Voice-Chat-Daten.
+This feature is version-sensitive and is not a complete anti-cheat or anonymity guarantee. Known position packets are translated; packet types and payloads whose position data cannot be reliably transformed are suppressed. This includes some particle/explosion payloads and custom plugin payloads. Other plugin features may therefore be limited for the observing moderator, including voice-chat data.
 
-Beim Start prüft die Integration die benötigten ProtocolLib-Paket-Mappings. Fehlt ein erforderliches Mapping, wird die Spectator-Funktion deaktiviert, statt mit unvollständiger Paketabdeckung zu starten.
+At startup, the integration checks required ProtocolLib packet mappings. If a required mapping is unavailable, the spectator feature is disabled rather than started with incomplete packet coverage.
 
-Vor einem Produktionseinsatz müssen die exakte Paper-Version, ProtocolLib-Version, Client-Versionen, SuperVanish und die eingesetzten Anti-Cheat-Plugins gemeinsam getestet werden. Insbesondere ein echter Zwei-Client-Test mit Paketaufzeichnung ist erforderlich, um die Koordinatentrennung unabhängig zu prüfen.
-
----
-
-## Alt-Account-Netzwerk: Grenzen und Fehlalarme
-
-Das Netzwerk zeigt Accounts, die im Beobachtungszeitraum dieselben IP-HMACs verwendet haben. Es ist keine Identitätsfeststellung.
-
-- Dynamische IP-Adressen können Verbindungen übersehen.
-- Familien, Wohngemeinschaften, Schulen, Universitäten, CGNAT, Mobilfunk und VPN-Ausgänge können unbeteiligte Spieler verbinden.
-- Indirekte Verbindungen über mehrere Accounts sind noch weniger aussagekräftig als direkte Übereinstimmungen.
-- Bedrock-Spieler können bei aktivierter Netzwerkerkennung in der Netzwerkansicht auftauchen, bleiben aber von /offend und Layer-2-Aktionen ausgenommen.
-- thatsaban.exempt nimmt einen Account von /offend und der IP-Kopplung aus.
-- Namen werden nur Staff mit thatsaban.view-linked-accounts angezeigt. Sonst zeigt das Netzwerk UUIDs.
-- Es gibt keine automatische Bann-Funktion aufgrund eines Netzwerk-Treffers.
-
-Die Standardwerte enabled: false, auto-apply: false und retroactive: false sind absichtlich konservativ.
+Before production use, test the exact Paper, ProtocolLib, client, SuperVanish and anti-cheat versions together. A real two-client test with packet capture/inspection is required to independently verify coordinate separation.
 
 ---
 
-## Datenschutz und DSGVO
+## Account-network limitations
 
-Die technischen Schutzmaßnahmen sind keine pauschale DSGVO-Konformitätsgarantie. Der Serverbetreiber bleibt verantwortlich für Zweck, Rechtsgrundlage, Erforderlichkeit, Speicherdauer, Zugriffsrechte und Spielerinformationen. Eine Vorlage und ein Muster-Verarbeitungsverzeichnis befinden sich in [docs/PRIVACY.md](docs/PRIVACY.md).
+The network shows accounts that used the same IP HMACs during the retention period. It does not establish identity.
 
-- Die GeoIP-Prüfung verwendet eine lokale Datenbank. That'sABan sendet die Spieler-IP dafür nicht an einen GeoIP-Webdienst.
-- Das Alt-Account-Netzwerk speichert HMAC-Werte statt Roh-IP-Adressen. HMAC-Werte, UUIDs, Namen und Layer-2-Zuordnungen können trotzdem personenbezogene oder pseudonyme Daten sein.
-- Der HMAC-Schlüssel muss getrennt und sicher gesichert werden. Schlüssel und Datenbank gemeinsam in einem ungeschützten Backup abzulegen, hebt den praktischen Schutz auf.
-- Das Plugin erstellt keine vollständigen Daten-Backups. Alte data.yml.bak-* und data.yml.corrupt-* Dateien werden beim Start entfernt. Eine beschädigte data.yml wird nicht ungesichert überschrieben; der LinkStore blockiert in diesem Zustand Schreibzugriffe.
-- IP-Adressen können unabhängig davon in Proxy-, Firewall-, Hoster-, Paper- oder anderen Plugin-Logs auftauchen. Diese Systeme benötigen eigene Aufbewahrungs- und Löschkonzepte.
-- Das Löschen eines That'sABan-Datensatzes löscht nicht den gesamten LuckPerms-Benutzerdatensatz, da dieser auch unabhängige Berechtigungen enthalten kann.
+- Dynamic IP addresses can cause links to be missed.
+- Families, shared homes, schools, universities, CGNAT, mobile networks and VPN exits can connect unrelated players.
+- Indirect links across several accounts are less reliable than direct matches.
+- Bedrock players may appear in the network view when collection is enabled, but remain exempt from `/offend` and Layer 2 actions.
+- `thatsaban.exempt` excludes an account from `/offend` and IP linking.
+- Only staff with `thatsaban.view-linked-accounts` see account names. Others see UUIDs.
+- There is no automatic ban feature based on a network match.
 
-### Ältere Plugin-Versionen
-
-Plugin-Stände vor Commit b34c644 verwendeten für die GeoIP-Prüfung den externen Dienst ipwho.is. Dabei wurde die Roh-IP als Teil der HTTPS-URL übertragen; in früheren Fehlerpfaden konnte sie außerdem in Logs auftauchen. Verwende keine Versionen vor b34c644.
-
-Das frühere GitHub-Actions-Artefakt aus Run #43 basierte auf einem älteren Commit und darf nicht als aktuelle Version eingesetzt werden: [Workflow Run #43](https://github.com/Christian8799/that-is-a-ban/actions/runs/45642064635).
+The defaults `enabled: false`, `auto-apply: false` and `retroactive: false` are intentionally conservative.
 
 ---
 
-## GeoIP-Datenbank installieren
+## Privacy and GDPR
 
-1. Lade die **IP2Location LITE DB3 BIN**-Datenbank von [IP2Location LITE](https://lite.ip2location.com/database/db3-ip-country-region-city) herunter.
-2. Beachte die aktuelle IP2Location-Lizenz. Die Datenbank wird weder im Repository noch in der Plugin-JAR ausgeliefert.
-3. Lege die IPv6-BIN-Datei standardmäßig unter folgendem Pfad ab:
+These technical safeguards do not automatically make a server GDPR-compliant. The server operator remains responsible for purpose, legal basis, necessity, retention, access control and player notices. See [docs/PRIVACY.md](docs/PRIVACY.md) for a template and sample processing record.
 
-   ~~~text
+- GeoIP checks use a local database. That'sABan does not send player IPs to an online GeoIP service.
+- The account network stores HMAC values instead of raw IP addresses. HMAC values, UUIDs, names and Layer 2 records may still be personal or pseudonymous data.
+- Store the HMAC key securely and separately. A backup containing both the database and key reduces the practical protection.
+- The plugin does not create full data backups. Old `data.yml.bak-*` and `data.yml.corrupt-*` files are removed at startup. A damaged `data.yml` is not overwritten unsafely; the LinkStore blocks writes in that state.
+- IP addresses may still appear in proxy, firewall, host, Paper or other plugin logs. Those systems need their own retention and deletion policies.
+- Deleting a That'sABan record does not delete the entire LuckPerms user record, because it may contain unrelated permissions.
+
+### Older plugin versions
+
+Versions before commit `b34c644` used the external ipwho.is service for GeoIP checks. The raw IP was transmitted as part of the HTTPS URL and could also appear in earlier error logs. Do not use versions before `b34c644`.
+
+The older GitHub Actions artifact from run #43 was built from an earlier commit and must not be used as the current version: [Workflow run #43](https://github.com/Christian8799/that-is-a-ban/actions/runs/45642064635).
+
+---
+
+## Install the GeoIP database
+
+1. Download the **IP2Location LITE DB3 BIN** database from [IP2Location LITE](https://lite.ip2location.com/database/db3-ip-country-region-city).
+2. Review the current IP2Location license. The database is not included in this repository or plugin JAR.
+3. By default, place the IPv6 BIN file here:
+
+   ```text
    plugins/ThatsABan/geoip/IP2LOCATION-LITE-DB3.IPV6.BIN
-   ~~~
+   ```
 
-4. Stelle sicher, dass country-filter.database-file auf den tatsächlichen Dateipfad zeigt.
-5. Starte den Server neu und prüfe das Startlog auf die Meldung, dass die lokale GeoIP-Datenbank geladen wurde.
-6. IP2Location verlangt eine sichtbare Quellenangabe. Zeige in den öffentlich zugänglichen Serverinformationen:
+4. Ensure `country-filter.database-file` points to the actual file.
+5. Restart the server and check the startup log for confirmation that the local database loaded.
+6. IP2Location requires attribution. Include this in publicly accessible server information:
 
    **This server uses the IP2Location LITE database for IP geolocation.**  
    https://www.ip2location.com
 
-Die IP2Location-Java-Bibliothek wird unter MIT-Lizenz eingebunden. Für die GeoIP-Datenbank gelten separat die Lizenzbedingungen von IP2Location.
+The IP2Location Java library is included under the MIT license. The database has separate IP2Location license terms.
 
 ---
 
-## Proxy- und Netzwerkbetrieb
+## Proxy and network setup
 
-Hinter BungeeCord oder Velocity muss die echte Spieler-IP korrekt an Paper weitergereicht werden. Ohne korrektes Forwarding kann That'sABan nur die Proxy-IP sehen. Das verfälscht sowohl die GeoIP-Regionsprüfung als auch das IP-basierte Account-Netzwerk.
+Behind BungeeCord or Velocity, the real player IP must be forwarded correctly to Paper. Without correct forwarding, That'sABan may only see the proxy IP. This affects both GeoIP region checks and the IP-based account network.
 
-Prüfe daher:
+Verify that:
 
-- Paper- und Proxy-Forwarding sind korrekt und sicher konfiguriert.
-- Der Backend-Server ist nicht ungeschützt direkt aus dem Internet erreichbar.
-- Die IP, die Paper in AsyncPlayerPreLoginEvent erhält, ist tatsächlich die Client-IP.
-- Proxy-, Firewall- und Hoster-Logs besitzen eigene Aufbewahrungsfristen.
+- Paper and proxy forwarding are configured correctly and securely.
+- The backend server is not directly exposed to the public internet without protection.
+- The IP received by Paper's `AsyncPlayerPreLoginEvent` is the actual client IP.
+- Proxy, firewall and hosting logs have their own retention periods.
 
 ---
 
 ## Build
 
-Voraussetzungen: Java 21 und Gradle.
+Requirements: Java 21 and Gradle.
 
-~~~bash
+```bash
 gradle build
-~~~
+```
 
-Das Plugin-Artefakt liegt anschließend unter build/libs/. Der GitHub-Actions-Workflow baut gegen die Paper-1.21.11-API mit Java 21.
+The plugin artifact is created in `build/libs/`. GitHub Actions builds against the Paper 1.21.11 API with Java 21.
 
 ---
 
-## Fehlerbehebung
+## Troubleshooting
 
-| Symptom / Loghinweis | Mögliche Ursache und Maßnahme |
+| Symptom / log message | Possible cause and action |
 |---|---|
-| Country-/Region-Filter wurde deaktiviert | BIN-Datei fehlt, Pfad in country-filter.database-file stimmt nicht oder Datei ist nicht lesbar. GeoIP-Datei ablegen und Server neu starten. |
-| Login wegen GeoIP-Abfrage abgelehnt | Datenbank ist geladen, aber die konkrete Abfrage lieferte kein verwertbares Ergebnis. Datenbankdatei/Lizenzversion und IP-Zuordnung prüfen. |
-| Layer 2 oder /offend deaktiviert | LuckPerms fehlt, ist nicht aktiviert oder seine API konnte nicht initialisiert werden. LuckPerms-Startlog und Plugin-Kompatibilität prüfen. |
-| /adminspec deaktiviert | ProtocolLib fehlt, ist nicht aktiviert, inkompatibel oder ein erforderliches Paket-Mapping fehlt. Passende ProtocolLib-Server-JAR für Paper 1.21.11 installieren und Log prüfen. |
-| /adminspec observe ... vanish funktioniert nicht | SuperVanish fehlt oder dessen API ist inkompatibel. Für Beobachtung ohne Vanish das Argument vanish weglassen. |
-| Alt-Account-Netzwerk nicht verfügbar | alt-detection.enabled ist false oder der LinkStore ist schreibgeschützt. Konfiguration und data.yml prüfen. |
-| Gemeinsame IP führt zu mehreren Accounts | Das ist ein erwartbarer möglicher Fehlalarm. Nicht automatisch als Identitätsnachweis interpretieren. |
-| Layer-2-Plugins reagieren nicht | LuckPerms-Bypass-Nodes, layer2.negated-permissions und die tatsächlichen Plugin-Permissions kontrollieren. |
-
-Bei einer beschädigten data.yml nicht einfach eine neue Datei darüberkopieren. Der schreibgeschützte Zustand soll verhindern, dass vorhandene Daten ohne Prüfung überschrieben werden. Sichere zuerst die Dateien und untersuche den Fehler.
-
+| Country/region filter disabled | BIN file is missing, `country-filter.database-file` is wrong, or the file is unreadable. Place the database and restart. |
+| Login denied because GeoIP lookup failed | Database loaded, but the individual lookup returned no usable result. Check the database file/license version and IP mapping. |
+| Layer 2 or `/offend` disabled | LuckPerms is missing, disabled or its API failed to initialize. Check LuckPerms startup logs and compatibility. |
+| `/adminspec` disabled | ProtocolLib is missing, disabled, incompatible, or a required packet mapping is unavailable. Install a compatible Paper 1.21.11 server JAR and inspect the log. |
+| `/adminspec observe ... vanish` fails | SuperVanish is missing or its API is incompatible. Omit `vanish` to use normal observation. |
+| Account network unavailable | `alt-detection.enabled` is false or the LinkStore is read-only. Check the configuration and `data.yml`. |
+| Shared IP connects multiple accounts | This is a possible false positive. Do not treat it as proof of identity. |
