@@ -56,7 +56,7 @@ final class CountryFilter implements CountryFilterIntegration {
     }
 
     @Override
-    public CountryFilterIntegration.Result check(InetAddress address) {
+    public synchronized CountryFilterIntegration.Result check(InetAddress address) {
         FileConfiguration cfg = plugin.getConfig();
         if (!cfg.getBoolean("country-filter.enabled", true)) {
             return CountryFilterIntegration.Result.ALLOWED;
@@ -97,7 +97,7 @@ final class CountryFilter implements CountryFilterIntegration {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (databaseReady) {
             database.Close();
             databaseReady = false;

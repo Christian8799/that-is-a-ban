@@ -8,7 +8,6 @@ import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.wrappers.BlockPosition;
 import com.comphenix.protocol.wrappers.ChunkCoordIntPair;
-import com.comphenix.protocol.wrappers.MovingObjectPositionBlock;
 import com.comphenix.protocol.wrappers.WrappedDataValue;
 import com.comphenix.protocol.wrappers.WrappedLevelChunkData;
 import com.comphenix.protocol.wrappers.WrappedPositionMoveRotation;
@@ -45,11 +44,16 @@ final class AdminSpectatorManager implements Listener {
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
     private final Set<UUID> restoring = ConcurrentHashMap.newKeySet();
     private final Set<UUID> permanent = new HashSet<>();
+    private final Map<UUID, PermanentSnapshot> permanentSnapshots = new java.util.HashMap<>();
+    private final Map<UUID, PermanentSnapshot> pendingPermanentSnapshots = new java.util.HashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final VanishIntegration vanish;
     private boolean vanishFailureLogged;
+    private boolean vanishUnavailable;
     private boolean packetListenerRegistered;
 
+    private record PermanentSnapshot(GameMode gameMode, boolean allowFlight, boolean flying,
+                                     boolean vanishStateKnown, boolean wasVanished) {}
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
                             boolean flying, boolean invulnerable, float flySpeed, float walkSpeed,
                             int viewDistance, int sendViewDistance, UUID spectatorTarget) {}
@@ -74,6 +78,8 @@ final class AdminSpectatorManager implements Listener {
         UUID target() { return target; }
         void setTarget(UUID target) { this.target = target; }
         Snapshot snapshot() { return snapshot; }
+        boolean vanishMode() { return vanishMode; }
+        boolean wasVanished() { return wasVanished; }
         int offsetX() { return offsetX; }
         int offsetZ() { return offsetZ; }
     }
@@ -89,6 +95,8 @@ final class AdminSpectatorManager implements Listener {
             try { permanent.add(UUID.fromString(raw)); }
             catch (IllegalArgumentException ex) { plugin.getLogger().warning("Ungültige UUID in admin-spectator.permanent-players: " + raw); }
         }
+        loadPermanentSnapshots("admin-spectator.permanent-snapshots", permanentSnapshots);
+        loadPermanentSnapshots("admin-spectator.pending-permanent-restores", pendingPermanentSnapshots);
         try {
             // Register the external packet hook first. If ProtocolLib is incompatible,
             // no Bukkit event listener or repeating task is left partially installed.
@@ -120,7 +128,7 @@ final class AdminSpectatorManager implements Listener {
 
     boolean observe(Player observer, Player target, boolean vanishMode) {
         if (observer.equals(target)) return false;
-        if (vanishMode && (vanish == null || !vanish.isAvailable())) {
+        if (vanishMode && !vanishAvailable()) {
             observer.sendMessage("Der Vanish-Modus benötigt das installierte und kompatible SuperVanish-Plugin.");
             return false;
         }
@@ -128,6 +136,11 @@ final class AdminSpectatorManager implements Listener {
         UUID observerId = observer.getUniqueId();
         Session active = sessions.get(observerId);
         if (active != null) {
+            if (active.vanishMode() != vanishMode) {
+                observer.sendMessage("Der Beobachtungsmodus kann während einer laufenden Sitzung nicht gewechselt werden. "
+                        + "Beende sie zuerst mit /adminspec off.");
+                return false;
+            }
             return retarget(observer, target, active);
         }
         if (hasPendingRestore(observerId) && !restorePending(observer)) return false;
@@ -140,7 +153,17 @@ final class AdminSpectatorManager implements Listener {
         // Chunk-aligned offsets preserve local block coordinates while changing absolute client coordinates.
         int offsetX = createOffset(target.getLocation().getX());
         int offsetZ = createOffset(target.getLocation().getZ());
-        boolean wasVanished = vanish != null && vanish.isAvailable() && vanish.isVanished(observer);
+        boolean wasVanished = false;
+        if (vanishMode) {
+            try {
+                wasVanished = vanish.isVanished(observer);
+            } catch (LinkageError | RuntimeException ex) {
+                markVanishUnavailable(ex);
+                observer.sendMessage("SuperVanish konnte den bisherigen Vanish-Status nicht sicher lesen. "
+                        + "Die Beobachtung wurde nicht gestartet.");
+                return false;
+            }
+        }
         // Persist the pre-observation state before changing the player's position or mode.
         // This also allows recovery after a process crash or plugin/server restart.
         try {
@@ -165,12 +188,12 @@ final class AdminSpectatorManager implements Listener {
             observer.setSpectatorTarget(target);
             audit("START", observerId, target.getUniqueId());
             return true;
-        } catch (RuntimeException ex) {
+        } catch (LinkageError | RuntimeException ex) {
             plugin.getLogger().severe("Admin-Spectator konnte nicht gestartet werden: " + ex.getMessage());
             if (sessions.containsKey(observerId)) {
                 try {
                     stop(observer, "Startfehler");
-                } catch (RuntimeException restoreError) {
+                } catch (LinkageError | RuntimeException restoreError) {
                     plugin.getLogger().severe("Wiederherstellung nach Startfehler fehlgeschlagen: " + restoreError.getMessage());
                 }
             }
@@ -211,7 +234,7 @@ final class AdminSpectatorManager implements Listener {
                 observer.setSpectatorTarget(target);
                 audit("RETARGET", observerId, target.getUniqueId());
                 return true;
-            } catch (RuntimeException ex) {
+            } catch (LinkageError | RuntimeException ex) {
                 // A teleport may have emitted a packet before throwing. Keep the same
                 // offset, and conservatively track the requested target for later cleanup.
                 if (teleportAttempted) session.setTarget(target.getUniqueId());
@@ -251,12 +274,12 @@ final class AdminSpectatorManager implements Listener {
 
                 restoreSnapshot(observer, session.snapshot());
                 restoreVanishState(observer, session.vanishMode, session.wasVanished);
-                if (!session.vanishMode || !session.wasVanished || vanish == null || !vanish.isAvailable()) showObserverToAll(observer);
+                finishObserverVisibility(observer, session.vanishMode, session.wasVanished);
                 enforcePermanent(observer);
                 clearPendingRestore(observerId);
                 audit("STOP (" + reason + ")", observerId, session.target());
                 return true;
-            } catch (RuntimeException ex) {
+            } catch (LinkageError | RuntimeException ex) {
                 // Once the unshifted return teleport succeeded, never reactivate the
                 // old coordinate offset. Leave the persisted snapshot as a pending
                 // restore so /adminspec off or the next login can retry restoration.
@@ -276,14 +299,18 @@ final class AdminSpectatorManager implements Listener {
 
     boolean addPermanent(UUID uuid) {
         if (permanent.contains(uuid)) return true;
-        List<String> previousConfig = plugin.getConfig().getStringList("admin-spectator.permanent-players");
+        Player player = Bukkit.getPlayer(uuid);
+        PermanentSnapshot previousSnapshot = permanentSnapshots.get(uuid);
         permanent.add(uuid);
-        if (!savePermanentList(previousConfig)) {
+        if (player != null && previousSnapshot == null) {
+            permanentSnapshots.put(uuid, capturePermanentSnapshot(player));
+        }
+        if (!savePermanentData()) {
             permanent.remove(uuid);
+            if (previousSnapshot == null) permanentSnapshots.remove(uuid);
+            else permanentSnapshots.put(uuid, previousSnapshot);
             return false;
         }
-
-        Player player = Bukkit.getPlayer(uuid);
         if (player != null) enforcePermanent(player);
         audit("PERMANENT_ADD", uuid, uuid);
         return true;
@@ -291,27 +318,242 @@ final class AdminSpectatorManager implements Listener {
 
     boolean removePermanent(UUID uuid) {
         if (!permanent.contains(uuid)) return true;
-        List<String> previousConfig = plugin.getConfig().getStringList("admin-spectator.permanent-players");
+        PermanentSnapshot previousSnapshot = permanentSnapshots.remove(uuid);
+        Player player = Bukkit.getPlayer(uuid);
         permanent.remove(uuid);
-        if (!savePermanentList(previousConfig)) {
+        if (player == null && previousSnapshot != null) {
+            pendingPermanentSnapshots.put(uuid, previousSnapshot);
+        }
+        if (!savePermanentData()) {
             permanent.add(uuid);
+            if (player == null) pendingPermanentSnapshots.remove(uuid);
+            if (previousSnapshot != null) permanentSnapshots.put(uuid, previousSnapshot);
             return false;
+        }
+        if (player != null) {
+            boolean sessionOwnsState = sessions.containsKey(uuid) || hasPendingRestore(uuid);
+            restorePermanentSnapshot(player, previousSnapshot, sessionOwnsState);
+        } else if (previousSnapshot == null) {
+            plugin.getLogger().warning("Permanenter Spectator-Eintrag offline entfernt, aber kein Ursprungszustand ist gespeichert: "
+                    + uuid + ". Ein bereits gespeicherter Spectator-Gamemode kann deshalb nicht automatisch zurückgesetzt werden.");
         }
         audit("PERMANENT_REMOVE", uuid, uuid);
         return true;
     }
 
-    private boolean savePermanentList(List<String> previousConfig) {
-        plugin.getConfig().set("admin-spectator.permanent-players",
+    private boolean savePermanentData() {
+        String playersPath = "admin-spectator.permanent-players";
+        String snapshotsPath = "admin-spectator.permanent-snapshots";
+        String pendingPath = "admin-spectator.pending-permanent-restores";
+        Object oldPlayers = plugin.getConfig().get(playersPath);
+        Object oldSnapshots = plugin.getConfig().get(snapshotsPath);
+        Object oldPending = plugin.getConfig().get(pendingPath);
+
+        plugin.getConfig().set(playersPath,
                 permanent.stream().map(UUID::toString).sorted().toList());
+        plugin.getConfig().set(snapshotsPath, serializePermanentSnapshots(permanentSnapshots));
+        plugin.getConfig().set(pendingPath, serializePermanentSnapshots(pendingPermanentSnapshots));
         try {
             plugin.saveConfig();
             return true;
         } catch (RuntimeException ex) {
-            plugin.getConfig().set("admin-spectator.permanent-players", previousConfig);
-            plugin.getLogger().severe("Permanente Spectator-Liste konnte nicht gespeichert werden; Änderung wurde zurückgenommen: "
+            plugin.getConfig().set(playersPath, oldPlayers);
+            plugin.getConfig().set(snapshotsPath, oldSnapshots);
+            plugin.getConfig().set(pendingPath, oldPending);
+            plugin.getLogger().severe("Permanente Spectator-Daten konnten nicht gespeichert werden; Änderung wurde zurückgenommen: "
                     + ex.getMessage());
             return false;
+        }
+    }
+
+    private Map<String, Object> serializePermanentSnapshots(Map<UUID, PermanentSnapshot> snapshots) {
+        Map<String, Object> serialized = new java.util.TreeMap<>();
+        for (Map.Entry<UUID, PermanentSnapshot> entry : snapshots.entrySet()) {
+            PermanentSnapshot snapshot = entry.getValue();
+            Map<String, Object> values = new java.util.LinkedHashMap<>();
+            values.put("captured", true);
+            values.put("game-mode", snapshot.gameMode().name());
+            values.put("allow-flight", snapshot.allowFlight());
+            values.put("flying", snapshot.flying());
+            values.put("vanish-state-known", snapshot.vanishStateKnown());
+            values.put("was-vanished", snapshot.wasVanished());
+            serialized.put(entry.getKey().toString(), values);
+        }
+        return serialized;
+    }
+
+    private void loadPermanentSnapshots(String path, Map<UUID, PermanentSnapshot> destination) {
+        var section = plugin.getConfig().getConfigurationSection(path);
+        if (section == null) return;
+        for (String key : section.getKeys(false)) {
+            try {
+                UUID uuid = UUID.fromString(key);
+                if (!section.getBoolean(key + ".captured", true)) continue;
+                GameMode gameMode = GameMode.valueOf(
+                        section.getString(key + ".game-mode", "SPECTATOR").toUpperCase(java.util.Locale.ROOT));
+                destination.put(uuid, new PermanentSnapshot(
+                        gameMode,
+                        section.getBoolean(key + ".allow-flight"),
+                        section.getBoolean(key + ".flying"),
+                        section.getBoolean(key + ".vanish-state-known"),
+                        section.getBoolean(key + ".was-vanished")));
+            } catch (IllegalArgumentException ex) {
+                plugin.getLogger().warning("Ungültiger gespeicherter Spectator-Zustand für UUID " + key
+                        + " in " + path + "; automatische Wiederherstellung kann unvollständig sein.");
+            }
+        }
+    }
+
+    private PermanentSnapshot capturePermanentSnapshot(Player player) {
+        UUID uuid = player.getUniqueId();
+        Session active = sessions.get(uuid);
+        if (active != null) {
+            Snapshot base = active.snapshot();
+            boolean known = vanishAvailable();
+            boolean wasVanished = false;
+            if (known) {
+                try {
+                    wasVanished = vanish.isVanished(player);
+                } catch (LinkageError | RuntimeException ex) {
+                    markVanishUnavailable(ex);
+                    known = false;
+                }
+            }
+            if (active.vanishMode()) {
+                known = true;
+                wasVanished = active.wasVanished();
+            }
+            return new PermanentSnapshot(base.gameMode(), base.allowFlight(), base.flying(), known, wasVanished);
+        }
+
+        String pending = pendingRestorePath(uuid);
+        if (hasPendingRestore(uuid)) {
+            GameMode gameMode;
+            try {
+                gameMode = GameMode.valueOf(plugin.getConfig().getString(pending + ".game-mode", "SURVIVAL"));
+            } catch (IllegalArgumentException ex) {
+                gameMode = GameMode.SURVIVAL;
+            }
+            boolean sessionVanishMode = plugin.getConfig().getBoolean(pending + ".vanish-mode", false);
+            boolean known;
+            boolean wasVanished;
+            if (sessionVanishMode) {
+                known = true;
+                wasVanished = plugin.getConfig().getBoolean(pending + ".was-vanished", false);
+            } else {
+                known = vanishAvailable();
+                wasVanished = known && readVanishState(player);
+                known = known && !vanishUnavailable;
+            }
+            return new PermanentSnapshot(gameMode,
+                    plugin.getConfig().getBoolean(pending + ".allow-flight"),
+                    plugin.getConfig().getBoolean(pending + ".flying"),
+                    known, wasVanished);
+        }
+
+        boolean known = vanishAvailable();
+        boolean wasVanished = known && readVanishState(player);
+        return new PermanentSnapshot(player.getGameMode(), player.getAllowFlight(),
+                player.isFlying(), known && !vanishUnavailable, wasVanished);
+    }
+
+    private boolean readVanishState(Player player) {
+        if (!vanishAvailable()) return false;
+        try {
+            return vanish.isVanished(player);
+        } catch (LinkageError | RuntimeException ex) {
+            markVanishUnavailable(ex);
+            return false;
+        }
+    }
+
+    private void ensurePermanentSnapshot(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (permanentSnapshots.containsKey(uuid)) return;
+        permanentSnapshots.put(uuid, capturePermanentSnapshot(player));
+        if (!savePermanentData()) {
+            plugin.getLogger().warning("Vorheriger Zustand des permanenten Spectator-Accounts bleibt bis zum nächsten erfolgreichen Speichern nur im Arbeitsspeicher: "
+                    + uuid);
+        }
+    }
+
+    private void restorePermanentSnapshot(Player player, PermanentSnapshot snapshot, boolean sessionOwnsState) {
+        if (sessionOwnsState) return;
+        if (snapshot == null) {
+            showObserverToAll(player);
+            return;
+        }
+        try {
+            player.setGameMode(snapshot.gameMode());
+            player.setAllowFlight(snapshot.allowFlight());
+            player.setFlying(snapshot.flying() && snapshot.allowFlight());
+            if (player.getGameMode() != snapshot.gameMode()) {
+                plugin.getLogger().warning("Ursprünglicher Gamemode konnte nach Entfernen der permanenten Spectator-Festlegung "
+                        + "nicht wiederhergestellt werden: " + player.getUniqueId());
+            }
+        } catch (LinkageError | RuntimeException ex) {
+            plugin.getLogger().warning("Spielerzustand konnte nach Entfernen der permanenten Spectator-Festlegung "
+                    + "nicht vollständig wiederhergestellt werden: " + ex.getClass().getSimpleName());
+        }
+        restorePermanentVisibility(player, snapshot);
+    }
+
+    private void restorePermanentVisibility(Player player, PermanentSnapshot snapshot) {
+        boolean vanishRestored = false;
+        if (snapshot.vanishStateKnown() && vanishAvailable()) {
+            try {
+                vanish.setVanished(player, snapshot.wasVanished());
+                vanishRestored = true;
+            } catch (LinkageError | RuntimeException ex) {
+                markVanishUnavailable(ex);
+            }
+        }
+        if (snapshot.vanishStateKnown() && snapshot.wasVanished() && !vanishRestored) {
+            hideObserverFromAll(player);
+        } else {
+            showObserverToAll(player);
+        }
+    }
+
+    private boolean restorePendingPermanent(Player player) {
+        UUID uuid = player.getUniqueId();
+        PermanentSnapshot snapshot = pendingPermanentSnapshots.get(uuid);
+        if (snapshot == null) return false;
+        try {
+            player.setGameMode(snapshot.gameMode());
+            player.setAllowFlight(snapshot.allowFlight());
+            player.setFlying(snapshot.flying() && snapshot.allowFlight());
+            restorePermanentVisibility(player, snapshot);
+            pendingPermanentSnapshots.remove(uuid);
+            if (!savePermanentData()) {
+                pendingPermanentSnapshots.put(uuid, snapshot);
+                return false;
+            }
+            audit("PERMANENT_RESTORE", uuid, uuid);
+            return true;
+        } catch (LinkageError | RuntimeException ex) {
+            plugin.getLogger().severe("Ausstehende permanente Spectator-Wiederherstellung fehlgeschlagen für "
+                    + uuid + ": " + ex.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private boolean vanishAvailable() {
+        if (vanish == null || vanishUnavailable) return false;
+        try {
+            return vanish.isAvailable();
+        } catch (LinkageError | RuntimeException ex) {
+            markVanishUnavailable(ex);
+            return false;
+        }
+    }
+
+    private void markVanishUnavailable(Throwable error) {
+        vanishUnavailable = true;
+        if (!vanishFailureLogged) {
+            plugin.getLogger().warning("SuperVanish-API ist zur Laufzeit nicht verfügbar; Bukkit-Hiding wird verwendet: "
+                    + error.getClass().getSimpleName());
+            vanishFailureLogged = true;
         }
     }
 
@@ -409,8 +651,16 @@ final class AdminSpectatorManager implements Listener {
             Location location = new Location(world, x, y, z, yaw, pitch);
             boolean vanishMode = plugin.getConfig().getBoolean(path + ".vanish-mode", false);
             boolean wasVanished = plugin.getConfig().getBoolean(path + ".was-vanished", false);
-            if (vanishMode && vanish != null && vanish.isAvailable()) vanish.setVanished(player, true);
-            else hideObserverFromAll(player);
+            if (vanishMode && vanishAvailable()) {
+                try {
+                    vanish.setVanished(player, true);
+                } catch (LinkageError | RuntimeException ex) {
+                    markVanishUnavailable(ex);
+                    hideObserverFromAll(player);
+                }
+            } else {
+                hideObserverFromAll(player);
+            }
             player.setSpectatorTarget(null);
             if (!player.teleport(location)) {
                 keepObserverHidden(player);
@@ -436,12 +686,12 @@ final class AdminSpectatorManager implements Listener {
                     parseOptionalUuid(plugin.getConfig().getString(path + ".spectator-target")));
             restoreSnapshot(player, snapshot);
             restoreVanishState(player, vanishMode, wasVanished);
-            if (!vanishMode || !wasVanished || vanish == null || !vanish.isAvailable()) showObserverToAll(player);
+            finishObserverVisibility(player, vanishMode, wasVanished);
             enforcePermanent(player);
             clearPendingRestore(uuid);
             audit("RECOVER", uuid, uuid);
             return true;
-        } catch (RuntimeException ex) {
+        } catch (LinkageError | RuntimeException ex) {
             keepObserverHidden(player);
             plugin.getLogger().severe("Gespeicherte Admin-Spectator-Wiederherstellung fehlgeschlagen für "
                     + uuid + ": " + ex.getMessage());
@@ -494,27 +744,42 @@ final class AdminSpectatorManager implements Listener {
 
     private void enforcePermanent(Player player) {
         if (!permanent.contains(player.getUniqueId())) return;
+        ensurePermanentSnapshot(player);
         if (player.getGameMode() != GameMode.SPECTATOR) player.setGameMode(GameMode.SPECTATOR);
         if (!player.getAllowFlight()) player.setAllowFlight(true);
         if (!player.isFlying()) player.setFlying(true);
-        if (vanish != null && vanish.isAvailable()) {
+        if (vanishAvailable()) {
             try {
                 if (!vanish.isVanished(player)) vanish.setVanished(player, true);
                 return;
             } catch (LinkageError | RuntimeException ex) {
-                if (!vanishFailureLogged) {
-                    plugin.getLogger().warning("SuperVanish-API ist zur Laufzeit nicht verfügbar; permanente Admin-Accounts verwenden Bukkit-Hiding: "
-                            + ex.getClass().getSimpleName());
-                    vanishFailureLogged = true;
-                }
+                markVanishUnavailable(ex);
             }
         }
         hideObserverFromAll(player);
     }
 
     private void restoreVanishState(Player player, boolean vanishMode, boolean wasVanished) {
-        if (!vanishMode || vanish == null || !vanish.isAvailable()) return;
-        vanish.setVanished(player, wasVanished);
+        if (!vanishMode || permanent.contains(player.getUniqueId())) return;
+        if (vanishAvailable()) {
+            try {
+                vanish.setVanished(player, wasVanished);
+                return;
+            } catch (LinkageError | RuntimeException ex) {
+                markVanishUnavailable(ex);
+            }
+        }
+        if (wasVanished) hideObserverFromAll(player);
+    }
+
+    private void finishObserverVisibility(Player player, boolean vanishMode, boolean wasVanished) {
+        if (permanent.contains(player.getUniqueId())) {
+            enforcePermanent(player);
+        } else if (vanishMode && wasVanished && !vanishAvailable()) {
+            hideObserverFromAll(player);
+        } else {
+            showObserverToAll(player);
+        }
     }
 
     private void hideObserverFromAll(Player observer) {
@@ -534,6 +799,8 @@ final class AdminSpectatorManager implements Listener {
         Player joining = event.getPlayer();
         UUID joiningId = joining.getUniqueId();
 
+        restorePendingPermanent(joining);
+
         // Register hides before the joining entity is inserted into the world and
         // before existing clients can receive its first spawn packet.
         if (hasPendingRestore(joiningId)) {
@@ -548,7 +815,7 @@ final class AdminSpectatorManager implements Listener {
         for (UUID permanentId : Set.copyOf(permanent)) {
             Player admin = Bukkit.getPlayer(permanentId);
             if (admin != null && !admin.equals(joining)
-                    && (vanish == null || !vanish.isAvailable())) {
+                    && !vanishAvailable()) {
                 joining.hidePlayer(plugin, admin);
             }
         }
@@ -570,7 +837,7 @@ final class AdminSpectatorManager implements Listener {
         for (UUID permanentId : Set.copyOf(permanent)) {
             Player admin = Bukkit.getPlayer(permanentId);
             if (admin != null && !admin.equals(joining)
-                    && (vanish == null || !vanish.isAvailable())) {
+                    && !vanishAvailable()) {
                 joining.hidePlayer(plugin, admin);
             }
         }
@@ -834,16 +1101,9 @@ final class AdminSpectatorManager implements Listener {
     }
 
     private void translateUseItemOn(PacketEvent event, int offsetX, int offsetZ) {
-        var hits = event.getPacket().getMovingBlockPositions();
-        if (hits.size() == 0) {
-            throw new IllegalStateException("Paket enthält keinen Blocktreffer: " + event.getPacketType());
-        }
-        MovingObjectPositionBlock hit = hits.read(0);
-        var block = hit.getBlockPosition();
-        hit.setBlockPosition(new com.comphenix.protocol.wrappers.BlockPosition(
-                block.getX() + offsetX, block.getY(), block.getZ() + offsetZ));
-        hit.setPosVector(translated(hit.getPosVector(), offsetX, offsetZ));
-        hits.write(0, hit);
+        // 1.21.11 UseItemOn contains Hand, BlockPos, face and block-local cursor coordinates.
+        // Translate only the absolute BlockPos, not the block-local cursor vector.
+        translateBlockPosition(event, offsetX, offsetZ);
     }
 
     private void registerPacketTranslation() {
@@ -888,6 +1148,10 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Client.TILE_NBT_QUERY,
                 PacketType.Play.Client.ENTITY_NBT_QUERY,
                 PacketType.Play.Client.USE_ITEM_ON,
+                PacketType.Play.Client.PICK_ITEM_FROM_BLOCK,
+                PacketType.Play.Client.VEHICLE_MOVE,
+                PacketType.Play.Client.JIGSAW_GENERATE,
+                PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION,
                 PacketType.Play.Client.POSITION,
                 PacketType.Play.Client.POSITION_LOOK) {
             @Override
@@ -970,7 +1234,7 @@ final class AdminSpectatorManager implements Listener {
                         // The initial world-border packet begins with its X/Z center coordinates.
                         translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 1);
                     }
-                    } catch (Exception ex) {
+                    } catch (LinkageError | Exception ex) {
                         plugin.getLogger().warning("Konnte ausgehendes Paket für Admin-Spectator nicht transformieren: " + ex.getMessage());
                         event.setCancelled(true);
                     }
@@ -1000,13 +1264,23 @@ final class AdminSpectatorManager implements Listener {
                         event.setCancelled(true);
                         return;
                     }
-                    if (event.getPacketType() == PacketType.Play.Client.USE_ITEM_ON) {
+                    PacketType type = event.getPacketType();
+                    if (type == PacketType.Play.Client.USE_ITEM_ON) {
                         translateUseItemOn(event, session.offsetX(), session.offsetZ());
                         return;
                     }
+                    if (type == PacketType.Play.Client.VEHICLE_MOVE) {
+                        // translateVehicleMove subtracts its arguments; negate to restore real server coordinates.
+                        translateVehicleMove(event, -session.offsetX(), -session.offsetZ());
+                        return;
+                    }
                     var modifier = event.getPacket().getBlockPositionModifier();
-                    if (event.getPacketType() == PacketType.Play.Client.BLOCK_DIG && modifier.size() == 0) {
-                        throw new IllegalStateException("Abbaupaket enthält keine Blockposition.");
+                    boolean requiresBlockPosition = type == PacketType.Play.Client.BLOCK_DIG
+                            || type == PacketType.Play.Client.PICK_ITEM_FROM_BLOCK
+                            || type == PacketType.Play.Client.JIGSAW_GENERATE
+                            || type == PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION;
+                    if (requiresBlockPosition && modifier.size() == 0) {
+                        throw new IllegalStateException("Positionspaket enthält keine lesbare Blockposition: " + type);
                     }
                     if (modifier.size() > 0) {
                         var pos = modifier.read(0);
@@ -1023,7 +1297,7 @@ final class AdminSpectatorManager implements Listener {
                         doubles.write(0, doubles.read(0) + session.offsetX());
                         doubles.write(2, doubles.read(2) + session.offsetZ());
                     }
-                    } catch (Exception ex) {
+                    } catch (LinkageError | Exception ex) {
                         plugin.getLogger().warning("Konnte eingehendes Interaktionspaket nicht transformieren: " + ex.getMessage());
                         event.setCancelled(true);
                     }

@@ -27,14 +27,23 @@ final class LoginListener implements Listener {
         String name = event.getName();
         InetAddress address = event.getAddress();
 
-        if (countryFilter != null && countryFilter.isAvailable()) {
-            CountryFilterIntegration.Result country = countryFilter.check(address);
-            if (country == CountryFilterIntegration.Result.DENIED) {
-                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                        plugin.messages().plain("country-denied"));
-                return;
-            }
-            if (country == CountryFilterIntegration.Result.UNAVAILABLE) {
+        if (countryFilter != null) {
+            try {
+                if (countryFilter.isAvailable()) {
+                    CountryFilterIntegration.Result country = countryFilter.check(address);
+                    if (country == CountryFilterIntegration.Result.DENIED) {
+                        event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                                plugin.messages().plain("country-denied"));
+                        return;
+                    }
+                    if (country == CountryFilterIntegration.Result.UNAVAILABLE) {
+                        event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                                plugin.messages().plain("country-lookup-failed"));
+                        return;
+                    }
+                }
+            } catch (LinkageError | RuntimeException ex) {
+                plugin.getLogger().warning("Country-/Region-Prüfung ist zur Laufzeit ausgefallen; Login wird aus Sicherheitsgründen abgelehnt.");
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                         plugin.messages().plain("country-lookup-failed"));
                 return;
@@ -45,14 +54,14 @@ final class LoginListener implements Listener {
         if (bedrock.isBedrock(uuid, name)) {
             try {
                 luckPerms.recordNetworkLogin(uuid, name, address);
-            } catch (Exception ignored) {
+            } catch (LinkageError | Exception ignored) {
                 plugin.getLogger().warning("Login-Netzwerkerfassung fehlgeschlagen; Details werden nicht protokolliert.");
             }
             return;
         }
         try {
             luckPerms.handleLogin(uuid, name, address);
-        } catch (Exception ignored) {
+        } catch (LinkageError | Exception ignored) {
             plugin.getLogger().warning("Login-Prüfung fehlgeschlagen; Details werden nicht protokolliert.");
         }
     }
