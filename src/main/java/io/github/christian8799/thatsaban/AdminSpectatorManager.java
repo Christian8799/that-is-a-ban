@@ -81,15 +81,28 @@ final class AdminSpectatorManager implements Listener {
             try { permanent.add(UUID.fromString(raw)); }
             catch (IllegalArgumentException ex) { plugin.getLogger().warning("Ungültige UUID in admin-spectator.permanent-players: " + raw); }
         }
-        Bukkit.getPluginManager().registerEvents(this, plugin);
-        registerPacketTranslation();
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (!restorePending(player)) enforcePermanent(player);
+        try {
+            // Register the external packet hook first. If ProtocolLib is incompatible,
+            // no Bukkit event listener or repeating task is left partially installed.
+            registerPacketTranslation();
+            Bukkit.getPluginManager().registerEvents(this, plugin);
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (!restorePending(player)) enforcePermanent(player);
+            }
+            // Re-enforce against plugins that bypass the Bukkit game-mode event.
+            Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
+            }, 20L, 20L);
+        } catch (LinkageError | RuntimeException ex) {
+            org.bukkit.event.HandlerList.unregisterAll(this);
+            try {
+                protocol.removePacketListeners(plugin);
+            } catch (RuntimeException cleanupError) {
+                plugin.getLogger().warning("ProtocolLib-Listener-Cleanup nach fehlgeschlagener Initialisierung nicht möglich: "
+                        + cleanupError.getClass().getSimpleName());
+            }
+            throw ex;
         }
-        // Re-enforce against plugins that bypass the Bukkit game-mode event.
-        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
-        }, 20L, 20L);
     }
 
     boolean isObserving(Player observer) {
