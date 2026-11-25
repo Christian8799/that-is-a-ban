@@ -33,7 +33,8 @@ final class AdminSpectatorManager implements Listener {
     private boolean packetListenerRegistered;
 
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
-                            boolean flying, boolean invulnerable, float flySpeed, float walkSpeed) {}
+                            boolean flying, boolean invulnerable, float flySpeed, float walkSpeed,
+                            int viewDistance, int sendViewDistance) {}
     private record Session(UUID target, Snapshot snapshot, int offsetX, int offsetZ) {}
 
     AdminSpectatorManager(JavaPlugin plugin) {
@@ -49,6 +50,10 @@ final class AdminSpectatorManager implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
         registerPacketTranslation();
         for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
+        // Re-enforce against plugins that bypass the Bukkit game-mode event.
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) enforcePermanent(player);
+        }, 20L, 20L);
     }
 
     boolean observe(Player observer, Player target) {
@@ -56,7 +61,8 @@ final class AdminSpectatorManager implements Listener {
         if (sessions.containsKey(observer.getUniqueId())) stop(observer, "Neue Beobachtung gestartet");
         Snapshot snapshot = new Snapshot(observer.getLocation().clone(), observer.getGameMode(),
                 observer.getAllowFlight(), observer.isFlying(), observer.isInvulnerable(),
-                observer.getFlySpeed(), observer.getWalkSpeed());
+                observer.getFlySpeed(), observer.getWalkSpeed(),
+                observer.getViewDistance(), observer.getSendViewDistance());
         // Chunk-aligned offsets preserve local block coordinates while changing absolute client coordinates.
         int offsetX = (2000 + random.nextInt(8001)) * 16;
         int offsetZ = (2000 + random.nextInt(8001)) * 16;
@@ -67,6 +73,8 @@ final class AdminSpectatorManager implements Listener {
         observer.setAllowFlight(true);
         observer.setFlying(true);
         observer.setInvulnerable(true);
+        observer.setViewDistance(Math.min(4, observer.getViewDistance()));
+        observer.setSendViewDistance(Math.min(4, observer.getSendViewDistance()));
         target.hidePlayer(plugin, observer);
         observer.teleport(target.getLocation());
         observer.setSpectatorTarget(target);
@@ -88,6 +96,8 @@ final class AdminSpectatorManager implements Listener {
         observer.setInvulnerable(s.invulnerable());
         observer.setFlySpeed(s.flySpeed());
         observer.setWalkSpeed(s.walkSpeed());
+        observer.setViewDistance(s.viewDistance());
+        observer.setSendViewDistance(s.sendViewDistance());
         audit("STOP (" + reason + ")", observer.getUniqueId(), session.target());
         return true;
     }
@@ -109,11 +119,10 @@ final class AdminSpectatorManager implements Listener {
     }
 
     private void enforcePermanent(Player player) {
-        if (permanent.contains(player.getUniqueId()) && player.getGameMode() != GameMode.SPECTATOR) {
-            player.setGameMode(GameMode.SPECTATOR);
-            player.setAllowFlight(true);
-            player.setFlying(true);
-        }
+        if (!permanent.contains(player.getUniqueId())) return;
+        if (player.getGameMode() != GameMode.SPECTATOR) player.setGameMode(GameMode.SPECTATOR);
+        if (!player.getAllowFlight()) player.setAllowFlight(true);
+        if (!player.isFlying()) player.setFlying(true);
     }
 
     @EventHandler
