@@ -193,8 +193,19 @@ final class AdminSpectatorManager implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         Player quitter = event.getPlayer();
-        Session own = sessions.get(quitter.getUniqueId());
-        if (own != null) stop(quitter, "Moderator hat den Server verlassen");
+
+        // A quitting observer cannot be reliably teleported back: Bukkit may reject
+        // teleports once the disconnect sequence has started. Do not leave a stale
+        // session behind, or the next login would inherit the old hidden state.
+        Session own = sessions.remove(quitter.getUniqueId());
+        if (own != null) {
+            quitter.setSpectatorTarget(null);
+            showObserverToAll(quitter);
+            audit("ABORT_QUIT", quitter.getUniqueId(), own.target());
+        }
+
+        // If the observed player leaves, the observer is still online and can be
+        // safely returned to the saved location using the normal fail-closed path.
         for (Map.Entry<UUID, Session> entry : Set.copyOf(sessions.entrySet())) {
             if (entry.getValue().target().equals(quitter.getUniqueId())) {
                 Player observer = Bukkit.getPlayer(entry.getKey());
