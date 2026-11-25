@@ -129,6 +129,7 @@ final class AdminSpectatorManager implements Listener {
         // captured this session before removal must finish before the unshifted
         // return teleport is sent.
         synchronized (session) {
+            boolean returnTeleportSucceeded = false;
             try {
                 observer.setSpectatorTarget(null);
                 if (!observer.teleport(session.snapshot().location())) {
@@ -138,6 +139,7 @@ final class AdminSpectatorManager implements Listener {
                     audit("STOP_FAILED (" + reason + ")", observerId, session.target());
                     return false;
                 }
+                returnTeleportSucceeded = true;
 
                 restoreSnapshot(observer, session.snapshot());
                 showObserverToAll(observer);
@@ -145,9 +147,12 @@ final class AdminSpectatorManager implements Listener {
                 audit("STOP (" + reason + ")", observerId, session.target());
                 return true;
             } catch (RuntimeException ex) {
-                // The snapshot was persisted before observation began. Preserve it
-                // and the hidden/Spectator fail-safe if any restoration API throws.
-                sessions.putIfAbsent(observerId, session);
+                // Once the unshifted return teleport succeeded, never reactivate the
+                // old coordinate offset. Leave the persisted snapshot as a pending
+                // restore so /adminspec off or the next login can retry restoration.
+                if (!returnTeleportSucceeded) {
+                    sessions.putIfAbsent(observerId, session);
+                }
                 keepObserverHidden(observer);
                 plugin.getLogger().severe("Admin-Spectator-Wiederherstellung fehlgeschlagen für "
                         + observerId + ": " + ex.getMessage());
