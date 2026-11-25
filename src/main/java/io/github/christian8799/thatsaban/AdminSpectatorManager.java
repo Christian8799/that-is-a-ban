@@ -16,19 +16,18 @@ import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.util.Vector;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 final class AdminSpectatorManager implements Listener {
     private final JavaPlugin plugin;
     private final ProtocolManager protocol;
-    private final Map<UUID, Session> sessions = new HashMap<>();
+    private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
     private final Set<UUID> permanent = new HashSet<>();
     private final Random random = new Random();
     private boolean packetListenerRegistered;
@@ -149,8 +148,11 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.BLOCK_CHANGE,
                 PacketType.Play.Server.SPAWN_ENTITY,
                 PacketType.Play.Server.ENTITY_TELEPORT,
+                PacketType.Play.Server.POSITION,
                 PacketType.Play.Client.BLOCK_DIG,
-                PacketType.Play.Client.USE_ITEM_ON) {
+                PacketType.Play.Client.USE_ITEM_ON,
+                PacketType.Play.Client.POSITION,
+                PacketType.Play.Client.POSITION_LOOK) {
             @Override
             public void onPacketSending(PacketEvent event) {
                 Session session = sessions.get(event.getPlayer().getUniqueId());
@@ -166,7 +168,8 @@ final class AdminSpectatorManager implements Listener {
                                 new com.comphenix.protocol.wrappers.BlockPosition(pos.getX() - session.offsetX(),
                                         pos.getY(), pos.getZ() - session.offsetZ()));
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY
-                            || type == PacketType.Play.Server.ENTITY_TELEPORT) {
+                            || type == PacketType.Play.Server.ENTITY_TELEPORT
+                            || type == PacketType.Play.Server.POSITION) {
                         if (event.getPacket().getDoubles().size() >= 3) {
                             event.getPacket().getDoubles().write(0, event.getPacket().getDoubles().read(0) - session.offsetX());
                             event.getPacket().getDoubles().write(2, event.getPacket().getDoubles().read(2) - session.offsetZ());
@@ -188,6 +191,13 @@ final class AdminSpectatorManager implements Listener {
                         var pos = modifier.read(0);
                         modifier.write(0, new com.comphenix.protocol.wrappers.BlockPosition(
                                 pos.getX() + session.offsetX(), pos.getY(), pos.getZ() + session.offsetZ()));
+                    }
+                    // The client sends its shifted player coordinates back to the server.
+                    if ((event.getPacketType() == PacketType.Play.Client.POSITION
+                            || event.getPacketType() == PacketType.Play.Client.POSITION_LOOK)
+                            && event.getPacket().getDoubles().size() >= 3) {
+                        event.getPacket().getDoubles().write(0, event.getPacket().getDoubles().read(0) + session.offsetX());
+                        event.getPacket().getDoubles().write(2, event.getPacket().getDoubles().read(2) + session.offsetZ());
                     }
                 } catch (Exception ex) {
                     plugin.getLogger().warning("Konnte eingehendes Interaktionspaket nicht transformieren: " + ex.getMessage());
