@@ -258,6 +258,7 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.BLOCK_ACTION,
                 PacketType.Play.Server.BLOCK_BREAK_ANIMATION,
                 PacketType.Play.Server.SPAWN_POSITION,
+                PacketType.Play.Server.OPEN_SIGN_EDITOR,
                 PacketType.Play.Server.SPAWN_ENTITY,
                 PacketType.Play.Server.ENTITY_TELEPORT,
                 PacketType.Play.Server.ENTITY_POSITION_SYNC,
@@ -265,7 +266,16 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.EXPLOSION,
                 PacketType.Play.Server.WORLD_PARTICLES,
                 PacketType.Play.Server.CHUNKS_BIOMES,
+                PacketType.Play.Server.DEBUG_BLOCK_VALUE,
                 PacketType.Play.Server.DEBUG_CHUNK_VALUE,
+                PacketType.Play.Server.DEBUG_ENTITY_VALUE,
+                PacketType.Play.Server.DEBUG_EVENT,
+                PacketType.Play.Server.DEBUG_SAMPLE,
+                PacketType.Play.Server.GAME_TEST_HIGHLIGHT_POS,
+                PacketType.Play.Server.MOVE_MINECART,
+                PacketType.Play.Server.LOOK_AT,
+                PacketType.Play.Server.TRACKED_WAYPOINT,
+                PacketType.Play.Server.TEST_INSTANCE_BLOCK_STATUS,
                 PacketType.Play.Server.WORLD_EVENT,
                 PacketType.Play.Server.NAMED_SOUND_EFFECT,
                 PacketType.Play.Server.SET_BORDER_CENTER,
@@ -285,7 +295,16 @@ final class AdminSpectatorManager implements Listener {
                     // Suppress them for the observer until their full wire layout is transformed.
                     if (type == PacketType.Play.Server.WORLD_PARTICLES
                             || type == PacketType.Play.Server.CHUNKS_BIOMES
-                            || type == PacketType.Play.Server.DEBUG_CHUNK_VALUE) {
+                            || type == PacketType.Play.Server.DEBUG_BLOCK_VALUE
+                            || type == PacketType.Play.Server.DEBUG_CHUNK_VALUE
+                            || type == PacketType.Play.Server.DEBUG_ENTITY_VALUE
+                            || type == PacketType.Play.Server.DEBUG_EVENT
+                            || type == PacketType.Play.Server.DEBUG_SAMPLE
+                            || type == PacketType.Play.Server.GAME_TEST_HIGHLIGHT_POS
+                            || type == PacketType.Play.Server.MOVE_MINECART
+                            || type == PacketType.Play.Server.LOOK_AT
+                            || type == PacketType.Play.Server.TRACKED_WAYPOINT
+                            || type == PacketType.Play.Server.TEST_INSTANCE_BLOCK_STATUS) {
                         event.setCancelled(true);
                         return;
                     } else if (type == PacketType.Play.Server.MAP_CHUNK
@@ -305,7 +324,8 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.TILE_ENTITY_DATA
                             || type == PacketType.Play.Server.BLOCK_ACTION
                             || type == PacketType.Play.Server.BLOCK_BREAK_ANIMATION
-                            || type == PacketType.Play.Server.SPAWN_POSITION) {
+                            || type == PacketType.Play.Server.SPAWN_POSITION
+                            || type == PacketType.Play.Server.OPEN_SIGN_EDITOR) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
                     } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
                         translateVectorCoordinates(event, session.offsetX(), session.offsetZ());
