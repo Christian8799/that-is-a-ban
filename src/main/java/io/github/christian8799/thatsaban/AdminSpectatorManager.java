@@ -251,7 +251,7 @@ final class AdminSpectatorManager implements Listener {
 
                 restoreSnapshot(observer, session.snapshot());
                 restoreVanishState(observer, session.vanishMode, session.wasVanished);
-                if (!session.vanishMode || !session.wasVanished) showObserverToAll(observer);
+                if (!session.vanishMode || !session.wasVanished || vanish == null || !vanish.isAvailable()) showObserverToAll(observer);
                 enforcePermanent(observer);
                 clearPendingRestore(observerId);
                 audit("STOP (" + reason + ")", observerId, session.target());
@@ -436,7 +436,7 @@ final class AdminSpectatorManager implements Listener {
                     parseOptionalUuid(plugin.getConfig().getString(path + ".spectator-target")));
             restoreSnapshot(player, snapshot);
             restoreVanishState(player, vanishMode, wasVanished);
-            if (!vanishMode || !wasVanished) showObserverToAll(player);
+            if (!vanishMode || !wasVanished || vanish == null || !vanish.isAvailable()) showObserverToAll(player);
             enforcePermanent(player);
             clearPendingRestore(uuid);
             audit("RECOVER", uuid, uuid);
