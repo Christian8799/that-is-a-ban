@@ -69,13 +69,15 @@ final class AdminSpectatorManager implements Listener {
         if (random.nextBoolean()) offsetX = -offsetX;
         if (random.nextBoolean()) offsetZ = -offsetZ;
         sessions.put(observer.getUniqueId(), new Session(target.getUniqueId(), snapshot, offsetX, offsetZ));
+        // Hide before changing mode or moving: otherwise the initial spectator
+        // transition can briefly expose the moderator at their real location.
+        hideObserverFromAll(observer);
         observer.setGameMode(GameMode.SPECTATOR);
         observer.setAllowFlight(true);
         observer.setFlying(true);
         observer.setInvulnerable(true);
         observer.setViewDistance(4);
         observer.setSendViewDistance(4);
-        hideObserverFromAll(observer);
         if (!observer.teleport(target.getLocation())) {
             stop(observer, "Teleport zum Zielspieler fehlgeschlagen");
             return false;
@@ -89,7 +91,6 @@ final class AdminSpectatorManager implements Listener {
         Session session = sessions.remove(observer.getUniqueId());
         if (session == null) return false;
         observer.setSpectatorTarget(null);
-        showObserverToAll(observer);
         Snapshot s = session.snapshot();
         observer.teleport(s.location());
         observer.setGameMode(s.gameMode());
@@ -102,6 +103,8 @@ final class AdminSpectatorManager implements Listener {
         observer.setSendViewDistance(s.sendViewDistance());
         // A permanent Spectator account must remain in Spectator after restoration.
         enforcePermanent(observer);
+        // Reveal the moderator only after they have returned to the saved location.
+        showObserverToAll(observer);
         audit("STOP (" + reason + ")", observer.getUniqueId(), session.target());
         return true;
     }
