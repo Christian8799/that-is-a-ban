@@ -40,11 +40,13 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
             }
 
             if (args[1].equalsIgnoreCase("add")) {
-                manager.addPermanent(uuid);
-                sender.sendMessage("Account dauerhaft auf Spectator gesetzt: " + uuid);
+                sender.sendMessage(manager.addPermanent(uuid)
+                        ? "Account dauerhaft auf Spectator gesetzt: " + uuid
+                        : "Speichern fehlgeschlagen. Die Änderung wurde zurückgenommen; siehe Serverlog.");
             } else if (args[1].equalsIgnoreCase("remove")) {
-                manager.removePermanent(uuid);
-                sender.sendMessage("Permanente Spectator-Festlegung entfernt: " + uuid);
+                sender.sendMessage(manager.removePermanent(uuid)
+                        ? "Permanente Spectator-Festlegung entfernt: " + uuid
+                        : "Speichern fehlgeschlagen. Die Änderung wurde zurückgenommen; siehe Serverlog.");
             } else {
                 sender.sendMessage("Benutzung: /adminspec permanent <add|remove> <Spieler|UUID>");
             }

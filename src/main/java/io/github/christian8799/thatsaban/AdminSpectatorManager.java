@@ -202,8 +202,13 @@ final class AdminSpectatorManager implements Listener {
         if (session == null) return restorePending(observer);
 
         synchronized (session) {
-            if (!sessions.remove(observerId, session)) return false;
+            // Publish the transition before removing the session so an asynchronous
+            // inbound packet cannot slip through unshifted in the tiny hand-off window.
             restoring.add(observerId);
+            if (!sessions.remove(observerId, session)) {
+                restoring.remove(observerId);
+                return false;
+            }
             boolean returnTeleportSucceeded = false;
             try {
                 observer.setSpectatorTarget(null);
@@ -239,20 +244,45 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
-    void addPermanent(UUID uuid) {
+    boolean addPermanent(UUID uuid) {
+        if (permanent.contains(uuid)) return true;
+        List<String> previousConfig = plugin.getConfig().getStringList("admin-spectator.permanent-players");
         permanent.add(uuid);
-        plugin.getConfig().set("admin-spectator.permanent-players", permanent.stream().map(UUID::toString).sorted().toList());
-        plugin.saveConfig();
+        if (!savePermanentList(previousConfig)) {
+            permanent.remove(uuid);
+            return false;
+        }
+
         Player player = Bukkit.getPlayer(uuid);
         if (player != null) enforcePermanent(player);
         audit("PERMANENT_ADD", uuid, uuid);
+        return true;
     }
 
-    void removePermanent(UUID uuid) {
+    boolean removePermanent(UUID uuid) {
+        if (!permanent.contains(uuid)) return true;
+        List<String> previousConfig = plugin.getConfig().getStringList("admin-spectator.permanent-players");
         permanent.remove(uuid);
-        plugin.getConfig().set("admin-spectator.permanent-players", permanent.stream().map(UUID::toString).sorted().toList());
-        plugin.saveConfig();
+        if (!savePermanentList(previousConfig)) {
+            permanent.add(uuid);
+            return false;
+        }
         audit("PERMANENT_REMOVE", uuid, uuid);
+        return true;
+    }
+
+    private boolean savePermanentList(List<String> previousConfig) {
+        plugin.getConfig().set("admin-spectator.permanent-players",
+                permanent.stream().map(UUID::toString).sorted().toList());
+        try {
+            plugin.saveConfig();
+            return true;
+        } catch (RuntimeException ex) {
+            plugin.getConfig().set("admin-spectator.permanent-players", previousConfig);
+            plugin.getLogger().severe("Permanente Spectator-Liste konnte nicht gespeichert werden; Änderung wurde zurückgenommen: "
+                    + ex.getMessage());
+            return false;
+        }
     }
 
     private int createOffset(double targetCoordinate) {
