@@ -6,9 +6,12 @@ import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
-import com.comphenix.protocol.wrappers.MovingObjectPositionBlock;
 import com.comphenix.protocol.wrappers.ChunkCoordIntPair;
+import com.comphenix.protocol.wrappers.MovingObjectPositionBlock;
+import com.comphenix.protocol.wrappers.WrappedLevelChunkData;
 import com.comphenix.protocol.wrappers.WrappedPositionMoveRotation;
+import com.comphenix.protocol.wrappers.nbt.NbtBase;
+import com.comphenix.protocol.wrappers.nbt.NbtCompound;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -429,6 +432,45 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
+    private void translateBlockEntityNbt(NbtCompound tag, int offsetX, int offsetZ) {
+        if (tag == null || !tag.containsKey("x") || !tag.containsKey("z")) return;
+
+        // Vanilla BlockEntity identifying data stores x/y/z as integer NBT tags.
+        // Shift only the standard identifying coordinates; leave custom block-entity data intact.
+        tag.put("x", tag.getInteger("x") - offsetX);
+        tag.put("z", tag.getInteger("z") - offsetZ);
+    }
+
+    private void translateChunkBlockEntityNbt(PacketEvent event, int offsetX, int offsetZ) {
+        var chunkDataModifier = event.getPacket().getLevelChunkData();
+        if (chunkDataModifier.size() == 0) {
+            throw new IllegalStateException("Chunk-Paket enthält keine lesbare ChunkData-Struktur.");
+        }
+
+        WrappedLevelChunkData.ChunkData chunkData = chunkDataModifier.read(0);
+        for (WrappedLevelChunkData.BlockEntityInfo info : chunkData.getBlockEntityInfo()) {
+            NbtCompound tag = info.getAdditionalData();
+            if (tag != null) {
+                translateBlockEntityNbt(tag, offsetX, offsetZ);
+                info.setAdditionalData(tag);
+            }
+        }
+        chunkDataModifier.write(0, chunkData);
+    }
+
+    private void translateBlockEntityPacketNbt(PacketEvent event, int offsetX, int offsetZ) {
+        var tags = event.getPacket().getNbtModifier();
+        if (tags.size() == 0) {
+            throw new IllegalStateException("Block-Entity-Paket enthält keinen NBT-Tag.");
+        }
+        NbtBase<?> tag = tags.read(0);
+        if (!(tag instanceof NbtCompound compound)) {
+            throw new IllegalStateException("Block-Entity-Paket enthält keinen NBT-Compound.");
+        }
+        translateBlockEntityNbt(compound, offsetX, offsetZ);
+        tags.write(0, compound);
+    }
+
     private void sanitizeRespawn(PacketEvent event) {
         // Respawn's CommonPlayerSpawnInfo contains Optional<GlobalPos> lastDeathLocation.
         // Its block coordinates are not otherwise needed for observing a target.
@@ -673,8 +715,10 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.TEST_INSTANCE_BLOCK_STATUS) {
                         event.setCancelled(true);
                         return;
-                    } else if (type == PacketType.Play.Server.MAP_CHUNK
-                            || type == PacketType.Play.Server.UNLOAD_CHUNK
+                    } else if (type == PacketType.Play.Server.MAP_CHUNK) {
+                        translateChunkCoordinates(event, session.offsetX(), session.offsetZ());
+                        translateChunkBlockEntityNbt(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.UNLOAD_CHUNK
                             || type == PacketType.Play.Server.LIGHT_UPDATE
                             || type == PacketType.Play.Server.VIEW_CENTRE) {
                         translateChunkCoordinates(event, session.offsetX(), session.offsetZ());
@@ -685,8 +729,10 @@ final class AdminSpectatorManager implements Listener {
                                         section.getX() - session.offsetX() / 16,
                                         section.getY(),
                                         section.getZ() - session.offsetZ() / 16));
+                    } else if (type == PacketType.Play.Server.TILE_ENTITY_DATA) {
+                        translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
+                        translateBlockEntityPacketNbt(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.BLOCK_CHANGE
-                            || type == PacketType.Play.Server.TILE_ENTITY_DATA
                             || type == PacketType.Play.Server.BLOCK_ACTION
                             || type == PacketType.Play.Server.BLOCK_BREAK_ANIMATION
                             || type == PacketType.Play.Server.SPAWN_POSITION
