@@ -58,6 +58,8 @@ final class LinkStore {
                 plugin.getLogger().severe("data.yml ist fehlerhaft und konnte nicht gesichert werden. "
                         + "Schreibzugriffe sind blockiert, damit die Originaldatei nicht überschrieben wird.");
             } else {
+                salt = new byte[16];
+                new SecureRandom().nextBytes(salt);
                 dirty = true;
                 plugin.getLogger().warning("data.yml enthaelt ungueltiges YAML und wurde gesichert unter "
                         + backup.getAbsolutePath() + ". Der LinkStore startet leer; "
@@ -89,11 +91,11 @@ final class LinkStore {
                     plugin.getLogger().severe("Salt in data.yml fehlt oder ist ungueltig und IP-Daten "
                             + "konnten nicht gesichert werden. Schreibzugriffe sind blockiert, "
                             + "damit die Originaldatei nicht ueberschrieben wird.");
-                    return;
-                }
-                plugin.getLogger().warning("Salt in data.yml fehlt oder ist ungueltig. "
+                } else {
+                    plugin.getLogger().warning("Salt in data.yml fehlt oder ist ungueltig. "
                         + "Die zugehoerigen IP-Links und Layer-2-IP-Markierungen werden verworfen. "
-                        + "Backup: " + backup.getAbsolutePath());
+                            + "Backup: " + backup.getAbsolutePath());
+                }
             }
 
             salt = new byte[16];
