@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.security.SecureRandom;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,7 +35,7 @@ final class AdminSpectatorManager implements Listener {
     private final ProtocolManager protocol;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
     private final Set<UUID> permanent = new HashSet<>();
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
     private boolean packetListenerRegistered;
 
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
@@ -79,30 +79,40 @@ final class AdminSpectatorManager implements Listener {
                 observer.getFlySpeed(), observer.getWalkSpeed(),
                 observer.getViewDistance(), observer.getSendViewDistance());
         // Chunk-aligned offsets preserve local block coordinates while changing absolute client coordinates.
-        int offsetX = (2000 + random.nextInt(8001)) * 16;
-        int offsetZ = (2000 + random.nextInt(8001)) * 16;
-        if (random.nextBoolean()) offsetX = -offsetX;
-        if (random.nextBoolean()) offsetZ = -offsetZ;
+        int offsetX = createOffset(target.getLocation().getX());
+        int offsetZ = createOffset(target.getLocation().getZ());
         // Persist the pre-observation state before changing the player's position or mode.
         // This also allows recovery after a process crash or plugin/server restart.
-        savePendingRestore(observer.getUniqueId(), snapshot);
-        sessions.put(observer.getUniqueId(), new Session(target.getUniqueId(), snapshot, offsetX, offsetZ));
-        // Hide before changing mode or moving: otherwise the initial spectator
-        // transition can briefly expose the moderator at their real location.
-        hideObserverFromAll(observer);
-        observer.setGameMode(GameMode.SPECTATOR);
-        observer.setAllowFlight(true);
-        observer.setFlying(true);
-        observer.setInvulnerable(true);
-        observer.setViewDistance(4);
-        observer.setSendViewDistance(4);
-        if (!observer.teleport(target.getLocation())) {
-            stop(observer, "Teleport zum Zielspieler fehlgeschlagen");
+        try {
+            savePendingRestore(observer.getUniqueId(), snapshot);
+            sessions.put(observer.getUniqueId(), new Session(target.getUniqueId(), snapshot, offsetX, offsetZ));
+            // Hide before changing mode or moving: otherwise the initial spectator
+            // transition can briefly expose the moderator at their real location.
+            hideObserverFromAll(observer);
+            observer.setGameMode(GameMode.SPECTATOR);
+            observer.setAllowFlight(true);
+            observer.setFlying(true);
+            observer.setInvulnerable(true);
+            observer.setViewDistance(4);
+            observer.setSendViewDistance(4);
+            if (!observer.teleport(target.getLocation())) {
+                stop(observer, "Teleport zum Zielspieler fehlgeschlagen");
+                return false;
+            }
+            observer.setSpectatorTarget(target);
+            audit("START", observer.getUniqueId(), target.getUniqueId());
+            return true;
+        } catch (RuntimeException ex) {
+            plugin.getLogger().severe("Admin-Spectator konnte nicht gestartet werden: " + ex.getMessage());
+            if (sessions.containsKey(observer.getUniqueId())) {
+                try {
+                    stop(observer, "Startfehler");
+                } catch (RuntimeException restoreError) {
+                    plugin.getLogger().severe("Wiederherstellung nach Startfehler fehlgeschlagen: " + restoreError.getMessage());
+                }
+            }
             return false;
         }
-        observer.setSpectatorTarget(target);
-        audit("START", observer.getUniqueId(), target.getUniqueId());
-        return true;
     }
 
     boolean stop(Player observer, String reason) {
@@ -150,6 +160,15 @@ final class AdminSpectatorManager implements Listener {
         plugin.getConfig().set("admin-spectator.permanent-players", permanent.stream().map(UUID::toString).sorted().toList());
         plugin.saveConfig();
         audit("PERMANENT_REMOVE", uuid, uuid);
+    }
+
+    private int createOffset(double targetCoordinate) {
+        int magnitude = (2000 + random.nextInt(8001)) * 16;
+        // Keep the translated client coordinate away from Minecraft's hard
+        // +/-30,000,000 coordinate limit when observing near the world border.
+        if (targetCoordinate >= 28_500_000.0) return magnitude;
+        if (targetCoordinate <= -28_500_000.0) return -magnitude;
+        return random.nextBoolean() ? magnitude : -magnitude;
     }
 
     private String pendingRestorePath(UUID uuid) {

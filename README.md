@@ -50,8 +50,8 @@ Die IP2Location-Java-Bibliothek wird unter MIT-Lizenz eingebunden. Für die GeoI
 
 ## Einrichtung
 
-1. Voraussetzungen: **Paper 1.21.11**, **Java 21**, **LuckPerms**, GrimAC, CheatDetector, FoxGate und HandShaker. Geyser/Floodgate ist optional.
-2. `ThatsABan-1.0.0.jar` in `plugins/` legen und den Server starten.
+1. Voraussetzungen: **Paper 1.21.11**, **Java 21**, **LuckPerms**, **ProtocolLib 5.5.0-SNAPSHOT**, GrimAC, CheatDetector, FoxGate und HandShaker. Geyser/Floodgate ist optional.
+2. `ThatsABan-1.1.0.jar` in `plugins/` legen und den Server starten.
 3. Die lokale GeoIP-Datenbank installieren, bevor die Regionssperre aktiviert wird.
 4. Die Layer-2-Plugins für die Standardgruppe umgehen lassen:
    
@@ -74,6 +74,8 @@ Layer-2-Spieler erhalten diese Nodes auf Spielerebene negiert.
 | `thatsaban.network` | op | Account-Netzwerk einsehen |
 | `thatsaban.notify` | op | IP-Übereinstimmungs-Hinweise |
 | `thatsaban.view-linked-accounts` | op | Verknüpfte Account-Namen anzeigen |
+| `thatsaban.spectator` | op | Geschützte Admin-Beobachtung und `/adminspec off` |
+| `thatsaban.spectator.permanent` | op | Permanente Spectator-Accounts verwalten |
 | `thatsaban.layer2` | – | Marker-Node für Layer 2 |
 | `thatsaban.exempt` | – | Ausnahme von `/offend` und IP-Kopplung |
 

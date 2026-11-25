@@ -13,35 +13,61 @@ import java.util.Locale;
 import java.util.UUID;
 
 final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
-    private final ThatsABan plugin;
     private final AdminSpectatorManager manager;
 
     AdminSpectatorCommand(ThatsABan plugin, AdminSpectatorManager manager) {
-        this.plugin = plugin;
         this.manager = manager;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!sender.hasPermission("thatsaban.spectator")) {
+            sender.sendMessage("Dafür fehlt thatsaban.spectator.");
+            return true;
+        }
+
+        // Permanent account management is also available to the server console.
+        if (args.length == 3 && args[0].equalsIgnoreCase("permanent")) {
+            if (!sender.hasPermission("thatsaban.spectator.permanent")) {
+                sender.sendMessage("Dafür fehlt thatsaban.spectator.permanent.");
+                return true;
+            }
+
+            UUID uuid = resolvePlayerId(args[2]);
+            if (uuid == null) {
+                sender.sendMessage("Spieler unbekannt; verwende einen Online-Spieler, einen bekannten Offline-Spieler oder eine UUID.");
+                return true;
+            }
+
+            if (args[1].equalsIgnoreCase("add")) {
+                manager.addPermanent(uuid);
+                sender.sendMessage("Account dauerhaft auf Spectator gesetzt: " + uuid);
+            } else if (args[1].equalsIgnoreCase("remove")) {
+                manager.removePermanent(uuid);
+                sender.sendMessage("Permanente Spectator-Festlegung entfernt: " + uuid);
+            } else {
+                sender.sendMessage("Benutzung: /adminspec permanent <add|remove> <Spieler|UUID>");
+            }
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Dieser Befehl kann nur von einem Spieler ausgeführt werden.");
+            sender.sendMessage("Beobachten und Beenden einer Beobachtung erfordern einen Spieler. Permanente Einträge können über die Konsole verwaltet werden.");
             return true;
         }
-        if (!player.hasPermission("thatsaban.spectator")) {
-            player.sendMessage("Dafür fehlt thatsaban.spectator.");
-            return true;
-        }
+
         if (args.length == 1 && args[0].equalsIgnoreCase("off")) {
             boolean stopped = manager.stop(player, "manuell beendet");
             if (stopped) {
                 player.sendMessage("Admin-Beobachtung beendet; dein vorheriger Zustand wurde wiederhergestellt.");
             } else if (manager.isObserving(player)) {
-                player.sendMessage("Rückteleport fehlgeschlagen. Du bleibst verborgen im Spectator-Modus; bitte erneut /adminspec off versuchen oder Staff informieren.");
+                player.sendMessage("Wiederherstellung fehlgeschlagen. Du bleibst verborgen im Spectator-Modus; bitte /adminspec off erneut versuchen oder Staff informieren.");
             } else {
                 player.sendMessage("Du befindest dich gerade nicht in einer Admin-Beobachtung.");
             }
             return true;
         }
+
         if (args.length == 2 && args[0].equalsIgnoreCase("observe")) {
             Player target = Bukkit.getPlayerExact(args[1]);
             if (target == null) {
@@ -50,53 +76,54 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
             }
             player.sendMessage(manager.observe(player, target)
                     ? "Geschützte Beobachtung gestartet: " + target.getName()
-                    : "Beobachtung konnte nicht gestartet werden.");
+                    : "Beobachtung konnte nicht gestartet werden. Prüfe Serverlog und Wiederherstellungsstatus.");
             return true;
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("permanent")) {
-            if (!player.hasPermission("thatsaban.spectator.permanent")) {
-                player.sendMessage("Dafür fehlt thatsaban.spectator.permanent.");
-                return true;
-            }
-            UUID uuid;
-            Player online = Bukkit.getPlayerExact(args[2]);
-            if (online != null) uuid = online.getUniqueId();
-            else {
-                try { uuid = UUID.fromString(args[2]); }
-                catch (IllegalArgumentException ex) {
-                    OfflinePlayer offline = Bukkit.getOfflinePlayerIfCached(args[2]);
-                    if (offline == null) {
-                        player.sendMessage("Spieler unbekannt; verwende einen Online-Spieler oder eine bekannte UUID.");
-                        return true;
-                    }
-                    uuid = offline.getUniqueId();
-                }
-            }
-            if (args[1].equalsIgnoreCase("add")) {
-                manager.addPermanent(uuid);
-                player.sendMessage("Account dauerhaft auf Spectator gesetzt: " + uuid);
-            } else if (args[1].equalsIgnoreCase("remove")) {
-                manager.removePermanent(uuid);
-                player.sendMessage("Permanente Spectator-Festlegung entfernt: " + uuid);
-            } else player.sendMessage("Benutzung: /adminspec permanent <add|remove> <Spieler|UUID>");
-            return true;
-        }
+
         player.sendMessage("Benutzung: /adminspec observe <Spieler> | /adminspec off | /adminspec permanent <add|remove> <Spieler|UUID>");
         return true;
     }
 
+    private UUID resolvePlayerId(String input) {
+        Player online = Bukkit.getPlayerExact(input);
+        if (online != null) return online.getUniqueId();
+
+        try {
+            return UUID.fromString(input);
+        } catch (IllegalArgumentException ignored) {
+            OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(input);
+            return cached == null ? null : cached.getUniqueId();
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return List.of("observe", "off", "permanent").stream()
-                .filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
-        if (args.length == 2 && args[0].equalsIgnoreCase("observe")) {
-            return Bukkit.getOnlinePlayers().stream().map(Player::getName)
-                    .filter(s -> s.startsWith(args[1])).toList();
+        if (!sender.hasPermission("thatsaban.spectator")) return List.of();
+
+        if (args.length == 1) {
+            return List.of("observe", "off", "permanent").stream()
+                    .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
+                    .toList();
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("observe")
+                && sender instanceof Player) {
+            String prefix = args[1].toLowerCase(Locale.ROOT);
+            return Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
+                    .toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("permanent")
-                && sender.hasPermission("thatsaban.spectator.permanent")) return List.of("add", "remove");
-        if (args.length == 3 && args[0].equalsIgnoreCase("permanent")) {
-            return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+                && sender.hasPermission("thatsaban.spectator.permanent")) {
+            return List.of("add", "remove");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("permanent")
+                && sender.hasPermission("thatsaban.spectator.permanent")) {
+            String prefix = args[2].toLowerCase(Locale.ROOT);
+            return Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
+                    .toList();
         }
         return List.of();
     }
