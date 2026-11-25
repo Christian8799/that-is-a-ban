@@ -51,7 +51,7 @@ public final class ThatsABan extends JavaPlugin {
                 ? new FeatureUnavailableCommand("Deaktiviert: Dieser Befehl benötigt LuckPerms.")
                 : luckPerms.offendCommand());
         registerCommand("thatsaban", luckPerms == null
-                ? new FeatureUnavailableCommand("Deaktiviert: Diese Datenschutzaktionen benötigen LuckPerms.")
+                ? new PrivacyStoreCommand(this, store)
                 : luckPerms.privacyCommand());
 
         if (luckPerms != null) {

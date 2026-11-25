@@ -35,7 +35,7 @@ final class CountryFilter implements CountryFilterIntegration {
         if (!databaseFile.isFile() || !databaseFile.canRead()) {
             plugin.getLogger().severe("Lokale GeoIP-Datenbank fehlt oder ist nicht lesbar: "
                     + databaseFile.getPath()
-                    + ". Die Regionssperre bleibt aus Sicherheitsgruenden geschlossen.");
+                    + ". Der Country-/Region-Filter wird deaktiviert; andere Plugin-Funktionen bleiben aktiv.");
             return;
         }
 
@@ -46,7 +46,7 @@ final class CountryFilter implements CountryFilterIntegration {
         } catch (IOException | RuntimeException ex) {
             plugin.getLogger().severe("Lokale GeoIP-Datenbank konnte nicht geladen werden: "
                     + ex.getClass().getSimpleName()
-                    + ". Die Regionssperre bleibt aus Sicherheitsgruenden geschlossen.");
+                    + ". Der Country-/Region-Filter wird deaktiviert; andere Plugin-Funktionen bleiben aktiv.");
         }
     }
 

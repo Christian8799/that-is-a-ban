@@ -50,7 +50,7 @@ Die IP2Location-Java-Bibliothek wird unter MIT-Lizenz eingebunden. Für die GeoI
 
 ## Einrichtung
 
-1. Basisvoraussetzung: **Paper 1.21.11** und **Java 21**. LuckPerms, ProtocolLib, GrimAC, CheatDetector, FoxGate, HandShaker und Geyser/Floodgate sind optionale Integrationen. LuckPerms wird für Layer 2, `/offend` und die LuckPerms-abhängigen `/thatsaban`-Aktionen benötigt; ProtocolLib wird nur für `/adminspec` benötigt.
+1. Basisvoraussetzung: **Paper 1.21.11** und **Java 21**. LuckPerms, ProtocolLib, GrimAC, CheatDetector, FoxGate, HandShaker und Geyser/Floodgate sind optionale Integrationen. LuckPerms wird für Layer 2, `/offend` sowie `/thatsaban unoffend` und `/thatsaban forget` benötigt. Ohne LuckPerms bleiben `/thatsaban info` und `/thatsaban network` für bereits gespeicherte Plugin-Daten verfügbar; LuckPerms-spezifische Informationen und neue Layer-2-/IP-Netzwerkprüfungen entfallen. ProtocolLib wird nur für `/adminspec` benötigt.
 2. `ThatsABan-1.1.0.jar` in `plugins/` legen und den Server starten.
 3. Die lokale GeoIP-Datenbank installieren, bevor die Regionssperre aktiviert wird.
 4. Die Layer-2-Plugins für die Standardgruppe umgehen lassen:
