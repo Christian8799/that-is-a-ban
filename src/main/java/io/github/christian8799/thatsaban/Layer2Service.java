@@ -29,45 +29,62 @@ final class Layer2Service {
         this.hook = hook;
     }
 
-    /** /offend: Spieler dauerhaft in Layer 2 versetzen (+ seine IP-Alts). */
     CompletableFuture<OffendResult> offend(UUID uuid) {
         return hook.users().loadUser(uuid).<OffendResult>thenCompose(user -> {
             if (hook.has(user, hook.exemptNode())) {
                 return CompletableFuture.completedFuture(new OffendResult(Status.EXEMPT, List.of()));
             }
             boolean already = hook.has(user, hook.markerNode());
+            Set<UUID> others = store.markOffender(uuid);
             return hook.applyLayer2Async(uuid)
-                    .thenCompose(v -> flagAlts(uuid))
+                    .thenCompose(v -> flagAlts(others))
                     .thenApply(alts -> new OffendResult(already ? Status.ALREADY : Status.DONE, alts));
         });
     }
 
-    /** Wird beim Login (Async) fuer jeden Java-Spieler aufgerufen. */
+    CompletableFuture<Void> removeLayer2(UUID uuid) {
+        return hook.clearLayer2Async(uuid).thenRun(() -> store.unmarkOffender(uuid));
+    }
+
+    CompletableFuture<Integer> forgetPlayer(UUID uuid) {
+        return hook.clearLayer2Async(uuid).thenApply(v -> store.forgetPlayer(uuid));
+    }
+
+    /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
+    void cleanupExpired() {
+        for (UUID uuid : store.drainExpiredOffenders()) {
+            if (store.isOffender(uuid)) {
+                continue;
+            }
+            hook.clearLayer2Async(uuid).whenComplete((ignored, error) -> {
+                if (error != null && !store.isOffender(uuid)) {
+                    store.requeueExpiredOffender(uuid);
+                    plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden.");
+                }
+            });
+        }
+    }
+
+    /** Läuft beim Async-Pre-Login für jeden Java-Spieler. */
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
 
-        // Exempt muss vor jeder Marker-Reparatur und IP-Verarbeitung Vorrang haben.
-        // Ausgenommene Accounts duerfen auch keine IP-Kopplung fuer andere Accounts ausloesen.
         if (hook.has(user, hook.exemptNode())) {
             return;
         }
 
-        // Vorhandene Marker koennen manuell gesetzt worden sein; alle Layer-2-Nodes angleichen.
+        boolean offender = store.isOffender(uuid);
+        if (offender) {
+            store.renewOffender(uuid);
+        }
+
         boolean marked = hook.has(user, hook.markerNode());
         if (marked && hook.applyLayer2(user)) {
             hook.save(user);
         }
 
         FileConfiguration cfg = plugin.getConfig();
-        if (!cfg.getBoolean("alt-detection.enabled", true)) {
-            return;
-        }
-
-        boolean offender = store.isOffender(uuid);
-        if (offender) {
-            store.renewOffender(uuid); // Auch bei ignorierten Proxy-/IP-Adressen Login-Aktivität erfassen
-        }
-        if (ignored(address)) {
+        if (!cfg.getBoolean("alt-detection.enabled", true) || ignored(address)) {
             return;
         }
 
@@ -75,32 +92,33 @@ final class Layer2Service {
         store.record(uuid, name, hash);
 
         if (offender) {
-            store.flagIp(hash); // neue IP eines Ausloesers ebenfalls markieren
+            store.flagIp(hash);
             return;
         }
         if (marked) {
             return;
         }
         if (store.isLayer2Ip(hash)) {
-            hook.applyLayer2(user);
-            hook.save(user);
-            plugin.getLogger().info(name + " wurde per IP-Kopplung in Layer 2 versetzt.");
-            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.broadcast(
-                    plugin.messages().get("alt-flagged-staff", Placeholder.unparsed("player", name)),
-                    "thatsaban.notify"));
+            if (cfg.getBoolean("alt-detection.auto-apply", false)) {
+                if (hook.applyLayer2(user)) {
+                    hook.save(user);
+                }
+                notifyStaff("alt-auto-applied-staff", name);
+            } else {
+                notifyStaff("alt-suggestion-staff", name);
+            }
         }
     }
 
-    private CompletableFuture<List<String>> flagAlts(UUID uuid) {
+    private CompletableFuture<List<String>> flagAlts(Set<UUID> others) {
         FileConfiguration cfg = plugin.getConfig();
-        if (!cfg.getBoolean("alt-detection.enabled", true)) {
-            return CompletableFuture.completedFuture(List.of());
-        }
-        Set<UUID> others = store.markOffender(uuid);
-        if (!cfg.getBoolean("alt-detection.retroactive", true)) {
+        if (!cfg.getBoolean("alt-detection.enabled", true)
+                || !cfg.getBoolean("alt-detection.retroactive", false)
+                || others.isEmpty()) {
             return CompletableFuture.completedFuture(List.of());
         }
 
+        boolean autoApply = cfg.getBoolean("alt-detection.auto-apply", false);
         List<CompletableFuture<String>> jobs = new ArrayList<>();
         for (UUID other : others) {
             jobs.add(hook.users().loadUser(other).<String>thenCompose(user -> {
@@ -108,8 +126,11 @@ final class Layer2Service {
                     return CompletableFuture.completedFuture((String) null);
                 }
                 String name = store.nameOf(other);
+                if (!autoApply) {
+                    notifyStaff("alt-suggestion-staff", name != null ? name : other.toString());
+                    return CompletableFuture.completedFuture((String) null);
+                }
                 if (hook.has(user, hook.markerNode())) {
-                    // Bereits markierte Accounts trotzdem reparieren: fehlende Negationen nachziehen.
                     return hook.applyLayer2Async(other).thenApply(v -> (String) null);
                 }
                 return hook.applyLayer2Async(other).thenApply(v ->
@@ -117,7 +138,17 @@ final class Layer2Service {
             }));
         }
         return CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]))
-                .thenApply(v -> jobs.stream().map(CompletableFuture::join).filter(Objects::nonNull).toList());
+                .thenApply(v -> jobs.stream().map(CompletableFuture::join)
+                        .filter(Objects::nonNull).toList());
+    }
+
+    private void notifyStaff(String messageKey, String player) {
+        if (player == null) {
+            player = "unbekannt";
+        }
+        var message = plugin.messages().get(messageKey, Placeholder.unparsed("player", player));
+        Bukkit.getScheduler().runTask(plugin,
+                () -> Bukkit.broadcast(message, "thatsaban.notify"));
     }
 
     private boolean ignored(InetAddress address) {

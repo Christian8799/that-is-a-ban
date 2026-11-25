@@ -7,7 +7,6 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 
 import java.net.InetAddress;
 import java.util.UUID;
-import java.util.logging.Level;
 
 final class LoginListener implements Listener {
 
@@ -24,10 +23,6 @@ final class LoginListener implements Listener {
         this.countryFilter = countryFilter;
     }
 
-    /**
-     * Laeuft auf dem Async-Pre-Login-Thread. LuckPerms laedt seine Userdaten auf LOWEST;
-     * Layer-2-Nodes werden deshalb weiterhin auf LOW gesetzt, bevor andere Plugins pruefen.
-     */
     @EventHandler(priority = EventPriority.LOW)
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         UUID uuid = event.getUniqueId();
@@ -47,12 +42,12 @@ final class LoginListener implements Listener {
         }
 
         if (bedrock.isBedrock(uuid, name)) {
-            return; // Bedrock-Spieler sind weiterhin von der Layer-2-Kopplung ausgenommen.
+            return;
         }
         try {
             layer2.handleLogin(uuid, name, address);
-        } catch (Exception ex) {
-            plugin.getLogger().log(Level.WARNING, "Fehler bei der Login-Pruefung von " + name, ex);
+        } catch (Exception ignored) {
+            plugin.getLogger().warning("Login-Prüfung fehlgeschlagen; Details werden nicht protokolliert.");
         }
     }
 }

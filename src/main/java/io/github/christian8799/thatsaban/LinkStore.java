@@ -4,15 +4,18 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.net.InetAddress;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -20,14 +23,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Speichert IP-Verknuepfungen ausschliesslich als gesalzene SHA-256-Hashes.
- * Hashes und zugehoerige Spielerreferenzen werden nach der konfigurierten Frist geloescht.
- */
 final class LinkStore {
+
+    record PlayerSnapshot(String name, int linkedIpCount, boolean offender, boolean hasStoredData) {}
+
+    private static final Set<PosixFilePermission> OWNER_ONLY =
+            EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
 
     private final ThatsABan plugin;
     private final File file;
+    private final File keyFile;
 
     private final Map<UUID, String> names = new HashMap<>();
     private final Map<UUID, Set<String>> ipsByPlayer = new HashMap<>();
@@ -35,8 +40,9 @@ final class LinkStore {
     private final Set<String> layer2Ips = new HashSet<>();
     private final Map<String, Long> ipLastSeen = new HashMap<>();
     private final Map<UUID, Long> offenders = new HashMap<>();
+    private final Set<UUID> expiredOffenders = new HashSet<>();
 
-    private byte[] salt;
+    private byte[] hmacKey;
     private boolean dirty;
     private boolean writeBlocked;
     private long lastPrune;
@@ -44,122 +50,34 @@ final class LinkStore {
     LinkStore(ThatsABan plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "data.yml");
+        this.keyFile = new File(plugin.getDataFolder(), "ip-hmac.key");
     }
 
     synchronized void load() {
+        plugin.getDataFolder().mkdirs();
+        purgeLegacyBackups();
+        if (file.exists() && !restrictOwnerOnly(file)) {
+            writeBlocked = true;
+        }
+        boolean keyReady = loadHmacKey();
+
         YamlConfiguration yaml = new YamlConfiguration();
         try {
             if (file.exists()) {
                 yaml.load(file);
             }
         } catch (IOException | InvalidConfigurationException ex) {
-            File backup = createBackup("corrupt");
-            if (backup == null) {
-                writeBlocked = true;
-                salt = new byte[16];
-                new SecureRandom().nextBytes(salt);
-                plugin.getLogger().severe("data.yml ist fehlerhaft und konnte nicht gesichert werden. "
-                        + "Schreibzugriffe sind blockiert, damit die Originaldatei nicht überschrieben wird.");
-            } else {
-                salt = new byte[16];
-                new SecureRandom().nextBytes(salt);
-                dirty = true;
-                plugin.getLogger().warning("data.yml enthaelt ungueltiges YAML und wurde gesichert unter "
-                        + backup.getAbsolutePath() + ". Der LinkStore startet leer; "
-                        + "Offender-Markierungen konnten aus der beschaedigten Datei nicht geladen werden. "
-                        + "Ursache: " + ex.getMessage());
-            }
+            writeBlocked = true;
+            plugin.getLogger().severe("data.yml ist fehlerhaft. Die Datei bleibt unverändert; "
+                    + "Schreibzugriffe auf den LinkStore sind bis zur manuellen Prüfung blockiert.");
             return;
         }
 
-        String savedSalt = yaml.getString("salt");
-        boolean validSalt = false;
-        if (savedSalt != null) {
-            try {
-                byte[] parsed = HexFormat.of().parseHex(savedSalt);
-                if (parsed.length == 16) {
-                    salt = parsed;
-                    validSalt = true;
-                }
-            } catch (IllegalArgumentException ignored) {
-                // Wird unten kontrolliert mit einem neuen Salt wiederhergestellt.
-            }
-        }
-
-        if (!validSalt) {
-            if (file.exists() && hasDiscardableIpData(yaml)) {
-                File backup = createBackup("bak");
-                if (backup == null) {
-                    writeBlocked = true;
-                    plugin.getLogger().severe("Salt in data.yml fehlt oder ist ungueltig und IP-Daten "
-                            + "konnten nicht gesichert werden. Schreibzugriffe sind blockiert, "
-                            + "damit die Originaldatei nicht ueberschrieben wird.");
-                } else {
-                    plugin.getLogger().warning("Salt in data.yml fehlt oder ist ungueltig. "
-                        + "Die zugehoerigen IP-Links und Layer-2-IP-Markierungen werden verworfen. "
-                            + "Backup: " + backup.getAbsolutePath());
-                }
-            }
-
-            salt = new byte[16];
-            new SecureRandom().nextBytes(salt);
+        if (keyReady && file.exists() && yaml.getInt("hash-version", 0) == 1) {
+            loadIpData(yaml);
+        } else if (file.exists() && hasDiscardableIpData(yaml)) {
             dirty = true;
-            if (savedSalt != null) {
-                plugin.getLogger().warning("data.yml enthaelt einen ungueltigen Salt. "
-                        + "Gespeicherte IP-Verknuepfungen werden verworfen.");
-            } else if (file.exists()) {
-                plugin.getLogger().warning("Salt fehlt in data.yml. Gespeicherte IP-Verknuepfungen "
-                        + "werden verworfen.");
-            }
-        }
-
-        if (validSalt) {
-            ConfigurationSection seen = yaml.getConfigurationSection("ip-last-seen");
-            if (seen != null) {
-                for (String hash : seen.getKeys(false)) {
-                    long timestamp = seen.getLong(hash, 0L);
-                    if (timestamp > 0L) {
-                        ipLastSeen.put(hash, timestamp);
-                    }
-                }
-            }
-
-            ConfigurationSection players = yaml.getConfigurationSection("players");
-            if (players != null) {
-                for (String key : players.getKeys(false)) {
-                    UUID uuid;
-                    try {
-                        uuid = UUID.fromString(key);
-                    } catch (IllegalArgumentException ex) {
-                        continue;
-                    }
-                    String name = players.getString(key + ".name");
-                    if (name != null) {
-                        names.put(uuid, name);
-                    }
-                    for (String hash : players.getStringList(key + ".ips")) {
-                        link(uuid, hash);
-                    }
-                }
-            }
-            layer2Ips.addAll(yaml.getStringList("layer2-ips"));
-
-            // Alte Datenstände hatten nicht für jeden Hash einen Zeitstempel.
-            long now = System.currentTimeMillis();
-            for (Set<String> hashes : ipsByPlayer.values()) {
-                for (String hash : hashes) {
-                    if (!ipLastSeen.containsKey(hash)) {
-                        ipLastSeen.put(hash, now);
-                        dirty = true;
-                    }
-                }
-            }
-            for (String hash : layer2Ips) {
-                if (!ipLastSeen.containsKey(hash)) {
-                    ipLastSeen.put(hash, now);
-                    dirty = true;
-                }
-            }
+            plugin.getLogger().warning("Alte IP-Verknüpfungen wurden bei der HMAC-Migration verworfen.");
         }
 
         ConfigurationSection offenderTimes = yaml.getConfigurationSection("offender-last-seen");
@@ -171,7 +89,7 @@ final class LinkStore {
                         offenders.put(UUID.fromString(id), timestamp);
                     }
                 } catch (IllegalArgumentException ignored) {
-                    // Kaputten Eintrag ueberspringen.
+                    // Ungültigen UUID-Eintrag überspringen.
                 }
             }
         }
@@ -188,8 +106,87 @@ final class LinkStore {
                 // Ungültige UUID überspringen.
             }
         }
-
         pruneExpired(now, true);
+    }
+
+    private boolean loadHmacKey() {
+        try {
+            if (keyFile.isFile()) {
+                byte[] existing = Files.readAllBytes(keyFile.toPath());
+                if (existing.length == 32) {
+                    hmacKey = existing;
+                    if (!restrictOwnerOnly(keyFile)) {
+                        writeBlocked = true;
+                        return false;
+                    }
+                    return true;
+                }
+                plugin.getLogger().warning("Der HMAC-Schlüssel ist ungültig; alte IP-Verknüpfungen werden verworfen.");
+            }
+
+            hmacKey = new byte[32];
+            new SecureRandom().nextBytes(hmacKey);
+            Files.write(keyFile.toPath(), hmacKey, StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            if (!restrictOwnerOnly(keyFile)) {
+                writeBlocked = true;
+                return false;
+            }
+            dirty = true;
+            return false;
+        } catch (IOException | SecurityException ex) {
+            writeBlocked = true;
+            plugin.getLogger().severe("Der separate HMAC-Schlüssel konnte nicht sicher geladen/erstellt werden. "
+                    + "IP-Verarbeitung und Schreibzugriffe sind blockiert.");
+            return false;
+        }
+    }
+
+    private void loadIpData(YamlConfiguration yaml) {
+        ConfigurationSection seen = yaml.getConfigurationSection("ip-last-seen");
+        if (seen != null) {
+            for (String hash : seen.getKeys(false)) {
+                long timestamp = seen.getLong(hash, 0L);
+                if (timestamp > 0L) {
+                    ipLastSeen.put(hash, timestamp);
+                }
+            }
+        }
+        ConfigurationSection players = yaml.getConfigurationSection("players");
+        if (players != null) {
+            for (String key : players.getKeys(false)) {
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(key);
+                } catch (IllegalArgumentException ex) {
+                    continue;
+                }
+                String name = players.getString(key + ".name");
+                if (name != null) {
+                    names.put(uuid, name);
+                }
+                for (String hash : players.getStringList(key + ".ips")) {
+                    link(uuid, hash);
+                }
+            }
+        }
+        layer2Ips.addAll(yaml.getStringList("layer2-ips"));
+
+        long now = System.currentTimeMillis();
+        for (Set<String> hashes : ipsByPlayer.values()) {
+            for (String hash : hashes) {
+                if (!ipLastSeen.containsKey(hash)) {
+                    ipLastSeen.put(hash, now);
+                    dirty = true;
+                }
+            }
+        }
+        for (String hash : layer2Ips) {
+            if (!ipLastSeen.containsKey(hash)) {
+                ipLastSeen.put(hash, now);
+                dirty = true;
+            }
+        }
     }
 
     private boolean hasDiscardableIpData(YamlConfiguration yaml) {
@@ -206,24 +203,42 @@ final class LinkStore {
                 && !yaml.getConfigurationSection("ip-last-seen").getKeys(false).isEmpty());
     }
 
-    private File createBackup(String suffix) {
-        if (!file.exists()) {
-            return null;
+    private void purgeLegacyBackups() {
+        File parent = file.getParentFile();
+        File[] backups = parent == null ? null : parent.listFiles((dir, name) ->
+                name.startsWith("data.yml.bak-") || name.startsWith("data.yml.corrupt-"));
+        if (backups == null) {
+            return;
         }
-        long timestamp = System.currentTimeMillis();
-        File backup;
-        do {
-            backup = new File(file.getParentFile(), file.getName() + "." + suffix + "-" + timestamp++);
-        } while (backup.exists());
+        for (File backup : backups) {
+            try {
+                Files.deleteIfExists(backup.toPath());
+            } catch (IOException | SecurityException ex) {
+                plugin.getLogger().warning("Eine alte LinkStore-Sicherung konnte nicht gelöscht werden. "
+                        + "Bitte data.yml.bak-* und data.yml.corrupt-* manuell prüfen.");
+            }
+        }
+    }
 
+    private boolean restrictOwnerOnly(File target) {
         try {
-            Files.copy(file.toPath(), backup.toPath());
-            plugin.getLogger().warning("Sicherung von data.yml erstellt: " + backup.getAbsolutePath());
-            return backup;
-        } catch (IOException ex) {
-            plugin.getLogger().severe("data.yml konnte nicht nach " + backup.getAbsolutePath()
-                    + " gesichert werden: " + ex.getMessage());
-            return null;
+            Files.setPosixFilePermissions(target.toPath(), OWNER_ONLY);
+            return true;
+        } catch (UnsupportedOperationException ex) {
+            boolean ok = target.setReadable(false, false)
+                    && target.setWritable(false, false)
+                    && target.setExecutable(false, false)
+                    && target.setReadable(true, true)
+                    && target.setWritable(true, true);
+            if (!ok) {
+                plugin.getLogger().severe("Dateirechte konnten nicht auf owner-only gesetzt werden: "
+                        + target.getName() + ". Schreibzugriffe werden blockiert.");
+            }
+            return ok;
+        } catch (IOException | SecurityException ex) {
+            plugin.getLogger().severe("Dateirechte konnten nicht auf owner-only gesetzt werden: "
+                    + target.getName() + ". Schreibzugriffe werden blockiert.");
+            return false;
         }
     }
 
@@ -237,7 +252,7 @@ final class LinkStore {
         }
 
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set("salt", HexFormat.of().formatHex(salt));
+        yaml.set("hash-version", 1);
         for (Map.Entry<UUID, String> entry : names.entrySet()) {
             String base = "players." + entry.getKey();
             yaml.set(base + ".name", entry.getValue());
@@ -252,9 +267,13 @@ final class LinkStore {
         try {
             plugin.getDataFolder().mkdirs();
             yaml.save(file);
+            if (!restrictOwnerOnly(file)) {
+                writeBlocked = true;
+                return;
+            }
             dirty = false;
         } catch (IOException ex) {
-            plugin.getLogger().warning("data.yml konnte nicht gespeichert werden: " + ex.getMessage());
+            plugin.getLogger().warning("data.yml konnte nicht gespeichert werden.");
         }
     }
 
@@ -263,16 +282,19 @@ final class LinkStore {
     }
 
     synchronized String hash(InetAddress address) {
-        byte[] raw = address.getAddress();
-        if (raw.length == 16) {
-            raw = Arrays.copyOf(raw, 8); // IPv6: /64
+        if (writeBlocked || hmacKey == null) {
+            throw new IllegalStateException("HMAC key unavailable");
         }
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(salt);
-            return HexFormat.of().formatHex(digest.digest(raw));
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
+            byte[] raw = address.getAddress();
+            if (raw.length == 16) {
+                raw = java.util.Arrays.copyOf(raw, 8);
+            }
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(hmacKey, "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(raw));
+        } catch (GeneralSecurityException ex) {
+            throw new IllegalStateException("HMAC-SHA-256 unavailable", ex);
         }
     }
 
@@ -296,21 +318,11 @@ final class LinkStore {
         }
     }
 
-    synchronized boolean isLayer2Ip(String ipHash) {
-        return layer2Ips.contains(ipHash);
-    }
-
-    synchronized void flagIp(String ipHash) {
-        long now = System.currentTimeMillis();
-        layer2Ips.add(ipHash);
-        ipLastSeen.put(ipHash, now);
-        dirty = true;
-    }
-
     synchronized Set<UUID> markOffender(UUID uuid) {
         long now = System.currentTimeMillis();
         pruneExpired(now, false);
         offenders.put(uuid, now);
+        expiredOffenders.remove(uuid);
         Set<UUID> others = new HashSet<>();
         for (String hash : ipsByPlayer.getOrDefault(uuid, Set.of())) {
             layer2Ips.add(hash);
@@ -322,7 +334,64 @@ final class LinkStore {
         return others;
     }
 
+    synchronized void unmarkOffender(UUID uuid) {
+        boolean changed = offenders.remove(uuid) != null;
+        changed |= removeOrphanedLayer2Flags(uuid);
+        expiredOffenders.remove(uuid);
+        if (changed) {
+            dirty = true;
+        }
+    }
+
+    synchronized int forgetPlayer(UUID uuid) {
+        Set<String> hashes = new HashSet<>(ipsByPlayer.getOrDefault(uuid, Set.of()));
+        ipsByPlayer.remove(uuid);
+        names.remove(uuid);
+        offenders.remove(uuid);
+        expiredOffenders.remove(uuid);
+        for (String hash : hashes) {
+            Set<UUID> linked = playersByIp.get(hash);
+            if (linked != null) {
+                linked.remove(uuid);
+                if (linked.isEmpty()) {
+                    playersByIp.remove(hash);
+                    layer2Ips.remove(hash);
+                    ipLastSeen.remove(hash);
+                } else if (linked.stream().noneMatch(offenders::containsKey)) {
+                    layer2Ips.remove(hash);
+                }
+            } else {
+                layer2Ips.remove(hash);
+                ipLastSeen.remove(hash);
+            }
+        }
+        dirty = true;
+        return hashes.size();
+    }
+
+    synchronized PlayerSnapshot snapshot(UUID uuid) {
+        Set<String> hashes = ipsByPlayer.getOrDefault(uuid, Set.of());
+        String name = names.get(uuid);
+        boolean offender = offenders.containsKey(uuid);
+        return new PlayerSnapshot(name, hashes.size(), offender,
+                name != null || !hashes.isEmpty() || offender);
+    }
+
+    synchronized boolean isLayer2Ip(String ipHash) {
+        return layer2Ips.contains(ipHash);
+    }
+
+    synchronized void flagIp(String ipHash) {
+        long now = System.currentTimeMillis();
+        layer2Ips.add(ipHash);
+        ipLastSeen.put(ipHash, now);
+        dirty = true;
+    }
+
     synchronized UUID uuidByName(String name) {
+        if (name == null) {
+            return null;
+        }
         for (Map.Entry<UUID, String> entry : names.entrySet()) {
             if (entry.getValue().equalsIgnoreCase(name)) {
                 return entry.getKey();
@@ -335,6 +404,29 @@ final class LinkStore {
         return names.get(uuid);
     }
 
+    synchronized Set<UUID> drainExpiredOffenders() {
+        Set<UUID> expired = new HashSet<>(expiredOffenders);
+        expiredOffenders.clear();
+        return expired;
+    }
+
+    synchronized void requeueExpiredOffender(UUID uuid) {
+        expiredOffenders.add(uuid);
+    }
+
+    private boolean removeOrphanedLayer2Flags(UUID uuid) {
+        boolean changed = false;
+        for (String hash : ipsByPlayer.getOrDefault(uuid, Set.of())) {
+            boolean stillOffender = playersByIp.getOrDefault(hash, Set.of()).stream()
+                    .filter(other -> !other.equals(uuid))
+                    .anyMatch(offenders::containsKey);
+            if (!stillOffender) {
+                changed |= layer2Ips.remove(hash);
+            }
+        }
+        return changed;
+    }
+
     private void pruneExpired(long now, boolean force) {
         if (!force && now - lastPrune < 60_000L) {
             return;
@@ -343,15 +435,13 @@ final class LinkStore {
 
         long retentionDays = Math.min(3650L,
                 Math.max(1L, plugin.getConfig().getLong("alt-detection.retention-days", 30L)));
-        long retentionMillis = retentionDays * 24L * 60L * 60L * 1000L;
-        long cutoff = now - retentionMillis;
+        long cutoff = now - retentionDays * 24L * 60L * 60L * 1000L;
 
         Set<String> allHashes = new HashSet<>(ipLastSeen.keySet());
         allHashes.addAll(layer2Ips);
         for (Set<String> hashes : ipsByPlayer.values()) {
             allHashes.addAll(hashes);
         }
-
         Set<String> expired = new HashSet<>();
         for (String hash : allHashes) {
             Long lastSeen = ipLastSeen.get(hash);
@@ -370,15 +460,20 @@ final class LinkStore {
             }
             dirty = true;
         }
-
         ipsByPlayer.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         names.keySet().removeIf(uuid -> !ipsByPlayer.containsKey(uuid));
-        long offenderRetentionDays = plugin.getConfig().getLong("alt-detection.offender-retention-days", 0L);
-        if (offenderRetentionDays > 0L) {
-            offenderRetentionDays = Math.min(3650L, offenderRetentionDays);
-            long offenderCutoff = now - offenderRetentionDays * 24L * 60L * 60L * 1000L;
-            if (offenders.entrySet().removeIf(entry -> entry.getValue() <= offenderCutoff)) {
-                dirty = true;
+
+        long offenderRetentionDays = Math.max(1L, Math.min(3650L,
+                plugin.getConfig().getLong("alt-detection.offender-retention-days", 365L)));
+        long offenderCutoff = now - offenderRetentionDays * 24L * 60L * 60L * 1000L;
+            for (Map.Entry<UUID, Long> entry : new HashMap<>(offenders).entrySet()) {
+                if (entry.getValue() <= offenderCutoff) {
+                    UUID expiredUuid = entry.getKey();
+                    offenders.remove(expiredUuid);
+                    expiredOffenders.add(expiredUuid);
+                    removeOrphanedLayer2Flags(expiredUuid);
+                    dirty = true;
+                }
             }
         }
     }
