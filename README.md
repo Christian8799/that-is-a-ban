@@ -71,6 +71,7 @@ Layer-2-Spieler erhalten diese Nodes auf Spielerebene negiert.
 | `thatsaban.privacy.read` | op | Plugin-Auskunft |
 | `thatsaban.layer2.remove` | op | Layer 2 entfernen |
 | `thatsaban.privacy.erase` | op | Plugin-Daten löschen |
+| `thatsaban.network` | op | Account-Netzwerk einsehen |
 | `thatsaban.notify` | op | IP-Übereinstimmungs-Hinweise |
 | `thatsaban.view-linked-accounts` | op | Verknüpfte Account-Namen anzeigen |
 | `thatsaban.layer2` | – | Marker-Node für Layer 2 |
