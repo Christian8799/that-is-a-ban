@@ -279,8 +279,19 @@ final class AdminSpectatorManager implements Listener {
     }
 
     private void clearPendingRestore(UUID uuid) {
-        plugin.getConfig().set(pendingRestorePath(uuid), null);
-        plugin.saveConfig();
+        String path = pendingRestorePath(uuid);
+        var section = plugin.getConfig().getConfigurationSection(path);
+        Map<String, Object> backup = section == null
+                ? null : new java.util.HashMap<>(section.getValues(false));
+
+        plugin.getConfig().set(path, null);
+        try {
+            plugin.saveConfig();
+        } catch (RuntimeException ex) {
+            // Keep the recovery marker available in memory so /adminspec off can retry.
+            if (backup != null) plugin.getConfig().createSection(path, backup);
+            throw ex;
+        }
     }
 
     private boolean restorePending(Player player) {
@@ -497,10 +508,15 @@ final class AdminSpectatorManager implements Listener {
             if (value instanceof BlockPosition position) {
                 dataValue.setValue(new BlockPosition(
                         position.getX() - offsetX, position.getY(), position.getZ() - offsetZ));
-            } else if (value instanceof Optional<?> optional && optional.isPresent()
-                    && optional.get() instanceof BlockPosition position) {
-                dataValue.setValue(Optional.of(new BlockPosition(
-                        position.getX() - offsetX, position.getY(), position.getZ() - offsetZ)));
+            } else if (value instanceof Optional<?> optional && optional.isPresent()) {
+                Object nested = optional.get();
+                if (nested instanceof BlockPosition position) {
+                    dataValue.setValue(Optional.of(new BlockPosition(
+                            position.getX() - offsetX, position.getY(), position.getZ() - offsetZ)));
+                } else if (nested instanceof NbtCompound compound) {
+                    translateBlockEntityNbt(compound, offsetX, offsetZ);
+                    dataValue.setValue(Optional.of(compound));
+                }
             } else if (value instanceof NbtCompound compound) {
                 translateBlockEntityNbt(compound, offsetX, offsetZ);
                 dataValue.setValue(compound);
@@ -698,21 +714,6 @@ final class AdminSpectatorManager implements Listener {
         throw new IllegalStateException("Fahrzeugpaket enthält kein unterstütztes Positionsformat.");
     }
 
-    private void translateExplosion(PacketEvent event, int offsetX, int offsetZ) {
-        // Explosion origin uses a Vec3; affected blocks use absolute BlockPositions.
-        translateVectorCoordinates(event, offsetX, offsetZ);
-        var blockPositions = event.getPacket().getBlockPositionCollectionModifier();
-        if (blockPositions.size() > 0) {
-            List<com.comphenix.protocol.wrappers.BlockPosition> original = blockPositions.read(0);
-            List<com.comphenix.protocol.wrappers.BlockPosition> translated = new ArrayList<>(original.size());
-            for (var block : original) {
-                translated.add(new com.comphenix.protocol.wrappers.BlockPosition(
-                        block.getX() - offsetX, block.getY(), block.getZ() - offsetZ));
-            }
-            blockPositions.write(0, translated);
-        }
-    }
-
     private void translateUseItemOn(PacketEvent event, int offsetX, int offsetZ) {
         var hits = event.getPacket().getMovingBlockPositions();
         if (hits.size() == 0) {
@@ -780,7 +781,8 @@ final class AdminSpectatorManager implements Listener {
                     PacketType type = event.getPacketType();
                     // These payloads may contain nested or packed world coordinates.
                     // Suppress them for the observer until their full wire layout is transformed.
-                    if (type == PacketType.Play.Server.WORLD_PARTICLES
+                    if (type == PacketType.Play.Server.EXPLOSION
+                            || type == PacketType.Play.Server.WORLD_PARTICLES
                             || type == PacketType.Play.Server.CUSTOM_PAYLOAD
                             || type == PacketType.Play.Server.CHUNKS_BIOMES
                             || type == PacketType.Play.Server.DEBUG_BLOCK_VALUE
@@ -829,8 +831,6 @@ final class AdminSpectatorManager implements Listener {
                         translateEntityPosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.ENTITY_METADATA) {
                         translateEntityMetadata(event, session.offsetX(), session.offsetZ());
-                    } else if (type == PacketType.Play.Server.EXPLOSION) {
-                        translateExplosion(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.RESPAWN) {
                         sanitizeRespawn(event);
                     } else if (type == PacketType.Play.Server.VEHICLE_MOVE) {
