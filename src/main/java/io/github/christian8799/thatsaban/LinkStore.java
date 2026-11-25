@@ -30,7 +30,7 @@ final class LinkStore {
 
     record PlayerSnapshot(String name, int linkedIpCount, boolean offender, boolean layer2Tracked, boolean hasStoredData) {}
 
-    record NetworkEntry(UUID uuid, String name, int depth, int sharedIpCount, long lastSeen) {}
+    record NetworkEntry(UUID uuid, String name, UUID connectedVia, int depth, int sharedIpCount, long lastSeen) {}
     record NetworkSnapshot(java.util.List<NetworkEntry> accounts, boolean truncated) {}
 
     private static final Set<PosixFilePermission> OWNER_ONLY =
@@ -510,7 +510,7 @@ final class LinkStore {
                 }
                 visited.add(other);
                 int depth = current.depth() + 1;
-                result.add(new NetworkEntry(other, names.get(other), depth,
+                result.add(new NetworkEntry(other, names.get(other), current.uuid(), depth,
                         sharedCounts.getOrDefault(other, 0), neighbors.getOrDefault(other, 0L)));
                 queue.addLast(new Visit(other, depth));
             }
