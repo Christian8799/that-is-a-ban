@@ -104,11 +104,11 @@ jobs:
                   descriptors = [n for n in ("plugin.yml", "paper-plugin.yml") if n in archive.namelist()]
                   if not descriptors:
                       raise SystemExit(f"{jar.name} has no Paper/Bukkit plugin descriptor")
-              descriptor = "\n".join(archive.read(n).decode("utf-8", "replace") for n in descriptors)
-              match = re.search(r"(?im)^name:\s*['"]?([^\r\n'"]+)", descriptor)
+                descriptor = "\n".join(archive.read(n).decode("utf-8", "replace") for n in descriptors)
+              match = re.search(r"(?im)^name:\s*(.+)$", descriptor)
               if not match:
                   raise SystemExit(f"Could not read plugin name from {jar.name}")
-              actual = match.group(1).strip().lower()
+              actual = match.group(1).strip().strip("'").strip('"').lower()
               if actual not in expected[plugin]:
                   raise SystemExit(f"{jar.name}: expected {plugin}, descriptor declares {actual!r}")
               print(f"Verified {plugin}: {jar.name}")
