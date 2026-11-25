@@ -39,6 +39,7 @@ final class LinkStore {
     private byte[] salt;
     private boolean dirty;
     private boolean writeBlocked;
+    private long lastPrune;
 
     LinkStore(ThatsABan plugin) {
         this.plugin = plugin;
@@ -55,6 +56,8 @@ final class LinkStore {
             File backup = createBackup("corrupt");
             if (backup == null) {
                 writeBlocked = true;
+                salt = new byte[16];
+                new SecureRandom().nextBytes(salt);
                 plugin.getLogger().severe("data.yml ist fehlerhaft und konnte nicht gesichert werden. "
                         + "Schreibzugriffe sind blockiert, damit die Originaldatei nicht überschrieben wird.");
             } else {
@@ -140,6 +143,23 @@ final class LinkStore {
                 }
             }
             layer2Ips.addAll(yaml.getStringList("layer2-ips"));
+
+            // Alte Datenstände hatten nicht für jeden Hash einen Zeitstempel.
+            long now = System.currentTimeMillis();
+            for (Set<String> hashes : ipsByPlayer.values()) {
+                for (String hash : hashes) {
+                    if (!ipLastSeen.containsKey(hash)) {
+                        ipLastSeen.put(hash, now);
+                        dirty = true;
+                    }
+                }
+            }
+            for (String hash : layer2Ips) {
+                if (!ipLastSeen.containsKey(hash)) {
+                    ipLastSeen.put(hash, now);
+                    dirty = true;
+                }
+            }
         }
 
         ConfigurationSection offenderTimes = yaml.getConfigurationSection("offender-last-seen");
@@ -156,7 +176,20 @@ final class LinkStore {
             }
         }
 
-        pruneExpired(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        for (String id : yaml.getStringList("offenders")) {
+            try {
+                UUID uuid = UUID.fromString(id);
+                if (!offenders.containsKey(uuid)) {
+                    offenders.put(uuid, now);
+                    dirty = true;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Ungültige UUID überspringen.
+            }
+        }
+
+        pruneExpired(now, true);
     }
 
     private boolean hasDiscardableIpData(YamlConfiguration yaml) {
@@ -198,7 +231,7 @@ final class LinkStore {
         if (writeBlocked) {
             return;
         }
-        pruneExpired(System.currentTimeMillis());
+        pruneExpired(System.currentTimeMillis(), true);
         if (!dirty && file.exists()) {
             return;
         }
@@ -245,7 +278,7 @@ final class LinkStore {
 
     synchronized void record(UUID uuid, String name, String ipHash) {
         long now = System.currentTimeMillis();
-        pruneExpired(now);
+        pruneExpired(now, false);
         names.put(uuid, name);
         link(uuid, ipHash);
         ipLastSeen.put(ipHash, now);
@@ -254,6 +287,13 @@ final class LinkStore {
 
     synchronized boolean isOffender(UUID uuid) {
         return offenders.containsKey(uuid);
+    }
+
+    synchronized void renewOffender(UUID uuid) {
+        if (offenders.containsKey(uuid)) {
+            offenders.put(uuid, System.currentTimeMillis());
+            dirty = true;
+        }
     }
 
     synchronized boolean isLayer2Ip(String ipHash) {
@@ -269,7 +309,7 @@ final class LinkStore {
 
     synchronized Set<UUID> markOffender(UUID uuid) {
         long now = System.currentTimeMillis();
-        pruneExpired(now);
+        pruneExpired(now, false);
         offenders.put(uuid, now);
         Set<UUID> others = new HashSet<>();
         for (String hash : ipsByPlayer.getOrDefault(uuid, Set.of())) {
@@ -295,7 +335,12 @@ final class LinkStore {
         return names.get(uuid);
     }
 
-    private void pruneExpired(long now) {
+    private void pruneExpired(long now, boolean force) {
+        if (!force && now - lastPrune < 60_000L) {
+            return;
+        }
+        lastPrune = now;
+
         long retentionDays = Math.min(3650L,
                 Math.max(1L, plugin.getConfig().getLong("alt-detection.retention-days", 30L)));
         long retentionMillis = retentionDays * 24L * 60L * 60L * 1000L;
@@ -328,8 +373,13 @@ final class LinkStore {
 
         ipsByPlayer.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         names.keySet().removeIf(uuid -> !ipsByPlayer.containsKey(uuid));
-        if (offenders.entrySet().removeIf(entry -> entry.getValue() <= cutoff)) {
-            dirty = true;
+        long offenderRetentionDays = plugin.getConfig().getLong("alt-detection.offender-retention-days", 0L);
+        if (offenderRetentionDays > 0L) {
+            offenderRetentionDays = Math.min(3650L, offenderRetentionDays);
+            long offenderCutoff = now - offenderRetentionDays * 24L * 60L * 60L * 1000L;
+            if (offenders.entrySet().removeIf(entry -> entry.getValue() <= offenderCutoff)) {
+                dirty = true;
+            }
         }
     }
 

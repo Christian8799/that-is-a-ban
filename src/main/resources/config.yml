@@ -28,6 +28,7 @@ country-filter:
 alt-detection:
   enabled: false
   retention-days: 30
+  offender-retention-days: 0 # 0 = nie ablaufend; >0 = Tage seit letztem Login (max. 3650)
   retroactive: true
   ignore-private-addresses: true
   ignored-ips: []
