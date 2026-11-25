@@ -47,6 +47,7 @@ final class AdminSpectatorManager implements Listener {
     private final Set<UUID> permanent = new HashSet<>();
     private final SecureRandom random = new SecureRandom();
     private final VanishIntegration vanish;
+    private boolean vanishFailureLogged;
     private boolean packetListenerRegistered;
 
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
@@ -497,10 +498,18 @@ final class AdminSpectatorManager implements Listener {
         if (!player.getAllowFlight()) player.setAllowFlight(true);
         if (!player.isFlying()) player.setFlying(true);
         if (vanish != null && vanish.isAvailable()) {
-            if (!vanish.isVanished(player)) vanish.setVanished(player, true);
-        } else {
-            hideObserverFromAll(player);
+            try {
+                if (!vanish.isVanished(player)) vanish.setVanished(player, true);
+                return;
+            } catch (LinkageError | RuntimeException ex) {
+                if (!vanishFailureLogged) {
+                    plugin.getLogger().warning("SuperVanish-API ist zur Laufzeit nicht verfügbar; permanente Admin-Accounts verwenden Bukkit-Hiding: "
+                            + ex.getClass().getSimpleName());
+                    vanishFailureLogged = true;
+                }
+            }
         }
+        hideObserverFromAll(player);
     }
 
     private void restoreVanishState(Player player, boolean vanishMode, boolean wasVanished) {

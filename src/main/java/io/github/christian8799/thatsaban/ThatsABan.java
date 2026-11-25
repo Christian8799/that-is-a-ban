@@ -113,10 +113,7 @@ public final class ThatsABan extends JavaPlugin {
             getLogger().info("SuperVanish-Integration aktiv.");
             return integration;
         } catch (java.lang.reflect.InvocationTargetException ex) {
-            Throwable cause = ex.getCause();
-            if (cause instanceof LinkageError error) throw error;
-            if (cause instanceof RuntimeException error) throw error;
-            warnFeatureDisabled("SuperVanish-Integration", cause);
+            warnFeatureDisabled("SuperVanish-Integration", ex.getCause() == null ? ex : ex.getCause());
             return null;
         } catch (ReflectiveOperationException | LinkageError ex) {
             warnFeatureDisabled("SuperVanish-Integration", ex);
