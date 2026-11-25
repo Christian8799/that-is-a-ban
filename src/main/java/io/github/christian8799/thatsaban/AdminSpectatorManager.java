@@ -17,9 +17,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
-import org.bukkit.World;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -315,12 +315,14 @@ final class AdminSpectatorManager implements Listener {
         // A quitting observer cannot be reliably teleported back: Bukkit may reject
         // teleports once the disconnect sequence has started. Do not leave a stale
         // session behind, or the next login would inherit the old hidden state.
-        Session own = sessions.remove(quitter.getUniqueId());
-        if (own != null) {
-            // Keep the persisted snapshot so the next login can restore the original
-            // location and player settings before this account becomes visible.
-            quitter.setSpectatorTarget(null);
-            audit("ABORT_QUIT_PENDING_RECOVERY", quitter.getUniqueId(), own.target());
+        Session own = sessions.get(quitter.getUniqueId());
+        if (own != null && sessions.remove(quitter.getUniqueId(), own)) {
+            synchronized (own) {
+                // Keep the persisted snapshot so the next login can restore the original
+                // location and player settings before this account becomes visible.
+                quitter.setSpectatorTarget(null);
+                audit("ABORT_QUIT_PENDING_RECOVERY", quitter.getUniqueId(), own.target());
+            }
         }
 
         // If the observed player leaves, the observer is still online and can be
@@ -373,6 +375,44 @@ final class AdminSpectatorManager implements Listener {
         WrappedPositionMoveRotation position = positions.read(0);
         position.setPosition(translated(position.getPosition(), -offsetX, -offsetZ));
         positions.write(0, position);
+    }
+
+    private void translateEntityPosition(PacketEvent event, int offsetX, int offsetZ) {
+        var positions = event.getPacket().getPositionMoveRotation();
+        if (positions.size() > 0) {
+            WrappedPositionMoveRotation position = positions.read(0);
+            position.setPosition(translated(position.getPosition(), -offsetX, -offsetZ));
+            positions.write(0, position);
+            return;
+        }
+        // Some newer protocol revisions expose position-sync payloads as vectors.
+        var vectors = event.getPacket().getVectors();
+        if (vectors.size() > 0) {
+            translateVectorCoordinates(event, offsetX, offsetZ);
+            return;
+        }
+        throw new IllegalStateException("Paket enthält kein unterstütztes Positionsformat: " + event.getPacketType());
+    }
+
+    private void translateVehicleMove(PacketEvent event, int offsetX, int offsetZ) {
+        var positions = event.getPacket().getPositionMoveRotation();
+        if (positions.size() > 0) {
+            WrappedPositionMoveRotation position = positions.read(0);
+            position.setPosition(translated(position.getPosition(), -offsetX, -offsetZ));
+            positions.write(0, position);
+            return;
+        }
+        var vectors = event.getPacket().getVectors();
+        if (vectors.size() > 0) {
+            translateVectorCoordinates(event, offsetX, offsetZ);
+            return;
+        }
+        var doubles = event.getPacket().getDoubles();
+        if (doubles.size() >= 3) {
+            translateDoubleCoordinates(event, offsetX, offsetZ, 0, 2);
+            return;
+        }
+        throw new IllegalStateException("Fahrzeugpaket enthält kein unterstütztes Positionsformat.");
     }
 
     private void translateExplosion(PacketEvent event, int offsetX, int offsetZ) {
@@ -489,22 +529,24 @@ final class AdminSpectatorManager implements Listener {
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY) {
                         translateVectorCoordinates(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.ENTITY_TELEPORT
-                            || type == PacketType.Play.Server.POSITION
-                            || type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
+                            || type == PacketType.Play.Server.POSITION) {
                         translatePositionMoveRotation(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
+                        translateEntityPosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.EXPLOSION) {
                         translateExplosion(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.VEHICLE_MOVE) {
-                        translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 2);
+                        translateVehicleMove(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.WORLD_EVENT) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
                     } else if (type == PacketType.Play.Server.NAMED_SOUND_EFFECT) {
                         // Sound packet coordinates use fixed-point block coordinates multiplied by eight.
                         var ints = event.getPacket().getIntegers();
-                        if (ints.size() >= 3) {
-                            ints.write(0, ints.read(0) - session.offsetX() * 8);
-                            ints.write(2, ints.read(2) - session.offsetZ() * 8);
+                        if (ints.size() < 3) {
+                            throw new IllegalStateException("Soundpaket enthält nicht die erwarteten Festkomma-Koordinaten.");
                         }
+                        ints.write(0, ints.read(0) - session.offsetX() * 8);
+                        ints.write(2, ints.read(2) - session.offsetZ() * 8);
                     } else if (type == PacketType.Play.Server.SET_BORDER_CENTER) {
                         translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 1);
                     } else if (type == PacketType.Play.Server.INITIALIZE_BORDER) {
@@ -530,17 +572,23 @@ final class AdminSpectatorManager implements Listener {
                         return;
                     }
                     var modifier = event.getPacket().getBlockPositionModifier();
+                    if (event.getPacketType() == PacketType.Play.Client.BLOCK_DIG && modifier.size() == 0) {
+                        throw new IllegalStateException("Abbaupaket enthält keine Blockposition.");
+                    }
                     if (modifier.size() > 0) {
                         var pos = modifier.read(0);
                         modifier.write(0, new com.comphenix.protocol.wrappers.BlockPosition(
                                 pos.getX() + session.offsetX(), pos.getY(), pos.getZ() + session.offsetZ()));
                     }
                     // The client sends its shifted player coordinates back to the server.
-                    if ((event.getPacketType() == PacketType.Play.Client.POSITION
-                            || event.getPacketType() == PacketType.Play.Client.POSITION_LOOK)
-                            && event.getPacket().getDoubles().size() >= 3) {
-                        event.getPacket().getDoubles().write(0, event.getPacket().getDoubles().read(0) + session.offsetX());
-                        event.getPacket().getDoubles().write(2, event.getPacket().getDoubles().read(2) + session.offsetZ());
+                    if (event.getPacketType() == PacketType.Play.Client.POSITION
+                            || event.getPacketType() == PacketType.Play.Client.POSITION_LOOK) {
+                        var doubles = event.getPacket().getDoubles();
+                        if (doubles.size() < 3) {
+                            throw new IllegalStateException("Bewegungspaket enthält nicht alle Spielerkoordinaten.");
+                        }
+                        doubles.write(0, doubles.read(0) + session.offsetX());
+                        doubles.write(2, doubles.read(2) + session.offsetZ());
                     }
                     } catch (Exception ex) {
                         plugin.getLogger().warning("Konnte eingehendes Interaktionspaket nicht transformieren: " + ex.getMessage());
