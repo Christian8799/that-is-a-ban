@@ -123,7 +123,8 @@ final class AdminSpectatorManager implements Listener {
                 if (permanentDataSavePending) savePermanentData();
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     UUID playerId = player.getUniqueId();
-                    if (!hasPendingRestore(playerId) && !permanent.contains(playerId)) {
+                    if (!hasPendingRestore(playerId) && !permanent.contains(playerId)
+                            && !sessions.containsKey(playerId)) {
                         restorePendingPermanent(player);
                     }
                     enforcePermanent(player);
@@ -306,6 +307,7 @@ final class AdminSpectatorManager implements Listener {
                 finishObserverVisibility(observer, session.vanishMode, session.wasVanished);
                 enforcePermanent(observer);
                 clearPendingRestore(observerId);
+                restorePendingPermanent(observer);
                 audit("STOP (" + reason + ")", observerId, session.target());
                 return true;
             } catch (LinkageError | RuntimeException ex) {
@@ -353,8 +355,9 @@ final class AdminSpectatorManager implements Listener {
         if (!permanent.contains(uuid)) return true;
         PermanentSnapshot previousSnapshot = permanentSnapshots.remove(uuid);
         Player player = Bukkit.getPlayer(uuid);
+        boolean sessionOwnsState = sessions.containsKey(uuid) || hasPendingRestore(uuid);
         permanent.remove(uuid);
-        if (player == null && previousSnapshot != null) {
+        if ((player == null || sessionOwnsState) && previousSnapshot != null) {
             pendingPermanentSnapshots.put(uuid, previousSnapshot);
         }
         if (!savePermanentData()) {
@@ -364,7 +367,6 @@ final class AdminSpectatorManager implements Listener {
             return false;
         }
         if (player != null) {
-            boolean sessionOwnsState = sessions.containsKey(uuid) || hasPendingRestore(uuid);
             restorePermanentSnapshot(player, previousSnapshot, sessionOwnsState);
         } else if (previousSnapshot == null) {
             plugin.getLogger().warning("Permanenter Spectator-Eintrag offline entfernt, aber kein Ursprungszustand ist gespeichert: "
@@ -553,7 +555,8 @@ final class AdminSpectatorManager implements Listener {
     private boolean restorePendingPermanent(Player player) {
         UUID uuid = player.getUniqueId();
         PermanentSnapshot snapshot = pendingPermanentSnapshots.get(uuid);
-        if (snapshot == null || permanent.contains(uuid)) return false;
+        if (snapshot == null || permanent.contains(uuid)
+                || sessions.containsKey(uuid) || hasPendingRestore(uuid)) return false;
         try {
             player.setGameMode(snapshot.gameMode());
             player.setAllowFlight(snapshot.allowFlight());
