@@ -4,8 +4,8 @@ version: ${version}
 api-version: "1.21.11"
 author: Christian8799
 description: Anti-Cheat-Connector with privacy tools and protected admin spectating
-depend: [LuckPerms]
-softdepend: [ProtocolLib, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
+depend: [LuckPerms, ProtocolLib]
+softdepend: [GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
 
 commands:
   offend:
