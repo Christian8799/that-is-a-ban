@@ -6,8 +6,10 @@ import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
+import com.comphenix.protocol.wrappers.BlockPosition;
 import com.comphenix.protocol.wrappers.ChunkCoordIntPair;
 import com.comphenix.protocol.wrappers.MovingObjectPositionBlock;
+import com.comphenix.protocol.wrappers.WrappedDataValue;
 import com.comphenix.protocol.wrappers.WrappedLevelChunkData;
 import com.comphenix.protocol.wrappers.WrappedPositionMoveRotation;
 import com.comphenix.protocol.wrappers.nbt.NbtBase;
@@ -432,6 +434,30 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
+    private void translateEntityMetadata(PacketEvent event, int offsetX, int offsetZ) {
+        var valuesModifier = event.getPacket().getDataValueCollectionModifier();
+        if (valuesModifier.size() == 0) {
+            throw new IllegalStateException("Entity-Metadaten enthalten keine lesbare DataValue-Liste.");
+        }
+
+        List<WrappedDataValue> values = valuesModifier.read(0);
+        for (WrappedDataValue dataValue : values) {
+            Object value = dataValue.getValue();
+            if (value instanceof BlockPosition position) {
+                dataValue.setValue(new BlockPosition(
+                        position.getX() - offsetX, position.getY(), position.getZ() - offsetZ));
+            } else if (value instanceof Optional<?> optional && optional.isPresent()
+                    && optional.get() instanceof BlockPosition position) {
+                dataValue.setValue(Optional.of(new BlockPosition(
+                        position.getX() - offsetX, position.getY(), position.getZ() - offsetZ)));
+            } else if (value instanceof NbtCompound compound) {
+                translateBlockEntityNbt(compound, offsetX, offsetZ);
+                dataValue.setValue(compound);
+            }
+        }
+        valuesModifier.write(0, values);
+    }
+
     private void translateBlockEntityNbt(NbtCompound tag, int offsetX, int offsetZ) {
         if (tag == null || !tag.containsKey("x") || !tag.containsKey("z")) return;
 
@@ -665,6 +691,7 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.SPAWN_ENTITY,
                 PacketType.Play.Server.ENTITY_TELEPORT,
                 PacketType.Play.Server.ENTITY_POSITION_SYNC,
+                PacketType.Play.Server.ENTITY_METADATA,
                 PacketType.Play.Server.POSITION,
                 PacketType.Play.Server.EXPLOSION,
                 PacketType.Play.Server.RESPAWN,
@@ -687,6 +714,8 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Server.INITIALIZE_BORDER,
                 PacketType.Play.Server.VEHICLE_MOVE,
                 PacketType.Play.Client.BLOCK_DIG,
+                PacketType.Play.Client.TILE_NBT_QUERY,
+                PacketType.Play.Client.ENTITY_NBT_QUERY,
                 PacketType.Play.Client.USE_ITEM_ON,
                 PacketType.Play.Client.POSITION,
                 PacketType.Play.Client.POSITION_LOOK) {
@@ -747,6 +776,8 @@ final class AdminSpectatorManager implements Listener {
                         translateRelativePosition(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
                         translateEntityPosition(event, session.offsetX(), session.offsetZ());
+                    } else if (type == PacketType.Play.Server.ENTITY_METADATA) {
+                        translateEntityMetadata(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.EXPLOSION) {
                         translateExplosion(event, session.offsetX(), session.offsetZ());
                     } else if (type == PacketType.Play.Server.RESPAWN) {
@@ -783,6 +814,13 @@ final class AdminSpectatorManager implements Listener {
                 synchronized (session) {
                     if (sessions.get(event.getPlayer().getUniqueId()) != session) return;
                     try {
+                    if (event.getPacketType() == PacketType.Play.Client.TILE_NBT_QUERY
+                            || event.getPacketType() == PacketType.Play.Client.ENTITY_NBT_QUERY) {
+                        // Prevent a hidden observer from requesting raw block/entity NBT
+                        // containing server-side coordinates.
+                        event.setCancelled(true);
+                        return;
+                    }
                     if (event.getPacketType() == PacketType.Play.Client.USE_ITEM_ON) {
                         translateUseItemOn(event, session.offsetX(), session.offsetZ());
                         return;
