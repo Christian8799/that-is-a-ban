@@ -353,7 +353,9 @@ final class AdminSpectatorManager implements Listener {
 
     boolean removePermanent(UUID uuid) {
         if (!permanent.contains(uuid)) return true;
-        PermanentSnapshot previousSnapshot = permanentSnapshots.remove(uuid);
+        PermanentSnapshot activeSnapshot = permanentSnapshots.remove(uuid);
+        PermanentSnapshot queuedSnapshot = pendingPermanentSnapshots.remove(uuid);
+        PermanentSnapshot previousSnapshot = activeSnapshot != null ? activeSnapshot : queuedSnapshot;
         Player player = Bukkit.getPlayer(uuid);
         boolean sessionOwnsState = sessions.containsKey(uuid) || hasPendingRestore(uuid);
         permanent.remove(uuid);
@@ -362,8 +364,8 @@ final class AdminSpectatorManager implements Listener {
         }
         if (!savePermanentData()) {
             permanent.add(uuid);
-            if (player == null) pendingPermanentSnapshots.remove(uuid);
-            if (previousSnapshot != null) permanentSnapshots.put(uuid, previousSnapshot);
+            if (activeSnapshot != null) permanentSnapshots.put(uuid, activeSnapshot);
+            if (queuedSnapshot != null) pendingPermanentSnapshots.put(uuid, queuedSnapshot);
             return false;
         }
         if (player != null) {
