@@ -58,7 +58,7 @@ public final class ThatsABan extends JavaPlugin {
         spectatorManager = new AdminSpectatorManager(this);
         PluginCommand spectatorCommand = getCommand("adminspec");
         if (spectatorCommand != null) {
-            AdminSpectatorCommand executor = new AdminSpectatorCommand(this, spectatorManager);
+            AdminSpectatorCommand executor = new AdminSpectatorCommand(spectatorManager);
             spectatorCommand.setExecutor(executor);
             spectatorCommand.setTabCompleter(executor);
         }

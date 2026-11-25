@@ -15,8 +15,10 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -41,7 +43,7 @@ final class AdminSpectatorManager implements Listener {
 
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
                             boolean flying, boolean invulnerable, float flySpeed, float walkSpeed,
-                            int viewDistance, int sendViewDistance) {}
+                            int viewDistance, int sendViewDistance, UUID spectatorTarget) {}
     private record Session(UUID target, Snapshot snapshot, int offsetX, int offsetZ) {}
 
     AdminSpectatorManager(JavaPlugin plugin) {
@@ -78,7 +80,8 @@ final class AdminSpectatorManager implements Listener {
         Snapshot snapshot = new Snapshot(observer.getLocation().clone(), observer.getGameMode(),
                 observer.getAllowFlight(), observer.isFlying(), observer.isInvulnerable(),
                 observer.getFlySpeed(), observer.getWalkSpeed(),
-                observer.getViewDistance(), observer.getSendViewDistance());
+                observer.getViewDistance(), observer.getSendViewDistance(),
+                observer.getSpectatorTarget() == null ? null : observer.getSpectatorTarget().getUniqueId());
         // Chunk-aligned offsets preserve local block coordinates while changing absolute client coordinates.
         int offsetX = createOffset(target.getLocation().getX());
         int offsetZ = createOffset(target.getLocation().getZ());
@@ -200,6 +203,8 @@ final class AdminSpectatorManager implements Listener {
         plugin.getConfig().set(path + ".walk-speed", snapshot.walkSpeed());
         plugin.getConfig().set(path + ".view-distance", snapshot.viewDistance());
         plugin.getConfig().set(path + ".send-view-distance", snapshot.sendViewDistance());
+        plugin.getConfig().set(path + ".spectator-target",
+                snapshot.spectatorTarget() == null ? null : snapshot.spectatorTarget().toString());
         plugin.saveConfig();
     }
 
@@ -263,12 +268,23 @@ final class AdminSpectatorManager implements Listener {
                 (float) plugin.getConfig().getDouble(path + ".fly-speed", 0.1),
                 (float) plugin.getConfig().getDouble(path + ".walk-speed", 0.2),
                 plugin.getConfig().getInt(path + ".view-distance", player.getViewDistance()),
-                plugin.getConfig().getInt(path + ".send-view-distance", player.getSendViewDistance()));
+                plugin.getConfig().getInt(path + ".send-view-distance", player.getSendViewDistance()),
+                parseOptionalUuid(plugin.getConfig().getString(path + ".spectator-target")));
         restoreSnapshot(player, snapshot);
         clearPendingRestore(uuid);
         showObserverToAll(player);
         audit("RECOVER", uuid, uuid);
         return true;
+    }
+
+    private UUID parseOptionalUuid(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            plugin.getLogger().warning("Ungültige gespeicherte Spectator-Ziel-UUID: " + value);
+            return null;
+        }
     }
 
     private void restoreSnapshot(Player player, Snapshot snapshot) {
@@ -280,6 +296,14 @@ final class AdminSpectatorManager implements Listener {
         player.setWalkSpeed(snapshot.walkSpeed());
         player.setViewDistance(snapshot.viewDistance());
         player.setSendViewDistance(snapshot.sendViewDistance());
+        // Restore an earlier spectator camera target when it still exists.
+        UUID previousTargetId = snapshot.spectatorTarget();
+        if (player.getGameMode() == GameMode.SPECTATOR && previousTargetId != null) {
+            org.bukkit.entity.Entity previousTarget = Bukkit.getEntity(previousTargetId);
+            player.setSpectatorTarget(previousTarget);
+        } else {
+            player.setSpectatorTarget(null);
+        }
         // Permanent Spectator wins over the pre-observation game mode.
         enforcePermanent(player);
     }
@@ -303,7 +327,25 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onLogin(PlayerLoginEvent event) {
+        Player joining = event.getPlayer();
+        UUID joiningId = joining.getUniqueId();
+
+        // Register hides before the joining entity is inserted into the world and
+        // before existing clients can receive its first spawn packet.
+        if (hasPendingRestore(joiningId)) {
+            hideObserverFromAll(joining);
+        }
+        for (UUID observerId : Set.copyOf(sessions.keySet())) {
+            Player observer = Bukkit.getPlayer(observerId);
+            if (observer != null && !observer.equals(joining)) {
+                joining.hidePlayer(plugin, observer);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onJoin(PlayerJoinEvent event) {
         Player joining = event.getPlayer();
 

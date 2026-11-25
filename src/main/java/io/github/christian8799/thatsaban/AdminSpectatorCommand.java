@@ -15,7 +15,7 @@ import java.util.UUID;
 final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
     private final AdminSpectatorManager manager;
 
-    AdminSpectatorCommand(ThatsABan plugin, AdminSpectatorManager manager) {
+    AdminSpectatorCommand(AdminSpectatorManager manager) {
         this.manager = manager;
     }
 

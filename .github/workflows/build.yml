@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - feature/admin-spectator-mode
   pull_request:
     branches:
       - main
@@ -14,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: build-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}"
   cancel-in-progress: true
 
 jobs:
