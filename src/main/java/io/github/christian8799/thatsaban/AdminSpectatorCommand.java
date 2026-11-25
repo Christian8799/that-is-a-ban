@@ -70,19 +70,25 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (args.length == 2 && args[0].equalsIgnoreCase("observe")) {
+        if ((args.length == 2 || args.length == 3) && args[0].equalsIgnoreCase("observe")) {
+            boolean vanishMode = args.length == 3 && args[2].equalsIgnoreCase("vanish");
+            if (args.length == 3 && !vanishMode) {
+                player.sendMessage("Zusatzargument unbekannt. Verwende optional 'vanish'.");
+                return true;
+            }
             Player target = Bukkit.getPlayerExact(args[1]);
             if (target == null) {
                 player.sendMessage("Der Zielspieler muss online sein.");
                 return true;
             }
-            player.sendMessage(manager.observe(player, target)
+            player.sendMessage(manager.observe(player, target, vanishMode)
                     ? "Geschützte Beobachtung gestartet: " + target.getName()
+                        + (vanishMode ? " (mit SuperVanish)." : " (ohne SuperVanish).")
                     : "Beobachtung konnte nicht gestartet werden. Prüfe Serverlog und Wiederherstellungsstatus.");
             return true;
         }
 
-        player.sendMessage("Benutzung: /adminspec observe <Spieler> | /adminspec off | /adminspec permanent <add|remove> <Spieler|UUID>");
+        player.sendMessage("Benutzung: /adminspec observe <Spieler> [vanish] | /adminspec off | /adminspec permanent <add|remove> <Spieler|UUID>");
         return true;
     }
 
@@ -114,6 +120,10 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
                     .map(Player::getName)
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
                     .toList();
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("observe")
+                && sender instanceof Player && "vanish".startsWith(args[2].toLowerCase(Locale.ROOT))) {
+            return List.of("vanish");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("permanent")
                 && sender.hasPermission("thatsaban.spectator.permanent")) {

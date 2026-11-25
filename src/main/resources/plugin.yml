@@ -4,7 +4,7 @@ version: ${version}
 api-version: "1.21.11"
 author: Christian8799
 description: Anti-Cheat-Connector with privacy tools and protected admin spectating
-softdepend: [LuckPerms, ProtocolLib, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
+softdepend: [LuckPerms, ProtocolLib, SuperVanish, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
 
 commands:
   offend:
@@ -16,7 +16,7 @@ commands:
     usage: /<command> <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]
   adminspec:
     description: Geschützte Admin-Beobachtung verwalten
-    usage: /<command> <observe|off|permanent> [Spieler]
+    usage: /<command> <observe|off|permanent> [Spieler] [vanish]
     permission: thatsaban.spectator
 
 permissions:

@@ -70,8 +70,8 @@ public final class ThatsABan extends JavaPlugin {
             Class<?> type = Class.forName(getClass().getPackageName() + ".CountryFilter",
                     true, getClass().getClassLoader());
             return (CountryFilterIntegration) type
-                    .getDeclaredConstructor(ThatsABan.class)
-                    .newInstance(this);
+                    .getDeclaredConstructor(ThatsABan.class, VanishIntegration.class)
+                    .newInstance(this, vanish);
         } catch (java.lang.reflect.InvocationTargetException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof LinkageError error) throw error;
@@ -99,7 +99,32 @@ public final class ThatsABan extends JavaPlugin {
         }
     }
 
-    private SpectatorIntegration loadSpectatorIntegration() {
+    private VanishIntegration loadVanishIntegration() {
+        if (!getServer().getPluginManager().isPluginEnabled("SuperVanish")) {
+            warnFeatureDisabled("SuperVanish-Integration", "SuperVanish fehlt oder ist nicht aktiviert.");
+            return null;
+        }
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".SuperVanishFeatures",
+                    true, getClass().getClassLoader());
+            VanishIntegration integration = (VanishIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class)
+                    .newInstance(this);
+            getLogger().info("SuperVanish-Integration aktiv.");
+            return integration;
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            warnFeatureDisabled("SuperVanish-Integration", cause);
+            return null;
+        } catch (ReflectiveOperationException | LinkageError ex) {
+            warnFeatureDisabled("SuperVanish-Integration", ex);
+            return null;
+        }
+    }
+
+    private SpectatorIntegration loadSpectatorIntegration(VanishIntegration vanish) {
         try {
             Class<?> type = Class.forName(getClass().getPackageName() + ".ProtocolLibFeatures",
                     true, getClass().getClassLoader());
@@ -124,7 +149,8 @@ public final class ThatsABan extends JavaPlugin {
             return;
         }
         try {
-            spectatorFeature = loadSpectatorIntegration();
+            VanishIntegration vanish = loadVanishIntegration();
+            spectatorFeature = loadSpectatorIntegration(vanish);
             registerCommand("adminspec", spectatorFeature.command());
             getLogger().info("ProtocolLib-Integration aktiv: Admin-Spectator verfügbar.");
         } catch (LinkageError | RuntimeException ex) {

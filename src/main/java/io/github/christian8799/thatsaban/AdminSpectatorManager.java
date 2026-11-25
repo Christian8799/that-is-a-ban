@@ -46,6 +46,7 @@ final class AdminSpectatorManager implements Listener {
     private final Set<UUID> restoring = ConcurrentHashMap.newKeySet();
     private final Set<UUID> permanent = new HashSet<>();
     private final SecureRandom random = new SecureRandom();
+    private final VanishIntegration vanish;
     private boolean packetListenerRegistered;
 
     private record Snapshot(Location location, GameMode gameMode, boolean allowFlight,
@@ -56,12 +57,17 @@ final class AdminSpectatorManager implements Listener {
         private final Snapshot snapshot;
         private final int offsetX;
         private final int offsetZ;
+        private final boolean vanishMode;
+        private final boolean wasVanished;
 
-        private Session(UUID target, Snapshot snapshot, int offsetX, int offsetZ) {
+        private Session(UUID target, Snapshot snapshot, int offsetX, int offsetZ,
+                        boolean vanishMode, boolean wasVanished) {
             this.target = target;
             this.snapshot = snapshot;
             this.offsetX = offsetX;
             this.offsetZ = offsetZ;
+            this.vanishMode = vanishMode;
+            this.wasVanished = wasVanished;
         }
 
         UUID target() { return target; }
@@ -71,8 +77,9 @@ final class AdminSpectatorManager implements Listener {
         int offsetZ() { return offsetZ; }
     }
 
-    AdminSpectatorManager(JavaPlugin plugin) {
+    AdminSpectatorManager(JavaPlugin plugin, VanishIntegration vanish) {
         this.plugin = plugin;
+        this.vanish = vanish;
         if (Bukkit.getPluginManager().getPlugin("ProtocolLib") == null) {
             throw new IllegalStateException("ProtocolLib fehlt; Admin-Spectator wird nicht aktiviert.");
         }
@@ -110,8 +117,12 @@ final class AdminSpectatorManager implements Listener {
                 || hasPendingRestore(observer.getUniqueId());
     }
 
-    boolean observe(Player observer, Player target) {
+    boolean observe(Player observer, Player target, boolean vanishMode) {
         if (observer.equals(target)) return false;
+        if (vanishMode && (vanish == null || !vanish.isAvailable())) {
+            observer.sendMessage("Der Vanish-Modus benötigt das installierte und kompatible SuperVanish-Plugin.");
+            return false;
+        }
 
         UUID observerId = observer.getUniqueId();
         Session active = sessions.get(observerId);
@@ -128,15 +139,18 @@ final class AdminSpectatorManager implements Listener {
         // Chunk-aligned offsets preserve local block coordinates while changing absolute client coordinates.
         int offsetX = createOffset(target.getLocation().getX());
         int offsetZ = createOffset(target.getLocation().getZ());
+        boolean wasVanished = vanish != null && vanish.isAvailable() && vanish.isVanished(observer);
         // Persist the pre-observation state before changing the player's position or mode.
         // This also allows recovery after a process crash or plugin/server restart.
         try {
-            savePendingRestore(observerId, snapshot);
-            Session session = new Session(target.getUniqueId(), snapshot, offsetX, offsetZ);
+            savePendingRestore(observerId, snapshot, vanishMode, wasVanished);
+            Session session = new Session(target.getUniqueId(), snapshot, offsetX, offsetZ,
+                    vanishMode, wasVanished);
             sessions.put(observerId, session);
-            // Hide before changing mode or moving: otherwise the initial spectator
-            // transition can briefly expose the moderator at their real location.
-            hideObserverFromAll(observer);
+            // Apply SuperVanish before changing mode or moving so no initial
+            // spectator transition can expose the moderator.
+            if (vanishMode) vanish.setVanished(observer, true);
+            else hideObserverFromAll(observer);
             observer.setGameMode(GameMode.SPECTATOR);
             observer.setAllowFlight(true);
             observer.setFlying(true);
@@ -235,7 +249,8 @@ final class AdminSpectatorManager implements Listener {
                 returnTeleportSucceeded = true;
 
                 restoreSnapshot(observer, session.snapshot());
-                showObserverToAll(observer);
+                restoreVanishState(observer, session.vanishMode, session.wasVanished);
+                if (!session.vanishMode || !session.wasVanished) showObserverToAll(observer);
                 clearPendingRestore(observerId);
                 audit("STOP (" + reason + ")", observerId, session.target());
                 return true;
@@ -315,7 +330,7 @@ final class AdminSpectatorManager implements Listener {
         return plugin.getConfig().contains(pendingRestorePath(uuid) + ".world-uuid");
     }
 
-    private void savePendingRestore(UUID uuid, Snapshot snapshot) {
+    private void savePendingRestore(UUID uuid, Snapshot snapshot, boolean vanishMode, boolean wasVanished) {
         String path = pendingRestorePath(uuid);
         Location location = snapshot.location();
         World world = location.getWorld();
@@ -337,6 +352,8 @@ final class AdminSpectatorManager implements Listener {
         plugin.getConfig().set(path + ".send-view-distance", snapshot.sendViewDistance());
         plugin.getConfig().set(path + ".spectator-target",
                 snapshot.spectatorTarget() == null ? null : snapshot.spectatorTarget().toString());
+        plugin.getConfig().set(path + ".vanish-mode", vanishMode);
+        plugin.getConfig().set(path + ".was-vanished", wasVanished);
         plugin.saveConfig();
     }
 
@@ -388,7 +405,10 @@ final class AdminSpectatorManager implements Listener {
             }
 
             Location location = new Location(world, x, y, z, yaw, pitch);
-            hideObserverFromAll(player);
+            boolean vanishMode = plugin.getConfig().getBoolean(path + ".vanish-mode", false);
+            boolean wasVanished = plugin.getConfig().getBoolean(path + ".was-vanished", false);
+            if (vanishMode && vanish != null && vanish.isAvailable()) vanish.setVanished(player, true);
+            else hideObserverFromAll(player);
             player.setSpectatorTarget(null);
             if (!player.teleport(location)) {
                 keepObserverHidden(player);
@@ -413,7 +433,8 @@ final class AdminSpectatorManager implements Listener {
                     plugin.getConfig().getInt(path + ".send-view-distance", player.getSendViewDistance()),
                     parseOptionalUuid(plugin.getConfig().getString(path + ".spectator-target")));
             restoreSnapshot(player, snapshot);
-            showObserverToAll(player);
+            restoreVanishState(player, vanishMode, wasVanished);
+            if (!vanishMode || !wasVanished) showObserverToAll(player);
             clearPendingRestore(uuid);
             audit("RECOVER", uuid, uuid);
             return true;
@@ -473,6 +494,16 @@ final class AdminSpectatorManager implements Listener {
         if (player.getGameMode() != GameMode.SPECTATOR) player.setGameMode(GameMode.SPECTATOR);
         if (!player.getAllowFlight()) player.setAllowFlight(true);
         if (!player.isFlying()) player.setFlying(true);
+        if (vanish != null && vanish.isAvailable()) {
+            if (!vanish.isVanished(player)) vanish.setVanished(player, true);
+        } else {
+            hideObserverFromAll(player);
+        }
+    }
+
+    private void restoreVanishState(Player player, boolean vanishMode, boolean wasVanished) {
+        if (!vanishMode || vanish == null || !vanish.isAvailable()) return;
+        vanish.setVanished(player, wasVanished);
     }
 
     private void hideObserverFromAll(Player observer) {
@@ -503,6 +534,13 @@ final class AdminSpectatorManager implements Listener {
                 joining.hidePlayer(plugin, observer);
             }
         }
+        for (UUID permanentId : Set.copyOf(permanent)) {
+            Player admin = Bukkit.getPlayer(permanentId);
+            if (admin != null && !admin.equals(joining)
+                    && (vanish == null || !vanish.isAvailable())) {
+                joining.hidePlayer(plugin, admin);
+            }
+        }
         enforcePermanent(joining);
     }
 
@@ -516,6 +554,13 @@ final class AdminSpectatorManager implements Listener {
             Player observer = Bukkit.getPlayer(observerId);
             if (observer != null && !observer.equals(joining)) {
                 joining.hidePlayer(plugin, observer);
+            }
+        }
+        for (UUID permanentId : Set.copyOf(permanent)) {
+            Player admin = Bukkit.getPlayer(permanentId);
+            if (admin != null && !admin.equals(joining)
+                    && (vanish == null || !vanish.isAvailable())) {
+                joining.hidePlayer(plugin, admin);
             }
         }
 
