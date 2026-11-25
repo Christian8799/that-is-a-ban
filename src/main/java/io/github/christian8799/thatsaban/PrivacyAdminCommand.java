@@ -99,8 +99,10 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                                     .format(java.time.Instant.ofEpochMilli(entry.lastSeen()))
                                 : "unbekannt";
                         String relation = entry.depth() == 1 ? "direkt" : "indirekt";
+                        String viaName = showNames && store.nameOf(entry.connectedVia()) != null
+                                ? store.nameOf(entry.connectedVia()) : entry.connectedVia().toString();
                         sender.sendMessage("  " + (entry.depth() == 1 ? "├─ " : "└─ ")
-                                + identity + " [" + relation + ", Tiefe " + entry.depth()
+                                + identity + " [über " + viaName + ", " + relation + ", Tiefe " + entry.depth()
                                 + ", gemeinsame IP-HMACs: " + entry.sharedIpCount()
                                 + ", zuletzt gesehen: " + lastSeen + "]");
                     }
