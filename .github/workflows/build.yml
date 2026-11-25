@@ -1,8 +1,7 @@
 name: Build
 
 on:
-  # PRs are validated on every update. Push validation is reserved for main,
-  # avoiding duplicate builds for commits on an open pull-request branch.
+  # Validate pull-request updates and main pushes. Branch push and PR runs share a concurrency group.
   push:
     branches:
       - main

@@ -739,8 +739,4 @@ final class AdminSpectatorManager implements Listener {
             }
         }
     }
-null) stop(player, "Plugin wird deaktiviert");
-        }
-        if (packetListenerRegistered) protocol.removePacketListeners(plugin);
-    }
 }
