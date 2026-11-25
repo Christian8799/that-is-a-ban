@@ -73,8 +73,8 @@ final class AdminSpectatorManager implements Listener {
         observer.setAllowFlight(true);
         observer.setFlying(true);
         observer.setInvulnerable(true);
-        observer.setViewDistance(Math.min(4, observer.getViewDistance()));
-        observer.setSendViewDistance(Math.min(4, observer.getSendViewDistance()));
+        observer.setViewDistance(4);
+        observer.setSendViewDistance(4);
         target.hidePlayer(plugin, observer);
         observer.teleport(target.getLocation());
         observer.setSpectatorTarget(target);
@@ -154,7 +154,15 @@ final class AdminSpectatorManager implements Listener {
     private void registerPacketTranslation() {
         protocol.addPacketListener(new PacketAdapter(plugin, ListenerPriority.HIGHEST,
                 PacketType.Play.Server.MAP_CHUNK,
+                PacketType.Play.Server.UNLOAD_CHUNK,
+                PacketType.Play.Server.LIGHT_UPDATE,
+                PacketType.Play.Server.VIEW_CENTRE,
+                PacketType.Play.Server.MULTI_BLOCK_CHANGE,
                 PacketType.Play.Server.BLOCK_CHANGE,
+                PacketType.Play.Server.TILE_ENTITY_DATA,
+                PacketType.Play.Server.BLOCK_ACTION,
+                PacketType.Play.Server.BLOCK_BREAK_ANIMATION,
+                PacketType.Play.Server.SPAWN_POSITION,
                 PacketType.Play.Server.SPAWN_ENTITY,
                 PacketType.Play.Server.ENTITY_TELEPORT,
                 PacketType.Play.Server.POSITION,
@@ -168,10 +176,24 @@ final class AdminSpectatorManager implements Listener {
                 if (session == null) return;
                 try {
                     PacketType type = event.getPacketType();
-                    if (type == PacketType.Play.Server.MAP_CHUNK) {
+                    if (type == PacketType.Play.Server.MAP_CHUNK
+                            || type == PacketType.Play.Server.UNLOAD_CHUNK
+                            || type == PacketType.Play.Server.LIGHT_UPDATE
+                            || type == PacketType.Play.Server.VIEW_CENTRE) {
                         event.getPacket().getIntegers().write(0, event.getPacket().getIntegers().read(0) - session.offsetX() / 16);
                         event.getPacket().getIntegers().write(1, event.getPacket().getIntegers().read(1) - session.offsetZ() / 16);
-                    } else if (type == PacketType.Play.Server.BLOCK_CHANGE) {
+                    } else if (type == PacketType.Play.Server.MULTI_BLOCK_CHANGE) {
+                        var section = event.getPacket().getSectionPositions().read(0);
+                        event.getPacket().getSectionPositions().write(0,
+                                new com.comphenix.protocol.wrappers.BlockPosition(
+                                        section.getX() - session.offsetX() / 16,
+                                        section.getY(),
+                                        section.getZ() - session.offsetZ() / 16));
+                    } else if (type == PacketType.Play.Server.BLOCK_CHANGE
+                            || type == PacketType.Play.Server.TILE_ENTITY_DATA
+                            || type == PacketType.Play.Server.BLOCK_ACTION
+                            || type == PacketType.Play.Server.BLOCK_BREAK_ANIMATION
+                            || type == PacketType.Play.Server.SPAWN_POSITION) {
                         var pos = event.getPacket().getBlockPositionModifier().read(0);
                         event.getPacket().getBlockPositionModifier().write(0,
                                 new com.comphenix.protocol.wrappers.BlockPosition(pos.getX() - session.offsetX(),
