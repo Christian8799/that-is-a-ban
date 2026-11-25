@@ -52,6 +52,10 @@ final class CountryFilter {
         }
     }
 
+    boolean isAvailable() {
+        return !plugin.getConfig().getBoolean("country-filter.enabled", true) || databaseReady;
+    }
+
     Result check(InetAddress address) {
         FileConfiguration cfg = plugin.getConfig();
         if (!cfg.getBoolean("country-filter.enabled", true)) {

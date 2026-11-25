@@ -1,13 +1,11 @@
 package io.github.christian8799.thatsaban;
 
-import net.luckperms.api.LuckPerms;
 import org.bukkit.command.PluginCommand;
-import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
-
 import java.util.List;
 
 public final class ThatsABan extends JavaPlugin {
+    private Messages messages;
     private LinkStore store;
     private CountryFilter countryFilter;
     private AdminSpectatorManager spectatorManager;
@@ -16,68 +14,55 @@ public final class ThatsABan extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         migrateConfig();
-        Messages messages = new Messages(this);
+        messages = new Messages(this);
         store = new LinkStore(this);
         store.load();
         store.startAutosave();
 
-        LuckPermsHook hook = null;
-        Layer2Service layer2 = null;
-        LuckPerms luckPerms = findLuckPerms();
-        if (luckPerms != null) {
+        LuckPermsIntegration luckPerms = null;
+        if (getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
             try {
-                hook = new LuckPermsHook(this, luckPerms);
-                layer2 = new Layer2Service(this, store, hook);
+                luckPerms = new LuckPermsFeatures(this, store);
                 getLogger().info("LuckPerms-Integration aktiv.");
             } catch (LinkageError | RuntimeException ex) {
-                hook = null;
-                layer2 = null;
                 warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)", ex);
             }
         } else {
             warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)",
-                    "LuckPerms fehlt oder stellt keinen API-Service bereit.");
+                    "LuckPerms fehlt oder ist nicht aktiviert.");
         }
 
         BedrockDetector bedrock = new BedrockDetector(this);
         try {
             countryFilter = new CountryFilter(this);
+            if (!countryFilter.isAvailable()) {
+                warnFeatureDisabled("Country-/Region-Filter",
+                        "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar.");
+            }
         } catch (LinkageError | RuntimeException ex) {
             countryFilter = null;
             warnFeatureDisabled("Country-/Region-Filter (IP2Location)", ex);
         }
 
-        if (layer2 != null) {
-            Layer2Service activeLayer2 = layer2;
-            activeLayer2.cleanupExpired();
-            getServer().getScheduler().runTaskTimer(this, activeLayer2::cleanupExpired, 1200L, 1200L);
-        }
-
         getServer().getPluginManager().registerEvents(
-                new LoginListener(this, layer2, bedrock, countryFilter), this);
+                new LoginListener(this, luckPerms, bedrock, countryFilter), this);
 
-        registerCommand("offend", layer2 == null
+        registerCommand("offend", luckPerms == null
                 ? new FeatureUnavailableCommand("Deaktiviert: Dieser Befehl benötigt LuckPerms.")
-                : new OffendCommand(this, layer2, bedrock, store));
-        registerCommand("thatsaban", hook == null || layer2 == null
+                : luckPerms.offendCommand());
+        registerCommand("thatsaban", luckPerms == null
                 ? new FeatureUnavailableCommand("Deaktiviert: Diese Datenschutzaktionen benötigen LuckPerms.")
-                : new PrivacyAdminCommand(this, store, layer2, hook));
+                : luckPerms.privacyCommand());
+
+        if (luckPerms != null) {
+            LuckPermsIntegration active = luckPerms;
+            active.cleanupExpired();
+            getServer().getScheduler().runTaskTimer(this, active::cleanupExpired, 1200L, 1200L);
+        }
 
         registerSpectatorFeature();
         getServer().getScheduler().runTask(this, this::checkIntegrations);
         getLogger().info("ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert.");
-    }
-
-    private LuckPerms findLuckPerms() {
-        if (!getServer().getPluginManager().isPluginEnabled("LuckPerms")) return null;
-        try {
-            RegisteredServiceProvider<LuckPerms> provider =
-                    getServer().getServicesManager().getRegistration(LuckPerms.class);
-            return provider == null ? null : provider.getProvider();
-        } catch (LinkageError | RuntimeException ex) {
-            warnFeatureDisabled("LuckPerms-API", ex);
-            return null;
-        }
     }
 
     private void registerSpectatorFeature() {
@@ -111,9 +96,7 @@ public final class ThatsABan extends JavaPlugin {
             return;
         }
         command.setExecutor(executor);
-        if (executor instanceof org.bukkit.command.TabCompleter completer) {
-            command.setTabCompleter(completer);
-        }
+        if (executor instanceof org.bukkit.command.TabCompleter completer) command.setTabCompleter(completer);
     }
 
     private void warnFeatureDisabled(String feature, Throwable error) {
@@ -164,7 +147,7 @@ public final class ThatsABan extends JavaPlugin {
         }
     }
 
-    Messages messages() { return new Messages(this); }
+    Messages messages() { return messages; }
 
     private void checkIntegrations() {
         warnMissing("layer1-plugins", "Layer 1");

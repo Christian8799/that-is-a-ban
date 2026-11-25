@@ -4,20 +4,19 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
-
 import java.net.InetAddress;
 import java.util.UUID;
 
 final class LoginListener implements Listener {
     private final ThatsABan plugin;
-    private final Layer2Service layer2;
+    private final LuckPermsIntegration luckPerms;
     private final BedrockDetector bedrock;
     private final CountryFilter countryFilter;
 
-    LoginListener(ThatsABan plugin, Layer2Service layer2, BedrockDetector bedrock,
+    LoginListener(ThatsABan plugin, LuckPermsIntegration luckPerms, BedrockDetector bedrock,
                   CountryFilter countryFilter) {
         this.plugin = plugin;
-        this.layer2 = layer2;
+        this.luckPerms = luckPerms;
         this.bedrock = bedrock;
         this.countryFilter = countryFilter;
     }
@@ -28,7 +27,7 @@ final class LoginListener implements Listener {
         String name = event.getName();
         InetAddress address = event.getAddress();
 
-        if (countryFilter != null) {
+        if (countryFilter != null && countryFilter.isAvailable()) {
             CountryFilter.Result country = countryFilter.check(address);
             if (country == CountryFilter.Result.DENIED) {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
@@ -42,17 +41,17 @@ final class LoginListener implements Listener {
             }
         }
 
-        if (layer2 == null) return;
+        if (luckPerms == null) return;
         if (bedrock.isBedrock(uuid, name)) {
             try {
-                layer2.recordNetworkLogin(uuid, name, address);
+                luckPerms.recordNetworkLogin(uuid, name, address);
             } catch (Exception ignored) {
                 plugin.getLogger().warning("Login-Netzwerkerfassung fehlgeschlagen; Details werden nicht protokolliert.");
             }
             return;
         }
         try {
-            layer2.handleLogin(uuid, name, address);
+            luckPerms.handleLogin(uuid, name, address);
         } catch (Exception ignored) {
             plugin.getLogger().warning("Login-Prüfung fehlgeschlagen; Details werden nicht protokolliert.");
         }
