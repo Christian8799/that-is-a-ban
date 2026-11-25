@@ -58,7 +58,43 @@ jobs:
           LP_URL="$(curl -fsSL -H "User-Agent: $USER_AGENT" https://metadata.luckperms.net/data/downloads | jq -er '.downloads.bukkit')"
           PROTOCOLLIB_METADATA_URL="https://repo.dmulloy2.net/repository/public/net/dmulloy2/ProtocolLib/5.5.0-SNAPSHOT/maven-metadata.xml"
           PROTOCOLLIB_METADATA="$(curl -fsSL --retry 3 "$PROTOCOLLIB_METADATA_URL")"
-          PROTOCOLLIB_VERSION="$(python3 -c 'import sys, xml.etree.ElementTree as ET; root=ET.fromstring(sys.stdin.read()); ns={"m":"http://maven.apache.org/POM/4.0.0"}; items=root.findall(".//m:snapshotVersion", ns); item=next(x for x in items if x.findtext("m:extension", namespaces=ns)=="jar" and x.find("m:classifier", ns) is None); print(item.findtext("m:value", namespaces=ns))' <<< "$PROTOCOLLIB_METADATA")"
+          PROTOCOLLIB_VERSION="$(python3 - "$PROTOCOLLIB_METADATA" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root = ET.fromstring(sys.argv[1])
+
+          def child_text(element, name):
+              for child in element:
+                  if child.tag.rsplit("}", 1)[-1] == name:
+                      return (child.text or "").strip()
+              return None
+
+          snapshots = [
+              element for element in root.iter()
+              if element.tag.rsplit("}", 1)[-1] == "snapshotVersion"
+          ]
+          for snapshot in snapshots:
+              extension = child_text(snapshot, "extension")
+              classifier = child_text(snapshot, "classifier")
+              value = child_text(snapshot, "value")
+              if extension == "jar" and classifier in (None, "") and value:
+                  print(value)
+                  break
+          else:
+              # Fallback for Maven metadata that only publishes timestamp/buildNumber.
+              timestamp = next((child_text(e, "timestamp") for e in root.iter()
+                                if e.tag.rsplit("}", 1)[-1] == "snapshot"), None)
+              build = next((child_text(e, "buildNumber") for e in root.iter()
+                            if e.tag.rsplit("}", 1)[-1] == "snapshot"), None)
+              version = next((child.text for e in root.iter()
+                              if e.tag.rsplit("}", 1)[-1] == "version"
+                              for child in [e] if child.text), None)
+              if not (timestamp and build and version):
+                  raise SystemExit("No unclassified ProtocolLib JAR found in Maven metadata")
+              print(f"{version}-{timestamp}-{build}")
+          PY
+          )"
           PROTOCOLLIB_URL="https://repo.dmulloy2.net/repository/public/net/dmulloy2/ProtocolLib/5.5.0-SNAPSHOT/ProtocolLib-${PROTOCOLLIB_VERSION}.jar"
 
           curl --fail --location --retry 3 "$PAPER_URL" -o paper.jar
