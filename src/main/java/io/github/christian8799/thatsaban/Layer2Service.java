@@ -56,7 +56,12 @@ final class Layer2Service {
             if (store.isOffender(uuid)) {
                 continue;
             }
-            hook.clearLayer2Async(uuid).whenComplete((ignored, error) -> {
+            hook.users().loadUser(uuid).thenCompose(user -> {
+                if (store.isOffender(uuid) || !hook.clearLayer2(user)) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                return hook.save(user);
+            }).whenComplete((ignored, error) -> {
                 if (error != null && !store.isOffender(uuid)) {
                     store.requeueExpiredOffender(uuid);
                     plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden.");

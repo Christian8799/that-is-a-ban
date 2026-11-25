@@ -35,6 +35,21 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
         }
 
         String action = args[0].toLowerCase(Locale.ROOT);
+        String permission = switch (action) {
+            case "info" -> "thatsaban.privacy.read";
+            case "unoffend" -> "thatsaban.layer2.remove";
+            case "forget" -> "thatsaban.privacy.erase";
+            default -> null;
+        };
+        if (permission == null) {
+            sender.sendMessage("Benutzung: /thatsaban <info|unoffend|forget> <Spieler|UUID> [confirm]");
+            return true;
+        }
+        if (!sender.hasPermission(permission)) {
+            sender.sendMessage("Dafür fehlt die Berechtigung " + permission + ".");
+            return true;
+        }
+
         String input = args[1];
         UUID target = resolve(input);
         if (target == null) {
@@ -44,10 +59,6 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
 
         switch (action) {
             case "info" -> {
-                if (!sender.hasPermission("thatsaban.privacy.read")) {
-                    sender.sendMessage("Dafür fehlt die Berechtigung thatsaban.privacy.read.");
-                    return true;
-                }
                 LinkStore.PlayerSnapshot snapshot = store.snapshot(target);
                 hook.users().loadUser(target).whenComplete((user, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -72,10 +83,6 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                         }));
             }
             case "unoffend" -> {
-                if (!sender.hasPermission("thatsaban.layer2.remove")) {
-                    sender.sendMessage("Dafür fehlt die Berechtigung thatsaban.layer2.remove.");
-                    return true;
-                }
                 layer2.removeLayer2(target).whenComplete((ignored, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (error != null) {
@@ -86,10 +93,6 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                         }));
             }
             case "forget" -> {
-                if (!sender.hasPermission("thatsaban.privacy.erase")) {
-                    sender.sendMessage("Dafür fehlt die Berechtigung thatsaban.privacy.erase.");
-                    return true;
-                }
                 if (args.length != 3 || !args[2].equalsIgnoreCase("confirm")) {
                     sender.sendMessage("Vollständiges Löschen der Plugin-Daten ist endgültig. Bestätige mit: "
                             + "/thatsaban forget " + input + " confirm");
@@ -142,11 +145,22 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
             return options.stream().filter(s -> s.startsWith(prefix)).toList();
         }
         if (args.length == 2) {
+            String action = args[0].toLowerCase(Locale.ROOT);
+            String permission = switch (action) {
+                case "info" -> "thatsaban.privacy.read";
+                case "unoffend" -> "thatsaban.layer2.remove";
+                case "forget" -> "thatsaban.privacy.erase";
+                default -> null;
+            };
+            if (permission == null || !sender.hasPermission(permission)) {
+                return List.of();
+            }
             String prefix = args[1].toLowerCase(Locale.ROOT);
             return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).toList();
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("forget")) {
+        if (args.length == 3 && args[0].equalsIgnoreCase("forget")
+                && sender.hasPermission("thatsaban.privacy.erase")) {
             return List.of("confirm");
         }
         return List.of();
