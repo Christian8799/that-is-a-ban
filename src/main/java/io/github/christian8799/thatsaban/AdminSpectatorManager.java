@@ -91,6 +91,7 @@ final class AdminSpectatorManager implements Listener {
             throw new IllegalStateException("ProtocolLib fehlt; Admin-Spectator wird nicht aktiviert.");
         }
         this.protocol = ProtocolLibrary.getProtocolManager();
+        verifyRequiredPacketMappings();
         for (String raw : plugin.getConfig().getStringList("admin-spectator.permanent-players")) {
             try { permanent.add(UUID.fromString(raw)); }
             catch (IllegalArgumentException ex) { plugin.getLogger().warning("Ungültige UUID in admin-spectator.permanent-players: " + raw); }
@@ -1143,6 +1144,61 @@ final class AdminSpectatorManager implements Listener {
         // 1.21.11 UseItemOn contains Hand, BlockPos, face and block-local cursor coordinates.
         // Translate only the absolute BlockPos, not the block-local cursor vector.
         translateBlockPosition(event, offsetX, offsetZ);
+    }
+
+    /**
+     * Fail closed when ProtocolLib cannot resolve a packet class for this server version.
+     * A listener can be registered while some PacketType mappings are unavailable; that
+     * would silently leave coordinate-bearing packets unmodified.
+     */
+    private void verifyRequiredPacketMappings() {
+        List<PacketType> required = List.of(
+                PacketType.Play.Server.MAP_CHUNK,
+                PacketType.Play.Server.UNLOAD_CHUNK,
+                PacketType.Play.Server.LIGHT_UPDATE,
+                PacketType.Play.Server.VIEW_CENTRE,
+                PacketType.Play.Server.MULTI_BLOCK_CHANGE,
+                PacketType.Play.Server.BLOCK_CHANGE,
+                PacketType.Play.Server.TILE_ENTITY_DATA,
+                PacketType.Play.Server.BLOCK_ACTION,
+                PacketType.Play.Server.BLOCK_BREAK_ANIMATION,
+                PacketType.Play.Server.SPAWN_POSITION,
+                PacketType.Play.Server.OPEN_SIGN_EDITOR,
+                PacketType.Play.Server.SPAWN_ENTITY,
+                PacketType.Play.Server.ENTITY_TELEPORT,
+                PacketType.Play.Server.ENTITY_POSITION_SYNC,
+                PacketType.Play.Server.ENTITY_METADATA,
+                PacketType.Play.Server.POSITION,
+                PacketType.Play.Server.EXPLOSION,
+                PacketType.Play.Server.RESPAWN,
+                PacketType.Play.Server.WORLD_PARTICLES,
+                PacketType.Play.Server.CUSTOM_PAYLOAD,
+                PacketType.Play.Server.WORLD_EVENT,
+                PacketType.Play.Server.NAMED_SOUND_EFFECT,
+                PacketType.Play.Server.SET_BORDER_CENTER,
+                PacketType.Play.Server.INITIALIZE_BORDER,
+                PacketType.Play.Server.VEHICLE_MOVE,
+                PacketType.Play.Client.BLOCK_DIG,
+                PacketType.Play.Client.TILE_NBT_QUERY,
+                PacketType.Play.Client.ENTITY_NBT_QUERY,
+                PacketType.Play.Client.USE_ITEM_ON,
+                PacketType.Play.Client.PICK_ITEM_FROM_BLOCK,
+                PacketType.Play.Client.VEHICLE_MOVE,
+                PacketType.Play.Client.JIGSAW_GENERATE,
+                PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION,
+                PacketType.Play.Client.POSITION,
+                PacketType.Play.Client.POSITION_LOOK
+        );
+        List<String> unsupported = required.stream()
+                .filter(type -> !type.isSupported())
+                .map(type -> type.name() + " (" + type.getCurrentVersion() + ")")
+                .toList();
+        if (!unsupported.isEmpty()) {
+            throw new IllegalStateException("ProtocolLib kann erforderliche Paket-Mappings auf diesem Server nicht auflösen: "
+                    + String.join(", ", unsupported));
+        }
+        plugin.getLogger().info("Admin-Spectator-Paket-Mappings geprüft: "
+                + required.size() + " erforderliche Pakettypen verfügbar.");
     }
 
     private void registerPacketTranslation() {
