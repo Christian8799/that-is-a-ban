@@ -615,18 +615,19 @@ final class AdminSpectatorManager implements Listener {
 
     private void sanitizeRespawn(PacketEvent event) {
         // Respawn's CommonPlayerSpawnInfo contains Optional<GlobalPos> lastDeathLocation.
-        // Its block coordinates are not otherwise needed for observing a target.
+        // getOptionalStructures() only matches Optional<InternalStructure>, so inspect
+        // the nested structure's actual Optional-typed fields instead.
         var structures = event.getPacket().getStructures();
         for (int index = 0; index < structures.size(); index++) {
             var structure = structures.read(index);
-            var optionalStructures = structure.getOptionalStructures();
-            if (optionalStructures.size() > 0) {
-                optionalStructures.write(0, Optional.empty());
+            var optionalFields = structure.getModifier().withType(Optional.class);
+            if (optionalFields.size() == 1) {
+                optionalFields.write(0, Optional.empty());
                 structures.write(index, structure);
                 return;
             }
         }
-        throw new IllegalStateException("Respawn enthält keine erkannte Spawn-Info-Struktur mit optionaler Todesposition.");
+        throw new IllegalStateException("Respawn enthält keine eindeutige Optional-Todesposition in CommonPlayerSpawnInfo.");
     }
 
     private void translateDoubleCoordinates(PacketEvent event, int offsetX, int offsetZ, int xIndex, int zIndex) {
