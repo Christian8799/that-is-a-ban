@@ -89,8 +89,12 @@ jobs:
                   for name in descriptors
               )
 
-          match = re.search(r"(?m)^name:[ \\t]*(\\S.*)$", descriptor)
-          if not match or match.group(1).strip() != "ProtocolLib":
+          name_line = next(
+              (line for line in descriptor.splitlines() if line.startswith("name:")),
+              "",
+          )
+          actual = name_line.partition(":")[2].strip().strip("'").strip('"')
+          if actual != "ProtocolLib":
               raise SystemExit("Downloaded JAR is not the ProtocolLib Paper/Spigot plugin")
           print(f"Verified ProtocolLib plugin descriptor: {', '.join(descriptors)}")
           PY
@@ -157,11 +161,14 @@ jobs:
                       for name in descriptors
                   )
 
-              match = re.search(r"(?m)^name:[ \\t]*(\\S.*)$", descriptor)
-              if not match:
+              name_line = next(
+                  (line for line in descriptor.splitlines() if line.startswith("name:")),
+                  "",
+              )
+              if not name_line:
                   raise SystemExit(f"Could not read plugin name from {jar.name}")
 
-              actual = match.group(1).strip().strip("'").strip('"').lower()
+              actual = name_line.partition(":")[2].strip().strip("'").strip('"').lower()
               if actual not in expected[plugin]:
                   raise SystemExit(
                       f"{jar.name}: expected {plugin}, descriptor declares {actual!r}"
