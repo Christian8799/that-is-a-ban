@@ -1,6 +1,6 @@
 # that-s-a-ban
 
-Anti-Cheat-Connector für **Paper 26.3**. Das Plugin bringt keine eigenen Cheat-Checks mit, sondern entscheidet pro Spieler, welche Anti-Cheat-Plugins greifen – über zwei Stufen.
+Anti-Cheat-Connector für **Paper 1.21.11** (Java 21). Das Plugin bringt keine eigenen Cheat-Checks mit, sondern entscheidet pro Spieler, welche Anti-Cheat-Plugins greifen – über zwei Stufen.
 
 | | Layer 1 (alle) | Layer 2 |
 |---|---|---|
@@ -19,7 +19,7 @@ Anti-Cheat-Connector für **Paper 26.3**. Das Plugin bringt keine eigenen Cheat-
 
 ## Einrichtung
 
-1. Voraussetzungen: Paper 26.3, Java 25, **LuckPerms**, GrimAC, CheatDetector, FoxGate, HandShaker. Optional: Geyser/Floodgate.
+1. Voraussetzungen: **Paper 1.21.11**, **Java 21**, **LuckPerms**, GrimAC, CheatDetector, FoxGate und HandShaker. Geyser/Floodgate ist optional.
 2. `ThatsABan-1.0.0.jar` in `plugins/` legen und den Server starten.
 3. Einmalig die Layer-2-Plugins für alle anderen abschalten, indem die Standardgruppe deren Bypass bekommt:
 
@@ -53,4 +53,4 @@ Layer-2-Spieler bekommen diese Nodes auf Spielerebene negiert, das überstimmt d
 gradle build
 ```
 
-Die JAR liegt danach in `build/libs/`. Der GitHub-Workflow `.github/workflows/build.yml` baut bei jedem Push.
+Die JAR liegt danach in `build/libs/`. Der GitHub-Workflow baut mit Java 21 gegen die Paper-1.21.11-API und lädt die JAR als Build-Artefakt hoch.
