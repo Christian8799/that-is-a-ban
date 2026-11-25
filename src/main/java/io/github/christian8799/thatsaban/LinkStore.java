@@ -30,6 +30,9 @@ final class LinkStore {
 
     record PlayerSnapshot(String name, int linkedIpCount, boolean offender, boolean layer2Tracked, boolean hasStoredData) {}
 
+    record NetworkEntry(UUID uuid, String name, int depth, int sharedIpCount, long lastSeen) {}
+    record NetworkSnapshot(java.util.List<NetworkEntry> accounts, boolean truncated) {}
+
     private static final Set<PosixFilePermission> OWNER_ONLY =
             EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
 
@@ -461,6 +464,61 @@ final class LinkStore {
         }
         dirty = true;
         return hashes.size();
+    }
+
+    /**
+     * Builds a bounded account graph from currently retained shared-IP HMACs.
+     * The edge is evidence of a shared network address, not proof of shared identity.
+     */
+    synchronized NetworkSnapshot network(UUID start, int maxDepth, int maxAccounts) {
+        pruneExpired(System.currentTimeMillis(), false);
+        record Visit(UUID uuid, int depth) {}
+        java.util.ArrayDeque<Visit> queue = new java.util.ArrayDeque<>();
+        Set<UUID> visited = new HashSet<>();
+        java.util.List<NetworkEntry> result = new ArrayList<>();
+        queue.add(new Visit(start, 0));
+        visited.add(start);
+        boolean truncated = false;
+
+        while (!queue.isEmpty()) {
+            Visit current = queue.removeFirst();
+            if (current.depth() >= maxDepth) {
+                continue;
+            }
+            Map<UUID, Long> neighbors = new HashMap<>();
+            Map<UUID, Integer> sharedCounts = new HashMap<>();
+            for (String hash : ipsByPlayer.getOrDefault(current.uuid(), Set.of())) {
+                long seen = ipLastSeen.getOrDefault(hash, 0L);
+                for (UUID other : playersByIp.getOrDefault(hash, Set.of())) {
+                    if (other.equals(current.uuid()) || visited.contains(other)) {
+                        continue;
+                    }
+                    sharedCounts.merge(other, 1, Integer::sum);
+                    neighbors.merge(other, seen, Math::max);
+                }
+            }
+            java.util.List<UUID> ordered = neighbors.keySet().stream()
+                    .sorted((a, b) -> {
+                        int byCount = Integer.compare(sharedCounts.getOrDefault(b, 0),
+                                sharedCounts.getOrDefault(a, 0));
+                        return byCount != 0 ? byCount : a.toString().compareTo(b.toString());
+                    }).toList();
+            for (UUID other : ordered) {
+                if (result.size() >= maxAccounts) {
+                    truncated = true;
+                    break;
+                }
+                visited.add(other);
+                int depth = current.depth() + 1;
+                result.add(new NetworkEntry(other, names.get(other), depth,
+                        sharedCounts.getOrDefault(other, 0), neighbors.getOrDefault(other, 0L)));
+                queue.addLast(new Visit(other, depth));
+            }
+            if (truncated) {
+                break;
+            }
+        }
+        return new NetworkSnapshot(java.util.List.copyOf(result), truncated);
     }
 
     synchronized PlayerSnapshot snapshot(UUID uuid) {
