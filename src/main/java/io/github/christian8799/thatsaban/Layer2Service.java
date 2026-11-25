@@ -46,7 +46,13 @@ final class Layer2Service {
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
 
-        // Layer-2-Spieler: negierte Bypass-Nodes immer aktuell halten (auch bei manuell gesetztem Marker)
+        // Exempt muss vor jeder Marker-Reparatur und IP-Verarbeitung Vorrang haben.
+        // Ausgenommene Accounts duerfen auch keine IP-Kopplung fuer andere Accounts ausloesen.
+        if (hook.has(user, hook.exemptNode())) {
+            return;
+        }
+
+        // Vorhandene Marker koennen manuell gesetzt worden sein; alle Layer-2-Nodes angleichen.
         boolean marked = hook.has(user, hook.markerNode());
         if (marked && hook.applyLayer2(user)) {
             hook.save(user);
@@ -64,7 +70,7 @@ final class Layer2Service {
             store.flagIp(hash); // neue IP eines Ausloesers ebenfalls markieren
             return;
         }
-        if (marked || hook.has(user, hook.exemptNode())) {
+        if (marked) {
             return;
         }
         if (store.isLayer2Ip(hash)) {
@@ -90,13 +96,16 @@ final class Layer2Service {
         List<CompletableFuture<String>> jobs = new ArrayList<>();
         for (UUID other : others) {
             jobs.add(hook.users().loadUser(other).<String>thenCompose(user -> {
-                if (hook.has(user, hook.exemptNode()) || hook.has(user, hook.markerNode())) {
+                if (hook.has(user, hook.exemptNode())) {
                     return CompletableFuture.completedFuture((String) null);
                 }
-                return hook.applyLayer2Async(other).thenApply(v -> {
-                    String name = store.nameOf(other);
-                    return name != null ? name : other.toString();
-                });
+                String name = store.nameOf(other);
+                if (hook.has(user, hook.markerNode())) {
+                    // Bereits markierte Accounts trotzdem reparieren: fehlende Negationen nachziehen.
+                    return hook.applyLayer2Async(other).thenApply(v -> (String) null);
+                }
+                return hook.applyLayer2Async(other).thenApply(v ->
+                        name != null ? name : other.toString());
             }));
         }
         return CompletableFuture.allOf(jobs.toArray(new CompletableFuture[0]))
