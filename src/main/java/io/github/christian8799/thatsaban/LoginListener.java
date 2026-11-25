@@ -42,6 +42,12 @@ final class LoginListener implements Listener {
         }
 
         if (bedrock.isBedrock(uuid, name)) {
+            // Bedrock accounts appear in the network view but remain exempt from Layer 2 actions.
+            try {
+                layer2.recordNetworkLogin(uuid, name, address);
+            } catch (Exception ignored) {
+                plugin.getLogger().warning("Login-Netzwerkerfassung fehlgeschlagen; Details werden nicht protokolliert.");
+            }
             return;
         }
         try {

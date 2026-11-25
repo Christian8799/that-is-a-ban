@@ -30,7 +30,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Benutzung: /thatsaban <info|unoffend|forget> <Spieler|UUID> [confirm]");
+            sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
             return true;
         }
 
@@ -39,10 +39,11 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
             case "info" -> "thatsaban.privacy.read";
             case "unoffend" -> "thatsaban.layer2.remove";
             case "forget" -> "thatsaban.privacy.erase";
+            case "network" -> "thatsaban.network";
             default -> null;
         };
         if (permission == null) {
-            sender.sendMessage("Benutzung: /thatsaban <info|unoffend|forget> <Spieler|UUID> [confirm]");
+            sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
             return true;
         }
         if (!sender.hasPermission(permission) && !sender.hasPermission("thatsaban.admin")) {
@@ -58,6 +59,59 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
         }
 
         switch (action) {
+            case "network" -> {
+                int depth = 2;
+                if (args.length >= 3) {
+                    try {
+                        depth = Integer.parseInt(args[2]);
+                    } catch (NumberFormatException ex) {
+                        sender.sendMessage("Tiefe muss eine Zahl zwischen 1 und 3 sein.");
+                        return true;
+                    }
+                }
+                if (depth < 1 || depth > 3) {
+                    sender.sendMessage("Tiefe muss zwischen 1 und 3 liegen.");
+                    return true;
+                }
+                if (!plugin.getConfig().getBoolean("alt-detection.enabled", false)) {
+                    sender.sendMessage("Alt-Account-Erkennung ist deaktiviert. Aktiviere alt-detection.enabled in config.yml.");
+                    return true;
+                }
+                if (store.isWriteBlocked()) {
+                    sender.sendMessage("Account-Netzwerk nicht verfügbar: LinkStore ist schreibgeschützt.");
+                    return true;
+                }
+                LinkStore.NetworkSnapshot graph = store.network(target, depth, 50);
+                boolean showNames = sender.hasPermission("thatsaban.view-linked-accounts")
+                        || sender.hasPermission("thatsaban.admin");
+                sender.sendMessage("Account-Netzwerk für " + target + " (max. Tiefe " + depth + "):");
+                sender.sendMessage("Start: " + (showNames && store.nameOf(target) != null
+                        ? store.nameOf(target) : target.toString()));
+                if (graph.accounts().isEmpty()) {
+                    sender.sendMessage("Keine gespeicherten Verbindungen innerhalb der Aufbewahrungsfrist gefunden.");
+                } else {
+                    for (LinkStore.NetworkEntry entry : graph.accounts()) {
+                        String identity = showNames && entry.name() != null
+                                ? entry.name() : entry.uuid().toString();
+                        String lastSeen = entry.lastSeen() > 0L
+                                ? java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+                                    .withZone(java.time.ZoneId.systemDefault())
+                                    .format(java.time.Instant.ofEpochMilli(entry.lastSeen()))
+                                : "unbekannt";
+                        String relation = entry.depth() == 1 ? "direkt" : "indirekt";
+                        String viaName = showNames && store.nameOf(entry.connectedVia()) != null
+                                ? store.nameOf(entry.connectedVia()) : entry.connectedVia().toString();
+                        sender.sendMessage("  " + (entry.depth() == 1 ? "├─ " : "└─ ")
+                                + identity + " [über " + viaName + ", " + relation + ", Tiefe " + entry.depth()
+                                + ", gemeinsame IP-HMACs: " + entry.sharedIpCount()
+                                + ", zuletzt gesehen: " + lastSeen + "]");
+                    }
+                    if (graph.truncated()) {
+                        sender.sendMessage("Anzeige auf 50 Accounts begrenzt. Für weitere Ergebnisse engeren Startpunkt wählen.");
+                    }
+                }
+                sender.sendMessage("Wichtig: Gemeinsame IP-Adressen sind kein Identitätsnachweis. Indirekte Verbindungen sind besonders unsicher. Keine automatische Sanktion daraus ableiten.");
+            }
             case "info" -> {
                 LinkStore.PlayerSnapshot snapshot = store.snapshot(target);
                 if (store.isWriteBlocked()) {
@@ -119,7 +173,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                             }
                         }));
             }
-            default -> sender.sendMessage("Benutzung: /thatsaban <info|unoffend|forget> <Spieler|UUID> [confirm]");
+            default -> sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
         }
         return true;
     }
@@ -147,6 +201,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             List<String> options = new ArrayList<>();
             if (sender.hasPermission("thatsaban.privacy.read") || sender.hasPermission("thatsaban.admin")) options.add("info");
+            if (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin")) options.add("network");
             if (sender.hasPermission("thatsaban.layer2.remove") || sender.hasPermission("thatsaban.admin")) options.add("unoffend");
             if (sender.hasPermission("thatsaban.privacy.erase") || sender.hasPermission("thatsaban.admin")) options.add("forget");
             String prefix = args[0].toLowerCase(Locale.ROOT);
@@ -158,6 +213,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                 case "info" -> "thatsaban.privacy.read";
                 case "unoffend" -> "thatsaban.layer2.remove";
                 case "forget" -> "thatsaban.privacy.erase";
+                case "network" -> "thatsaban.network";
                 default -> null;
             };
             if (permission == null || (!sender.hasPermission(permission)
@@ -168,8 +224,12 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).toList();
         }
+        if (args.length == 3 && args[0].equalsIgnoreCase("network")
+                && (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))) {
+            return List.of("1", "2", "3");
+        }
         if (args.length == 3 && args[0].equalsIgnoreCase("forget")
-                && sender.hasPermission("thatsaban.privacy.erase")) {
+                && (sender.hasPermission("thatsaban.privacy.erase") || sender.hasPermission("thatsaban.admin"))) {
             return List.of("confirm");
         }
         return List.of();

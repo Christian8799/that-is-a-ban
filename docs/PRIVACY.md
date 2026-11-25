@@ -17,7 +17,7 @@ Beim Betrieb des Minecraft-Servers können folgende Daten verarbeitet werden:
 
 - Minecraft-UUID und aktueller bzw. zuletzt bekannter Spielername zur Zuordnung von Konten und zur Verwaltung von Moderationsentscheidungen.
 - IP-Adresse während des Verbindungsaufbaus für die lokale Regionsprüfung und – nur bei ausdrücklich aktivierter IP-Kopplung – zur Bildung eines HMAC-SHA-256-Werts.
-- HMAC-IP-Hashes und Zuordnungen zu UUIDs für die Erkennung möglicher Mehrfachkonten.
+- HMAC-IP-Hashes und Zuordnungen zu UUIDs für die Erkennung möglicher Mehrfachkonten sowie die Anzeige eines begrenzten Account-Netzwerks. Bei aktivierter Erkennung werden Java- und Bedrock-Accounts erfasst, soweit sie nicht mit `thatsaban.exempt` ausgenommen sind; Bedrock-Accounts werden dabei nicht in Layer 2 eingestuft.
 - LuckPerms-Berechtigungsnodes zur Umsetzung bzw. Entfernung der Layer-2-Einstufung.
 - Technische Ereignisse und Fehlerdaten, soweit sie in Paper-, Proxy-, Hoster- oder Plugin-Logs anfallen.
 
@@ -48,7 +48,7 @@ Für die **Regionsbeschränkung** ist eine eigene Interessenabwägung zu dokumen
 
 ### Speicherdauer
 
-- IP-HMAC-Hashes und zugehörige Spielerreferenzen: `alt-detection.retention-days` (Standard 30 Tage).
+- IP-HMAC-Hashes, UUID-Zuordnungen und daraus abgeleitete Netzwerkverbindungen: `alt-detection.retention-days` (Standard 30 Tage). Netzwerkverbindungen werden nicht separat gespeichert, sondern bei einer Abfrage aus den noch vorhandenen HMAC-Zuordnungen berechnet.
 - Offender-Einträge und zugehörige Layer-2-Marker: `alt-detection.offender-retention-days` (Standard 365 Tage seit letztem Login; maximal 3650 Tage).
 - Paper-, Proxy-, Firewall-, Hoster- und andere Plugin-Logs: [eigene Frist des Betreibers eintragen].
 - LuckPerms-Daten außerhalb der von diesem Plugin gesetzten Nodes: [eigene Regelung eintragen].
@@ -79,6 +79,15 @@ Da die IP-Adresse bereits beim Verbindungsaufbau für die Regionsprüfung verarb
 - konkrete Löschfristen für alle Systeme
 - Beschwerderecht und Kontaktweg
 - ggf. Datenschutzbeauftragter und automatisierte Entscheidungsfindung
+
+
+### Account-Netzwerk / Mehrfachkonten
+
+Wenn `alt-detection.enabled: true` ausdrücklich aktiviert wird, speichert das Plugin für jeden erfassten Java- und Bedrock-Account (außer bei `thatsaban.exempt`) HMAC-SHA-256-Werte der beobachteten IP-Adresse. Die Netzwerkansicht unter `/thatsaban network <Spieler|UUID> [1-3]` berechnet daraus zur Abfrage direkte und indirekte Verbindungen. Es werden keine zusätzlichen Gerätekennungen, Hardware-Fingerprints oder Client-Tracking-IDs erhoben. Roh-IP-Adressen werden durch diese Funktion nicht in `data.yml` gespeichert.
+
+Eine Verbindung bedeutet ausschließlich, dass Accounts innerhalb der Aufbewahrungsfrist eine identische öffentliche IP-Adresse bzw. bei IPv6 dasselbe /64-Präfix verwendet haben. Sie beweist nicht, dass dieselbe Person dahintersteht. Gemeinsame Haushalte, Schulen, öffentliche Netze, Mobilfunk, CGNAT, VPNs und Proxys können Fehlverknüpfungen erzeugen; dynamische IP-Wechsel können Verbindungen übersehen. Eine indirekte Verbindung kann über mehrere unabhängige gemeinsame IP-Beobachtungen entstehen und ist kein stärkerer Identitätsnachweis. Die Ausgabe ist auf drei Verbindungsebenen und 50 weitere Accounts begrenzt. Es gibt keine automatische Sanktion aufgrund der Netzwerkanzeige.
+
+Die Namen werden nur Staff mit `thatsaban.view-linked-accounts` bzw. `thatsaban.admin` angezeigt; die Netzwerkabfrage selbst erfordert `thatsaban.network` oder `thatsaban.admin`. Die bestehende Aufbewahrungsfrist `alt-detection.retention-days` gilt auch für diese Zuordnungen. Die Funktion muss in den Datenschutzhinweisen des konkreten Servers vor dem Verbindungsaufbau beschrieben werden. Der Betreiber muss Zweck, Rechtsgrundlage, Erforderlichkeit und Interessenabwägung eigenständig prüfen.
 
 ## 2. Muster-Verzeichnis von Verarbeitungstätigkeiten (Art. 30 DSGVO)
 
