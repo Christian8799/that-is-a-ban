@@ -9,6 +9,7 @@ The plugin also includes an optional protected admin spectator mode, a local Geo
 ## Contents
 
 - [Requirements and optional integrations](#requirements-and-optional-integrations)
+- [Player reports and replay clips](docs/REPORTS.md)
 - [Installation](#installation)
 - [How Layer 1 and Layer 2 work](#how-layer-1-and-layer-2-work)
 - [Configuration reference](#configuration-reference)
@@ -33,6 +34,7 @@ The plugin also includes an optional protected admin spectator mode, a local Geo
 | LuckPerms | Optional; required for Layer 2 | Permission markers, Layer 2 nodes, `/offend`, and LuckPerms-backed privacy actions |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional; required for `/adminspec` | Packet translation for protected admin spectating |
 | SuperVanish | Optional | Explicit vanish observation mode and permanent-admin vanish enforcement |
+| FlashbackServer | Optional; required for `/report` clips | Rolling Flashback replay buffer for player reports; see [report setup](docs/REPORTS.md) |
 | IP2Location LITE DB3 BIN (IPv6) | External optional file | Local country/region filter |
 | GrimAC, CheatDetector | Optional integrations | Listed as Layer 1 integrations by default |
 | FoxGate, HandShaker | Optional integrations | Listed as Layer 2 integrations by default |
@@ -50,7 +52,7 @@ Optional plugins are not bundled into the That'sABan JAR. If an integration is u
 1. Install Paper 1.21.11 and Java 21.
 2. Put the That'sABan JAR in the server's `plugins` directory and start the server once. This creates `plugins/ThatsABan/config.yml`.
 3. Stop the server and edit the configuration as needed.
-4. Install LuckPerms for Layer 2. Install the ProtocolLib 5.5.0-SNAPSHOT **server plugin build** for `/adminspec`.
+4. Install LuckPerms for Layer 2. Install the ProtocolLib 5.5.0-SNAPSHOT **server plugin build** for `/adminspec`. Install FlashbackServer if you want the optional report/replay workflow; see [Player reports and replay clips](docs/REPORTS.md).
 5. If you use the country/region filter, install the IP2Location database as described in [Install the GeoIP database](#install-the-geoip-database).
 6. Start the server and check the startup log for disabled optional features or missing integrations.
 7. Grant staff permissions deliberately; see [Permissions](#permissions).
@@ -102,6 +104,12 @@ layer2:
 
 offend:
   kick-online-target: false
+
+reports:
+  enabled: true
+  cooldown-seconds: 60
+  max-reason-length: 200
+  minimum-clip-window-seconds: 60
 
 privacy:
   # Optional absolute path outside the plugin folder; empty = plugins/ThatsABan/ip-hmac.key.
@@ -270,6 +278,8 @@ IPv6 addresses are truncated to /64 before HMAC generation. Raw IP addresses are
 | Command | Description | Permission |
 |---|---|---|
 | `/offend <player>` | Deliberately classifies a Java player into Layer 2 | `thatsaban.offend` |
+| `/report <player> <reason>` | Submits a report and saves the target's rolling replay clip (requires FlashbackServer) | `thatsaban.report` |
+| `/reports [list|view|offend|resolve|dismiss] [ID]` | Staff report queue, replay path and review actions | `thatsaban.reports` plus `thatsaban.offend` for the offend action |
 | `/thatsaban unoffend <player|UUID>` | Removes the plugin-managed Layer 2/offender classification | `thatsaban.layer2.remove` or `thatsaban.admin` |
 
 ### Privacy and account-network commands
@@ -294,6 +304,9 @@ Defaults below come from `plugin.yml`. `op` means granted to server operators by
 |---|---|---|
 | `thatsaban.admin` | op | Additional umbrella permission accepted by privacy administration commands |
 | `thatsaban.offend` | op | Use `/offend` |
+| `thatsaban.report` | true | Submit `/report` |
+| `thatsaban.reports` | op | View and manage reports |
+| `thatsaban.reports.notify` | op | Receive new-report notifications |
 | `thatsaban.privacy.read` | op | Use `/thatsaban info` |
 | `thatsaban.layer2.remove` | op | Use `/thatsaban unoffend` |
 | `thatsaban.privacy.erase` | op | Use `/thatsaban forget` |
