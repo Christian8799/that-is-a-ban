@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
+import java.util.logging.Level;
 
 /** Owns player report metadata and the rolling replay buffers used for evidence clips. */
 final class ReportManager implements Listener {
@@ -223,8 +224,14 @@ final class ReportManager implements Listener {
                     if (current == null) return;
                     if (error != null || path == null) {
                         current.status = Status.FAILED;
-                        plugin.getLogger().warning("Replay for report " + reportId + " could not be saved: "
-                                + (error == null ? "no replay path" : rootMessage(error)));
+                        if (error == null) {
+                            plugin.getLogger().warning("Replay for report " + reportId
+                                    + " could not be saved: FlashbackServer returned no replay path.");
+                        } else {
+                            plugin.getLogger().log(Level.WARNING,
+                                    "Replay for report " + reportId + " could not be saved: "
+                                            + rootMessage(error), error);
+                        }
                         reporter.sendMessage(Component.text("Report #" + reportId
                                 + " was created, but the replay could not be saved. Please notify the staff team.",
                                 NamedTextColor.RED));
@@ -430,8 +437,12 @@ final class ReportManager implements Listener {
     }
 
     private static String rootMessage(Throwable error) {
-        Throwable current = error instanceof CompletionException && error.getCause() != null
-                ? error.getCause() : error;
-        return current.getClass().getSimpleName();
+        Throwable current = error;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return current.getClass().getSimpleName()
+                + (message == null || message.isBlank() ? "" : ": " + message);
     }
 }
