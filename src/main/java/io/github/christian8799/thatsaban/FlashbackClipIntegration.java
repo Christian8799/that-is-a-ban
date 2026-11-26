@@ -88,7 +88,7 @@ final class FlashbackClipIntegration {
             Class<?> apiType = Class.forName(API_CLASS, false, dependency().getClass().getClassLoader());
             Method method = apiType.getMethod(methodName, parameterTypes);
             return method.invoke(service, arguments);
-        } catch (NoSuchMethodException | IllegalAccessException ex) {
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException ex) {
             throw new IllegalStateException("Inkompatible FlashbackServer-ClipService-API.", ex);
         } catch (InvocationTargetException ex) {
             Throwable cause = ex.getCause();
