@@ -1406,14 +1406,6 @@ final class AdminSpectatorManager implements Listener {
                     }
                     try {
                     PacketType incomingType = event.getPacketType();
-                    if (incomingType == PacketType.Play.Client.POSITION
-                            || incomingType == PacketType.Play.Client.POSITION_LOOK) {
-                        // Spectators must remain attached to the observed player instead of
-                        // detaching by flying. Keep look-only packets available so the
-                        // moderator can still rotate the camera.
-                        event.setCancelled(true);
-                        return;
-                    }
                     if (incomingType == PacketType.Play.Client.SPECTATE) {
                         // Handle the vanilla spectator player-selection menu through the
                         // same validated retarget path as /adminspec tp.
@@ -1468,8 +1460,18 @@ final class AdminSpectatorManager implements Listener {
                         if (doubles.size() < 3) {
                             throw new IllegalStateException("Movement packet does not contain all player coordinates.");
                         }
-                        doubles.write(0, doubles.read(0) + session.offsetX());
-                        doubles.write(2, doubles.read(2) + session.offsetZ());
+                        double worldX = doubles.read(0) + session.offsetX();
+                        double worldY = doubles.read(1);
+                        double worldZ = doubles.read(2) + session.offsetZ();
+                        Player target = Bukkit.getPlayer(session.target());
+                        if (target == null || !target.getWorld().equals(event.getPlayer().getWorld())
+                                || target.getLocation().distanceSquared(new Location(
+                                        target.getWorld(), worldX, worldY, worldZ)) > 2500.0) {
+                            event.setCancelled(true);
+                            return;
+                        }
+                        doubles.write(0, worldX);
+                        doubles.write(2, worldZ);
                     }
                     } catch (LinkageError | Exception ex) {
                         plugin.getLogger().warning("Could not transform incoming interaction packet: " + ex.getMessage());
