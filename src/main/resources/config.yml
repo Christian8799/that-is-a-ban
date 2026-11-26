@@ -1,5 +1,5 @@
 # that-s-a-ban - Konfiguration
-config-version: 3
+config-version: 4
 
 layer2:
   marker-permission: "thatsaban.layer2"
