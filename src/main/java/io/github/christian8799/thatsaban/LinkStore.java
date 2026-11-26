@@ -543,7 +543,6 @@ final class LinkStore {
      * The edge is evidence of a shared network address, not proof of shared identity.
      */
     synchronized NetworkSnapshot network(UUID start, int maxDepth, int maxAccounts) {
-        pruneExpired(System.currentTimeMillis(), false);
         record Visit(UUID uuid, int depth) {}
         java.util.ArrayDeque<Visit> queue = new java.util.ArrayDeque<>();
         Set<UUID> visited = new HashSet<>();
