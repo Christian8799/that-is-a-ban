@@ -14,7 +14,7 @@ final class ProtocolLibFeatures implements SpectatorIntegration {
             try {
                 ProtocolLibrary.getProtocolManager().removePacketListeners(plugin);
             } catch (LinkageError | RuntimeException cleanupError) {
-                plugin.getLogger().warning("ProtocolLib-Cleanup fehlgeschlagen: "
+                plugin.getLogger().warning("ProtocolLib cleanup failed: "
                         + cleanupError.getClass().getSimpleName());
             }
             throw ex;
