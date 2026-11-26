@@ -58,6 +58,34 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (args.length == 1 && args[0].equalsIgnoreCase("offend")) {
+            if (!player.hasPermission("thatsaban.offend")) {
+                player.sendMessage("Missing permission: thatsaban.offend.");
+                return true;
+            }
+            Player target = manager.currentTarget(player);
+            if (target == null) {
+                player.sendMessage("You are not currently spectating a player.");
+                return true;
+            }
+            Bukkit.dispatchCommand(player, "offend " + target.getName());
+            return true;
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("tp")) {
+            Player target = Bukkit.getPlayerExact(args[1]);
+            if (target == null) {
+                player.sendMessage("The target player must be online.");
+                return true;
+            }
+            if (!manager.switchTarget(player, target)) {
+                player.sendMessage("Could not switch spectator target.");
+            } else {
+                player.sendMessage("Now spectating: " + target.getName());
+            }
+            return true;
+        }
+
         if (args.length == 1 && args[0].equalsIgnoreCase("off")) {
             boolean stopped = manager.stop(player, "manually stopped");
             if (stopped) {
@@ -88,7 +116,7 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        player.sendMessage("Usage: /adminspec observe <player> [vanish] | /adminspec off | /adminspec permanent <add|remove> <player|UUID>");
+        player.sendMessage("Usage: /adminspec observe <player> [vanish] | /adminspec tp <player> | /adminspec offend | /adminspec off | /adminspec permanent <add|remove> <player|UUID>");
         return true;
     }
 
@@ -109,12 +137,12 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
         if (!sender.hasPermission("thatsaban.spectator")) return List.of();
 
         if (args.length == 1) {
-            return List.of("observe", "off", "permanent").stream()
+            return List.of("observe", "tp", "offend", "off", "permanent").stream()
                     .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
                     .toList();
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("observe")
-                && sender instanceof Player) {
+        if (args.length == 2 && (args[0].equalsIgnoreCase("observe")
+                || args[0].equalsIgnoreCase("tp")) && sender instanceof Player) {
             String prefix = args[1].toLowerCase(Locale.ROOT);
             return Bukkit.getOnlinePlayers().stream()
                     .map(Player::getName)
