@@ -14,9 +14,11 @@ import java.util.UUID;
 
 final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
     private final AdminSpectatorManager manager;
+    private final AdminSpectatorMenu menu;
 
-    AdminSpectatorCommand(AdminSpectatorManager manager) {
+    AdminSpectatorCommand(AdminSpectatorManager manager, AdminSpectatorMenu menu) {
         this.manager = manager;
+        this.menu = menu;
     }
 
     @Override
@@ -55,6 +57,11 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
 
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Starting and stopping an observation requires a player. Permanent entries can be managed from the console.");
+            return true;
+        }
+
+        if (args.length == 1 && args[0].equalsIgnoreCase("menu")) {
+            menu.openMain(player);
             return true;
         }
 
@@ -109,14 +116,16 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage("The target player must be online.");
                 return true;
             }
-            player.sendMessage(manager.observe(player, target, vanishMode)
+            boolean started = manager.observe(player, target, vanishMode);
+            player.sendMessage(started
                     ? "Protected observation started: " + target.getName()
                         + (vanishMode ? " (with SuperVanish)." : " (without SuperVanish).")
                     : "Could not start observation. Check the server log and restoration status.");
+            if (started) menu.openMain(player);
             return true;
         }
 
-        player.sendMessage("Usage: /adminspec observe <player> [vanish] | /adminspec tp <player> | /adminspec offend | /adminspec off | /adminspec permanent <add|remove> <player|UUID>");
+        player.sendMessage("Usage: /adminspec observe <player> [vanish] | /adminspec menu | /adminspec tp <player> | /adminspec offend | /adminspec off | /adminspec permanent <add|remove> <player|UUID>");
         return true;
     }
 
@@ -137,7 +146,7 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
         if (!sender.hasPermission("thatsaban.spectator")) return List.of();
 
         if (args.length == 1) {
-            return List.of("observe", "tp", "offend", "off", "permanent").stream()
+            return List.of("observe", "menu", "tp", "offend", "off", "permanent").stream()
                     .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
                     .toList();
         }
