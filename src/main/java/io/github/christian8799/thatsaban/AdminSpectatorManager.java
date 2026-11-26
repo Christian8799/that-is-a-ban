@@ -224,7 +224,7 @@ final class AdminSpectatorManager implements Listener {
                 try {
                     stop(observer, "startup error");
                 } catch (LinkageError | RuntimeException restoreError) {
-                    plugin.getLogger().severe("Wiederherstellung nach startup error fehlgeschlagen: " + restoreError.getMessage());
+                    plugin.getLogger().severe("Restoration after startup error failed: " + restoreError.getMessage());
                 }
             }
             return false;
@@ -733,7 +733,7 @@ final class AdminSpectatorManager implements Listener {
             return true;
         } catch (LinkageError | RuntimeException ex) {
             keepObserverHidden(player);
-            plugin.getLogger().severe("Gespeicherte Admin spectator restoration failed for "
+            plugin.getLogger().severe("Stored admin spectator restoration failed for "
                     + uuid + ": " + ex.getMessage());
             return false;
         }
@@ -1394,7 +1394,7 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Client.JIGSAW_GENERATE
                             || type == PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION;
                     if (requiresBlockPosition && modifier.size() == 0) {
-                        throw new IllegalStateException("Positionspaket enthält keine lesbare Blockposition: " + type);
+                        throw new IllegalStateException("Position packet does not contain a readable block position: " + type);
                     }
                     if (modifier.size() > 0) {
                         var pos = modifier.read(0);
@@ -1406,7 +1406,7 @@ final class AdminSpectatorManager implements Listener {
                             || event.getPacketType() == PacketType.Play.Client.POSITION_LOOK) {
                         var doubles = event.getPacket().getDoubles();
                         if (doubles.size() < 3) {
-                            throw new IllegalStateException("Bewegungspaket enthält nicht alle Spielerkoordinaten.");
+                            throw new IllegalStateException("Movement packet does not contain all player coordinates.");
                         }
                         doubles.write(0, doubles.read(0) + session.offsetX());
                         doubles.write(2, doubles.read(2) + session.offsetZ());
