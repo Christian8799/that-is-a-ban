@@ -87,9 +87,9 @@ public final class ThatsABan extends JavaPlugin {
             Throwable cause = ex.getCause();
             if (cause instanceof LinkageError error) throw error;
             if (cause instanceof RuntimeException error) throw error;
-            throw new IllegalStateException("Country-Filter konnte nicht erstellt werden.", cause);
+            throw new IllegalStateException("Could not create country filter.", cause);
         } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("Country-Filter konnte nicht geladen werden.", ex);
+            throw new IllegalStateException("Could not load country filter.", ex);
         }
     }
 
@@ -104,9 +104,9 @@ public final class ThatsABan extends JavaPlugin {
             Throwable cause = ex.getCause();
             if (cause instanceof LinkageError error) throw error;
             if (cause instanceof RuntimeException error) throw error;
-            throw new IllegalStateException("LuckPerms-Integration konnte nicht erstellt werden.", cause);
+            throw new IllegalStateException("Could not create LuckPerms integration.", cause);
         } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("LuckPerms-Integration konnte nicht geladen werden.", ex);
+            throw new IllegalStateException("Could not load LuckPerms integration.", ex);
         }
     }
 
@@ -143,9 +143,9 @@ public final class ThatsABan extends JavaPlugin {
             Throwable cause = ex.getCause();
             if (cause instanceof LinkageError error) throw error;
             if (cause instanceof RuntimeException error) throw error;
-            throw new IllegalStateException("ProtocolLib-Integration konnte nicht erstellt werden.", cause);
+            throw new IllegalStateException("Could not create ProtocolLib integration.", cause);
         } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("ProtocolLib-Integration konnte nicht geladen werden.", ex);
+            throw new IllegalStateException("Could not load ProtocolLib integration.", ex);
         }
     }
 
@@ -172,7 +172,7 @@ public final class ThatsABan extends JavaPlugin {
     private void registerCommand(String name, org.bukkit.command.CommandExecutor executor) {
         PluginCommand command = getCommand(name);
         if (command == null) {
-            getLogger().warning("Befehl '" + name + "' fehlt in plugin.yml.");
+            getLogger().warning("Command '" + name + "' is missing from plugin.yml.");
             return;
         }
         command.setExecutor(executor);
@@ -181,13 +181,13 @@ public final class ThatsABan extends JavaPlugin {
 
     private void warnFeatureDisabled(String feature, Throwable error) {
         String detail = error.getMessage();
-        getLogger().warning(feature + " wurde deaktiviert; andere Plugin-Funktionen bleiben aktiv. Ursache: "
+        getLogger().warning(feature + " was disabled; other plugin features remain available. Cause: "
                 + error.getClass().getSimpleName()
                 + (detail == null || detail.isBlank() ? "" : ": " + detail));
     }
 
     private void warnFeatureDisabled(String feature, String reason) {
-        getLogger().warning(feature + " wurde deaktiviert; andere Plugin-Funktionen bleiben aktiv. Ursache: " + reason);
+        getLogger().warning(feature + " was disabled; other plugin features remain available. Cause: " + reason);
     }
 
     private void migrateConfig() {
@@ -204,8 +204,8 @@ public final class ThatsABan extends JavaPlugin {
                 getConfig().set("alt-detection.retention-days", 30);
             }
             version = 2;
-            getLogger().warning("Datenschutz-Migration: IP-Kopplung wurde deaktiviert. "
-                    + "Die lokale GeoIP-Datenbank muss unter plugins/ThatsABan/geoip abgelegt werden.");
+            getLogger().warning("Privacy migration: IP linking has been disabled. "
+                    + "The local GeoIP database must be placed in plugins/ThatsABan/geoip.");
         }
         if (version < 3) {
             if (getConfig().getLong("alt-detection.offender-retention-days", 0L) <= 0L) {
@@ -280,7 +280,7 @@ public final class ThatsABan extends JavaPlugin {
             try {
                 countryFilter.close();
             } catch (LinkageError | RuntimeException ex) {
-                getLogger().warning("Country-Filter konnte nicht geschlossen werden: " + ex.getClass().getSimpleName());
+                getLogger().warning("Could not close country filter: " + ex.getClass().getSimpleName());
             }
         }
     }
@@ -295,7 +295,7 @@ public final class ThatsABan extends JavaPlugin {
     private void warnMissing(String key, String layer) {
         for (String name : getConfig().getStringList("integrations." + key)) {
             if (getServer().getPluginManager().getPlugin(name) == null) {
-                getLogger().warning(layer + ": Ein konfiguriertes Integrations-Plugin fehlt. "
+                getLogger().warning(layer + ": A configured integration plugin is missing. "
                         + "(Details: config.yml -> integrations." + key + ")");
             }
         }
