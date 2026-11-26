@@ -85,7 +85,6 @@ final class LinkStore {
 
     synchronized void load() {
         plugin.getDataFolder().mkdirs();
-        purgeLegacyBackups();
         if (file.exists() && !restrictOwnerOnly(file)) {
             writeBlocked = true;
         }
@@ -269,23 +268,6 @@ final class LinkStore {
         return !yaml.getStringList("layer2-ips").isEmpty()
                 || (yaml.getConfigurationSection("ip-last-seen") != null
                 && !yaml.getConfigurationSection("ip-last-seen").getKeys(false).isEmpty());
-    }
-
-    private void purgeLegacyBackups() {
-        File parent = file.getParentFile();
-        File[] backups = parent == null ? null : parent.listFiles((dir, name) ->
-                name.startsWith("data.yml.bak-") || name.startsWith("data.yml.corrupt-"));
-        if (backups == null) {
-            return;
-        }
-        for (File backup : backups) {
-            try {
-                Files.deleteIfExists(backup.toPath());
-            } catch (IOException | SecurityException ex) {
-                plugin.getLogger().warning("Eine alte LinkStore-Sicherung konnte nicht gelöscht werden. "
-                        + "Bitte data.yml.bak-* und data.yml.corrupt-* manuell prüfen.");
-            }
-        }
     }
 
     private boolean restrictOwnerOnly(File target) {
