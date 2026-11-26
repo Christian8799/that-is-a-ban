@@ -24,13 +24,13 @@ public final class ThatsABan extends JavaPlugin {
         if (getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
             try {
                 luckPerms = loadLuckPermsIntegration();
-                getLogger().info("LuckPerms-Integration aktiv.");
+                getLogger().info(messages.text("log-luckperms-enabled"));
             } catch (LinkageError | RuntimeException ex) {
                 warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)", ex);
             }
         } else {
             warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)",
-                    "LuckPerms fehlt oder ist nicht aktiviert.");
+                    messages.text("log-luckperms-missing"));
         }
 
         BedrockDetector bedrock = new BedrockDetector(this);
@@ -38,7 +38,7 @@ public final class ThatsABan extends JavaPlugin {
             countryFilter = loadCountryFilter();
             if (!countryFilter.isAvailable()) {
                 warnFeatureDisabled("Country-/Region-Filter",
-                        "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar.");
+                        messages.text("log-geoip-missing"));
             }
         } catch (LinkageError | RuntimeException ex) {
             countryFilter = null;
@@ -49,7 +49,7 @@ public final class ThatsABan extends JavaPlugin {
                 new LoginListener(this, luckPerms, bedrock, countryFilter), this);
 
         registerCommand("offend", luckPerms == null
-                ? new FeatureUnavailableCommand("Deaktiviert: Dieser Befehl benötigt LuckPerms.")
+                ? new FeatureUnavailableCommand(messages.text("feature-luckperms-required"))
                 : luckPerms.offendCommand());
         registerCommand("thatsaban", luckPerms == null
                 ? new PrivacyStoreCommand(this, store)
@@ -73,7 +73,7 @@ public final class ThatsABan extends JavaPlugin {
         reportManager.initialize();
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
-        getLogger().info("ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert.");
+        getLogger().info(messages.text("log-enabled"));
     }
 
     private CountryFilterIntegration loadCountryFilter() {
@@ -112,7 +112,7 @@ public final class ThatsABan extends JavaPlugin {
 
     private VanishIntegration loadVanishIntegration() {
         if (!getServer().getPluginManager().isPluginEnabled("SuperVanish")) {
-            warnFeatureDisabled("SuperVanish-Integration", "SuperVanish fehlt oder ist nicht aktiviert.");
+            warnFeatureDisabled("SuperVanish", messages.text("log-supervanish-missing"));
             return null;
         }
         try {
@@ -121,7 +121,7 @@ public final class ThatsABan extends JavaPlugin {
             VanishIntegration integration = (VanishIntegration) type
                     .getDeclaredConstructor(ThatsABan.class)
                     .newInstance(this);
-            getLogger().info("SuperVanish-Integration aktiv.");
+            getLogger().info(messages.text("log-supervanish-enabled"));
             return integration;
         } catch (java.lang.reflect.InvocationTargetException ex) {
             warnFeatureDisabled("SuperVanish-Integration", ex.getCause() == null ? ex : ex.getCause());
@@ -152,19 +152,19 @@ public final class ThatsABan extends JavaPlugin {
     private void registerSpectatorFeature() {
         if (!getServer().getPluginManager().isPluginEnabled("ProtocolLib")) {
             registerCommand("adminspec", new FeatureUnavailableCommand(
-                    "Admin-Spectator deaktiviert: ProtocolLib fehlt oder ist nicht aktiviert."));
-            warnFeatureDisabled("Admin-Spectator (ProtocolLib)", "ProtocolLib fehlt oder ist deaktiviert.");
+                    messages.text("feature-protocollib-missing")));
+            warnFeatureDisabled("Admin-Spectator (ProtocolLib)", messages.text("log-protocollib-missing"));
             return;
         }
         try {
             VanishIntegration vanish = loadVanishIntegration();
             spectatorFeature = loadSpectatorIntegration(vanish);
             registerCommand("adminspec", spectatorFeature.command());
-            getLogger().info("ProtocolLib-Integration aktiv: Admin-Spectator verfügbar.");
+            getLogger().info(messages.text("log-protocollib-enabled"));
         } catch (LinkageError | RuntimeException ex) {
             spectatorFeature = null;
             registerCommand("adminspec", new FeatureUnavailableCommand(
-                    "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."));
+                    messages.text("feature-protocollib-incompatible")));
             warnFeatureDisabled("Admin-Spectator (ProtocolLib)", ex);
         }
     }
