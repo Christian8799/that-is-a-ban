@@ -1309,6 +1309,10 @@ final class AdminSpectatorManager implements Listener {
                 synchronized (session) {
                     if (sessions.get(event.getPlayer().getUniqueId()) != session) return;
                     try {
+                    // ProtocolLib may reuse one outgoing packet instance for multiple recipients.
+                    // Clone before changing coordinates so the observer's shifted packet cannot
+                    // alter the same packet delivered to nearby players.
+                    event.setPacket(event.getPacket().deepClone());
                     PacketType type = event.getPacketType();
                     // These payloads may contain nested or packed world coordinates.
                     // Suppress them for the observer until their full wire layout is transformed.
