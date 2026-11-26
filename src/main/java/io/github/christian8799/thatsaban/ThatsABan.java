@@ -237,14 +237,12 @@ public final class ThatsABan extends JavaPlugin {
                     }
                 }
             }
-            setEnglishMessageDefaults();
-            setGermanMessageDefaults();
             version = 5;
         }
-        if (getConfig().getInt("config-version", 0) != version) {
-            getConfig().set("config-version", version);
-            saveConfig();
-        }
+        setEnglishMessageDefaults();
+        setGermanMessageDefaults();
+        getConfig().set("config-version", version);
+        saveConfig();
     }
 
 
