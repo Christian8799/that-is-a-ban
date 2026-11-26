@@ -158,7 +158,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         inventory.setItem(50, item(Material.ARROW, "§ePrevious page", "§7Go to the previous page."));
         inventory.setItem(51, item(Material.PAPER, "§fPage " + (page + 1) + " of " + pages,
                 "§7" + entries.size() + " reports in this view."));
-        inventory.setItem(52, item(Material.SPECTRAL_ARROW, "§eNext page", "§7Zur nächsten Page wechseln."));
+        inventory.setItem(52, item(Material.SPECTRAL_ARROW, "§eNext page", "§7Go to the next page."));
         inventory.setItem(53, item(Material.BARRIER, "§cClose", "§7Close the menu."));
         player.openInventory(inventory);
     }
@@ -242,7 +242,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         sender.sendMessage(Component.text("Status: " + entry.status().name(), NamedTextColor.YELLOW));
         sender.sendMessage(Component.text("Reason: " + entry.reason(), NamedTextColor.WHITE));
         sendReplayPath(sender, entry);
-        sender.sendMessage(Component.text("Aktionen: /reports offend " + entry.id()
+        sender.sendMessage(Component.text("Actions: /reports offend " + entry.id()
                 + " | /reports resolve " + entry.id() + " | /reports dismiss " + entry.id(), NamedTextColor.GRAY));
     }
 
@@ -400,7 +400,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private enum Filter {
-        OPEN("Open"), ALL("Alle"), FAILED("Fehler"), RESOLVED("Resolved"), DISMISSED("Dismissed");
+        OPEN("Open"), ALL("All"), FAILED("Failed"), RESOLVED("Resolved"), DISMISSED("Dismissed");
         private final String title;
         Filter(String title) { this.title = title; }
     }
