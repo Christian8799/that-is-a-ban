@@ -100,7 +100,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         sender.sendMessage(Component.text("Starte /offend für " + entry.targetName() + " …", NamedTextColor.YELLOW));
-        plugin.getServer().dispatchCommand(sender, "offend " + entry.targetName());
+        plugin.getServer().dispatchCommand(sender, "offend " + entry.targetId());
     }
 
     private void sendConsoleList(CommandSender sender) {
