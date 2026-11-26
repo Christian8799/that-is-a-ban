@@ -47,6 +47,10 @@ final class ReportsCommand implements CommandExecutor, TabCompleter {
         switch (action) {
             case "view" -> sendDetails(sender, entry);
             case "offend" -> {
+                if (entry.status() != ReportManager.Status.OPEN || entry.replayPath() == null) {
+                    sender.sendMessage(Component.text("Für diesen Report liegt kein prüfbares Replay vor.", NamedTextColor.RED));
+                    return true;
+                }
                 if (!sender.hasPermission("thatsaban.offend")) {
                     sender.sendMessage(Component.text("Dafür benötigst du zusätzlich thatsaban.offend.", NamedTextColor.RED));
                     return true;
