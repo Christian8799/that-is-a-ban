@@ -67,7 +67,9 @@ public final class ThatsABan extends JavaPlugin {
         reportManager = new ReportManager(this, flashbackClips);
         getServer().getPluginManager().registerEvents(reportManager, this);
         registerCommand("report", new ReportCommand(reportManager));
-        registerCommand("reports", new ReportsCommand(this, reportManager));
+        ReportsCommand reportsCommand = new ReportsCommand(this, reportManager);
+        registerCommand("reports", reportsCommand);
+        getServer().getPluginManager().registerEvents(reportsCommand, this);
         reportManager.initialize();
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
