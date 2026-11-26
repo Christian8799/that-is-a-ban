@@ -131,10 +131,10 @@ final class ReportManager implements Listener {
             if (clips.arm(player)) {
                 armedByThisPlugin.add(player.getUniqueId());
             } else if (!clips.isArmed(player)) {
-                plugin.getLogger().warning("Report-Clip-Puffer konnte für " + player.getName() + " nicht aktiviert werden.");
+                plugin.getLogger().warning("Could not enable report clip buffer for " + player.getName() + " .");
             }
         } catch (RuntimeException ex) {
-            plugin.getLogger().warning("Report-Clip-Puffer für " + player.getName()
+            plugin.getLogger().warning("Report clip buffer for " + player.getName()
                     + " failed: " + ex.getClass().getSimpleName());
         }
     }
@@ -256,7 +256,7 @@ final class ReportManager implements Listener {
 
     private void notifyStaff(ReportEntry entry) {
         Component message = Component.text("[Report #" + entry.id + "] ", NamedTextColor.GOLD)
-                .append(Component.text(entry.targetName + " was reported by " + entry.reporterName + " gemeldet. ",
+                .append(Component.text(entry.targetName + " was reported by " + entry.reporterName + " .",
                         NamedTextColor.YELLOW))
                 .append(Component.text("/reports view " + entry.id, NamedTextColor.AQUA));
         for (Player staff : Bukkit.getOnlinePlayers()) {
