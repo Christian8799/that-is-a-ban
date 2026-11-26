@@ -110,7 +110,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                         sender.sendMessage("Display limited to 50 accounts. Choose a narrower starting point for more results.");
                     }
                 }
-                sender.sendMessage("Wichtig: Gemeinsame IP-Adressen sind kein Identitätsnachweis. Indirecte Verbindungen sind besonders unsicher. Keine automatische Sanktion daraus ableiten.");
+                sender.sendMessage("Important: Shared IP addresses do not prove identity. Indirect connections are especially unreliable. Do not derive automatic sanctions from this data.");
             }
             case "info" -> {
                 LinkStore.PlayerSnapshot snapshot = store.snapshot(target);
@@ -128,10 +128,10 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                                     + (snapshot.name() == null ? "none" : snapshot.name()));
                             sender.sendMessage("Linked IP hash entries: " + snapshot.linkedIpCount());
                             sender.sendMessage("Offender entry: "
-                                    + (snapshot.offender() ? "present" : "nicht present"));
+                                    + (snapshot.offender() ? "present" : "not present"));
                             sender.sendMessage("Layer 2 retention entry: "
-                                    + (snapshot.layer2Tracked() ? "present" : "nicht present"));
-                            sender.sendMessage("Plugin-Datensatz present: "
+                                    + (snapshot.layer2Tracked() ? "present" : "not present"));
+                            sender.sendMessage("Plugin record exists: "
                                     + (snapshot.hasStoredData() ? "yes" : "nein"));
                             sender.sendMessage("Effective LuckPerms Layer 2 marker: "
                                     + hook.has(user, hook.markerNode()));
