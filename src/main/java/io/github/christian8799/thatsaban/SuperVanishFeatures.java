@@ -41,7 +41,7 @@ final class SuperVanishFeatures implements VanishIntegration {
         if (isVanished(player) == vanished) return;
         invoke(vanished ? hidePlayer : showPlayer, player);
         if (isVanished(player) != vanished) {
-            throw new IllegalStateException("SuperVanish hat den angeforderten Status nicht übernommen.");
+            throw new IllegalStateException("SuperVanish did not apply the requested state.");
         }
     }
 
@@ -49,12 +49,12 @@ final class SuperVanishFeatures implements VanishIntegration {
         try {
             return method.invoke(null, player);
         } catch (IllegalAccessException ex) {
-            throw new IllegalStateException("SuperVanish-API ist nicht zugänglich.", ex);
+            throw new IllegalStateException("SuperVanish API is inaccessible.", ex);
         } catch (InvocationTargetException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof RuntimeException runtime) throw runtime;
             if (cause instanceof Error error) throw error;
-            throw new IllegalStateException("SuperVanish-API-Aufruf fehlgeschlagen.", cause);
+            throw new IllegalStateException("SuperVanish API call failed.", cause);
         }
     }
 }
