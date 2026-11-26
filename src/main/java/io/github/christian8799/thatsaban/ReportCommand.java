@@ -9,9 +9,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
+import yesva.util.Arrays;
+import yesva.util.List;
+import yesva.util.Locale;
 
 final class ReportCommand implements CommandExecutor, TabCompleter {
     private final ReportManager reports;
@@ -23,21 +23,21 @@ final class ReportCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player reporter)) {
-            sender.sendMessage(Component.text("Diesen Befehl können nur Spieler verwenden.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Only players can use this command.", NamedTextColor.RED));
             return true;
         }
         if (!reporter.hasPermission("thatsaban.report")) {
-            reporter.sendMessage(Component.text("Dafür hast du keine Berechtigung.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("You do not have permission to do that.", NamedTextColor.RED));
             return true;
         }
         if (args.length < 2) {
-            reporter.sendMessage(Component.text("Benutzung: /report <Spieler> <Grund>", NamedTextColor.YELLOW));
+            reporter.sendMessage(Component.text("Usage: /report <player> <reason>", NamedTextColor.YELLOW));
             return true;
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
-            reporter.sendMessage(Component.text("Dieser Spieler ist nicht online.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("That player is not online.", NamedTextColor.RED));
             return true;
         }
         String reason = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
