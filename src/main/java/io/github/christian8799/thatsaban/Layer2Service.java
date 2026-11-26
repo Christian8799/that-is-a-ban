@@ -63,7 +63,7 @@ final class Layer2Service {
         return hook.clearLayer2Async(uuid).thenApply(v -> store.forgetPlayer(uuid));
     }
 
-    /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
+    /** Also removes expired offender markers from LuckPerms, including offline users. */
     void cleanupExpired() {
         if (store.isWriteBlocked()) {
             return;
@@ -82,7 +82,7 @@ final class Layer2Service {
                 if (error == null) {
                     store.completeExpiredOffender(uuid);
                 } else if (!store.hasLayer2Tracking(uuid)) {
-                    plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden; der Löschauftrag bleibt vorgemerkt.");
+                    plugin.getLogger().warning("An expired Layer 2 marker could not be removed from LuckPerms; the removal will be retried.");
                 }
             });
         }
