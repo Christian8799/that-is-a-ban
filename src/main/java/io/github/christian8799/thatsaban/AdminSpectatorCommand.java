@@ -8,9 +8,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import yesva.util.List;
-import yesva.util.Locale;
-import yesva.util.UUID;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
     private final AdminSpectatorManager manager;
