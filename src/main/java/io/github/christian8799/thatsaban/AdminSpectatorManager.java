@@ -147,6 +147,17 @@ final class AdminSpectatorManager implements Listener {
                 || hasPendingRestore(observer.getUniqueId());
     }
 
+    Player currentTarget(Player observer) {
+        Session session = sessions.get(observer.getUniqueId());
+        return session == null ? null : Bukkit.getPlayer(session.target());
+    }
+
+    boolean switchTarget(Player observer, Player target) {
+        if (observer.equals(target)) return false;
+        Session session = sessions.get(observer.getUniqueId());
+        return session != null && retarget(observer, target, session);
+    }
+
     boolean observe(Player observer, Player target, boolean vanishMode) {
         if (observer.equals(target)) return false;
         if (vanishMode && !vanishAvailable()) {
@@ -1366,9 +1377,20 @@ final class AdminSpectatorManager implements Listener {
                     try {
                     PacketType incomingType = event.getPacketType();
                     if (incomingType == PacketType.Play.Client.SPECTATE) {
-                        // Keep target changes behind /adminspec observe so the manager
-                        // can validate coordinate bounds and update the tracked target.
+                        // Handle the vanilla spectator player-selection menu through the
+                        // same validated retarget path as /adminspec tp.
                         event.setCancelled(true);
+                        if (event.getPacket().getUUIDs().size() > 0) {
+                            UUID requestedTarget = event.getPacket().getUUIDs().read(0);
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                Player observer = Bukkit.getPlayer(playerId);
+                                Player target = Bukkit.getPlayer(requestedTarget);
+                                if (observer == null || target == null || !isObserving(observer)) return;
+                                if (!switchTarget(observer, target)) {
+                                    observer.sendMessage("Could not switch spectator target.");
+                                }
+                            });
+                        }
                         return;
                     }
                     if (incomingType == PacketType.Play.Client.TILE_NBT_QUERY
