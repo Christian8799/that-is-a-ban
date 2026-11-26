@@ -48,11 +48,15 @@ final class Layer2Service {
         if (store.isWriteBlocked()) {
             return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
         }
-        Set<UUID> affected = store.unmarkOffenderGroup(uuid);
+        Set<UUID> affected = store.autoOffenderGroup(uuid);
         CompletableFuture<?>[] removals = affected.stream()
                 .map(hook::clearLayer2Async)
                 .toArray(CompletableFuture[]::new);
         return CompletableFuture.allOf(removals)
+                .thenApply(ignored -> {
+                    store.unmarkOffenderGroup(uuid);
+                    return null;
+                })
                 .thenCompose(ignored -> hook.users().loadUser(uuid))
                 .thenApply(user -> hook.has(user, hook.markerNode()));
     }
