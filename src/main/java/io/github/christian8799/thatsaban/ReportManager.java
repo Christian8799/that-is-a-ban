@@ -319,6 +319,9 @@ final class ReportManager implements Listener {
                         storedStatus,
                         item.getString("replay-path"));
                 reports.put(id.toLowerCase(Locale.ROOT), entry);
+                // Rebuild cooldowns from persisted report timestamps so a restart
+                // cannot immediately reset every reporter's cooldown.
+                cooldowns.merge(entry.reporterId(), entry.createdAt(), Math::max);
             } catch (IllegalArgumentException ex) {
                 plugin.getLogger().warning("Ungültiger Report-Eintrag in reports.yml: " + id);
             }
