@@ -60,7 +60,7 @@ final class AdminSpectatorMenu implements Listener {
     }
 
     private void openPlayerSelection(Player player, int requestedPage) {
-        List<Player> online = Bukkit.getOnlinePlayers().stream()
+        List<? extends Player> online = Bukkit.getOnlinePlayers().stream()
                 .filter(target -> !target.getUniqueId().equals(player.getUniqueId()))
                 .sorted(Comparator.comparing(Player::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
