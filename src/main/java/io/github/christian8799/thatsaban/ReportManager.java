@@ -19,7 +19,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -305,6 +307,12 @@ final class ReportManager implements Listener {
 
     private void load() {
         if (!storageFile.isFile()) return;
+        if (!restrictOwnerOnly(storageFile.toPath())) {
+            storageWriteBlocked = true;
+            plugin.getLogger().severe("Dateirechte von reports.yml konnten nicht auf owner-only gesetzt werden. "
+                    + "Report-Schreibzugriffe sind blockiert.");
+            return;
+        }
         YamlConfiguration yaml = new YamlConfiguration();
         try {
             yaml.load(storageFile);
@@ -368,6 +376,12 @@ final class ReportManager implements Listener {
             Files.createDirectories(parent);
             temporaryFile = Files.createTempFile(parent, "reports.yml.tmp-", ".yml");
             yaml.save(temporaryFile.toFile());
+            if (!restrictOwnerOnly(temporaryFile)) {
+                storageWriteBlocked = true;
+                plugin.getLogger().severe("Dateirechte der temporären reports.yml konnten nicht gesichert werden. "
+                        + "Report-Schreibzugriffe sind blockiert.");
+                return false;
+            }
             try {
                 Files.move(temporaryFile, storageFile.toPath(),
                         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
@@ -388,6 +402,24 @@ final class ReportManager implements Listener {
                     // A leftover temporary file is harmless and is never treated as the active report store.
                 }
             }
+        }
+    }
+
+    private static boolean restrictOwnerOnly(Path path) {
+        Set<PosixFilePermission> permissions = EnumSet.of(
+                PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
+        try {
+            Files.setPosixFilePermissions(path, permissions);
+            return true;
+        } catch (UnsupportedOperationException ex) {
+            File file = path.toFile();
+            return file.setReadable(false, false)
+                    && file.setWritable(false, false)
+                    && file.setExecutable(false, false)
+                    && file.setReadable(true, true)
+                    && file.setWritable(true, true);
+        } catch (IOException | SecurityException ex) {
+            return false;
         }
     }
 
