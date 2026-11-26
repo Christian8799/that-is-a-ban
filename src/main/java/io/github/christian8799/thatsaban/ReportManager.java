@@ -303,7 +303,7 @@ final class ReportManager implements Listener {
                         item.getString("replay-path"));
                 reports.put(id.toLowerCase(Locale.ROOT), entry);
             } catch (IllegalArgumentException ex) {
-                plugin.getLogger().warning("Ungültiger Report-Eintrag in reports.yml: " + reportId);
+                plugin.getLogger().warning("Ungültiger Report-Eintrag in reports.yml: " + id);
             }
         }
     }
