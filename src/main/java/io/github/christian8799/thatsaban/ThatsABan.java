@@ -198,7 +198,9 @@ public final class ThatsABan extends JavaPlugin {
                 getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
             }
             getConfig().set("alt-detection.enabled", false);
-            getConfig().set("alt-detection.retention-days", 30);
+            if (!getConfig().contains("alt-detection.retention-days")) {
+                getConfig().set("alt-detection.retention-days", 30);
+            }
             version = 2;
             getLogger().warning("Datenschutz-Migration: IP-Kopplung wurde deaktiviert. "
                     + "Die lokale GeoIP-Datenbank muss unter plugins/ThatsABan/geoip abgelegt werden.");
