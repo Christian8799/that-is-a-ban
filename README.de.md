@@ -342,6 +342,12 @@ Für Admin-Spectator gibt es derzeit keine weiteren Betreiber-Settings in config
 | Befehl | Beschreibung | Berechtigung |
 |---|---|---|
 | /offend <Spieler> | Setzt einen Java-Spieler nach bewusster Staff-Entscheidung in Layer 2 | thatsaban.offend |
+| /report <Spieler> <Grund> | Meldet einen Spieler und speichert seinen Replay-Clip | thatsaban.report |
+| /reports | Öffnet das klickbare Staff-Menü mit Filtern, Seitenwechsel und Report-Details | thatsaban.reports |
+| /reports view <ID> | Öffnet die Detailansicht eines Reports | thatsaban.reports |
+| /reports offend <ID> | Führt nach Prüfung die bestehende Offend-Funktion aus | thatsaban.reports und thatsaban.offend |
+| /reports resolve <ID> | Markiert einen Report als erledigt | thatsaban.reports |
+| /reports dismiss <ID> | Verwirft einen Report | thatsaban.reports |
 | /thatsaban unoffend <Spieler\|UUID> | Entfernt die vom Plugin verwaltete Layer-2-/Offender-Einstufung | thatsaban.layer2.remove oder thatsaban.admin |
 
 ### Datenschutz- und Netzwerkbefehle
