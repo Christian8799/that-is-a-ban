@@ -569,6 +569,15 @@ final class LinkStore {
         return names.get(uuid);
     }
 
+    synchronized List<String> knownPlayerNames(String prefix) {
+        String normalizedPrefix = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
+        return names.values().stream()
+                .filter(name -> name != null && name.toLowerCase(java.util.Locale.ROOT).startsWith(normalizedPrefix))
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
     synchronized List<String> offenderNames(String prefix) {
         String normalizedPrefix = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
         return offenders.keySet().stream()
