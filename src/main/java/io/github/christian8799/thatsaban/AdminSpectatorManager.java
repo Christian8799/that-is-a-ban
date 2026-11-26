@@ -1198,7 +1198,6 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Client.POSITION,
                 PacketType.Play.Client.POSITION_LOOK,
                 PacketType.Play.Client.SPECTATE,
-                PacketType.Play.Client.SPECTATE_ENTITY
         );
         List<String> unsupported = required.stream()
                 .filter(type -> !type.isSupported())
@@ -1261,7 +1260,7 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Client.POSITION,
                 PacketType.Play.Client.POSITION_LOOK,
                 PacketType.Play.Client.SPECTATE,
-                PacketType.Play.Client.SPECTATE_ENTITY) {
+                ) {
             @Override
             public void onPacketSending(PacketEvent event) {
                 Session session = sessions.get(event.getPlayer().getUniqueId());
@@ -1366,8 +1365,7 @@ final class AdminSpectatorManager implements Listener {
                     }
                     try {
                     PacketType incomingType = event.getPacketType();
-                    if (incomingType == PacketType.Play.Client.SPECTATE
-                            || incomingType == PacketType.Play.Client.SPECTATE_ENTITY) {
+                    if (incomingType == PacketType.Play.Client.SPECTATE) {
                         // Keep target changes behind /adminspec observe so the manager
                         // can validate coordinate bounds and update the tracked target.
                         event.setCancelled(true);
