@@ -83,7 +83,10 @@ final class FlashbackClipIntegration {
         }
 
         try {
-            Method method = service.getClass().getMethod(methodName, parameterTypes);
+            // Invoke through the public API interface, not the implementation class:
+            // FlashbackServer is free to expose a package-private service implementation.
+            Class<?> apiType = Class.forName(API_CLASS, false, dependency().getClass().getClassLoader());
+            Method method = apiType.getMethod(methodName, parameterTypes);
             return method.invoke(service, arguments);
         } catch (NoSuchMethodException | IllegalAccessException ex) {
             throw new IllegalStateException("Inkompatible FlashbackServer-ClipService-API.", ex);
