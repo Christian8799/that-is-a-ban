@@ -67,10 +67,10 @@ final class FlashbackClipIntegration {
             Class<?> serviceType = Class.forName(API_CLASS, false, dependency.getClass().getClassLoader());
             @SuppressWarnings({"rawtypes", "unchecked"})
             Object service = plugin.getServer().getServicesManager().load((Class) serviceType);
-            if (service == null) warnUnavailable("FlashbackServer ist aktiv, hat aber keinen ClipService registriert.");
+            if (service == null) warnUnavailable("FlashbackServer is enabled but has not registered a ClipService.");
             return service;
         } catch (ClassNotFoundException | LinkageError | IllegalArgumentException ex) {
-            warnUnavailable("FlashbackServer-API konnte nicht geladen werden: "
+            warnUnavailable("Could not load the FlashbackServer API: "
                     + ex.getClass().getSimpleName());
             return null;
         }
@@ -79,7 +79,7 @@ final class FlashbackClipIntegration {
     private Object invoke(String methodName, Class<?>[] parameterTypes, Object... arguments) {
         Object service = service();
         if (service == null) {
-            throw new IllegalStateException("FlashbackServer oder dessen ClipService ist nicht verfügbar.");
+            throw new IllegalStateException("FlashbackServer or its ClipService is unavailable.");
         }
 
         try {
@@ -94,13 +94,13 @@ final class FlashbackClipIntegration {
             Throwable cause = ex.getCause();
             if (cause instanceof RuntimeException runtime) throw runtime;
             if (cause instanceof Error error) throw error;
-            throw new IllegalStateException("FlashbackServer-API-Aufruf fehlgeschlagen.", cause);
+            throw new IllegalStateException("FlashbackServer API call failed.", cause);
         }
     }
 
     private void warnUnavailable(String reason) {
         if (warnedUnavailable) return;
         warnedUnavailable = true;
-        plugin.getLogger().warning("Report-Replays sind nicht verfügbar. " + reason);
+        plugin.getLogger().warning("Report replays are unavailable. " + reason);
     }
 }
