@@ -46,7 +46,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("thatsaban.reports") && !sender.hasPermission("thatsaban.admin")) {
-            sender.sendMessage(Component.text("Dafür hast du keine Berechtigung.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("You do not have permission to do that.", NamedTextColor.RED));
             return true;
         }
 
@@ -57,7 +57,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         }
 
         if (args.length != 2) {
-            sender.sendMessage(Component.text("Benutzung: /reports [list|view|offend|resolve|dismiss] <ID>", NamedTextColor.YELLOW));
+            sender.sendMessage(Component.text("Usage: /reports [list|view|offend|resolve|dismiss] <ID>", NamedTextColor.YELLOW));
             return true;
         }
 
@@ -65,7 +65,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         String id = args[1].toLowerCase(Locale.ROOT);
         ReportManager.ReportEntry entry = reports.find(id);
         if (entry == null) {
-            sender.sendMessage(Component.text("Report #" + id + " wurde nicht gefunden.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Report #" + id + " was not found.", NamedTextColor.RED));
             return true;
         }
 
@@ -79,33 +79,33 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             case "offend" -> offend(sender, entry);
             case "resolve" -> {
                 if (reports.setStatus(id, ReportManager.Status.RESOLVED)) {
-                    sender.sendMessage(Component.text("Report #" + id + " wurde als erledigt markiert.", NamedTextColor.GREEN));
+                    sender.sendMessage(Component.text("Report #" + id + " was marked as resolved.", NamedTextColor.GREEN));
                 } else {
-                    sender.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Could not permanently save the report status.", NamedTextColor.RED));
                 }
             }
             case "dismiss" -> {
                 if (reports.setStatus(id, ReportManager.Status.DISMISSED)) {
-                    sender.sendMessage(Component.text("Report #" + id + " wurde verworfen.", NamedTextColor.GRAY));
+                    sender.sendMessage(Component.text("Report #" + id + " was dismissed.", NamedTextColor.GRAY));
                 } else {
-                    sender.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Could not permanently save the report status.", NamedTextColor.RED));
                 }
             }
-            default -> sender.sendMessage(Component.text("Unbekannte Aktion. Nutze /reports.", NamedTextColor.RED));
+            default -> sender.sendMessage(Component.text("Unknown action. Use /reports.", NamedTextColor.RED));
         }
         return true;
     }
 
     private void offend(CommandSender sender, ReportManager.ReportEntry entry) {
         if (entry.status() != ReportManager.Status.OPEN || entry.replayPath() == null) {
-            sender.sendMessage(Component.text("Für diesen Report liegt kein prüfbares Replay vor.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("No reviewable replay is available for this report.", NamedTextColor.RED));
             return;
         }
         if (!sender.hasPermission("thatsaban.offend")) {
-            sender.sendMessage(Component.text("Dafür benötigst du zusätzlich thatsaban.offend.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("You also need thatsaban.offend permission to do that.", NamedTextColor.RED));
             return;
         }
-        sender.sendMessage(Component.text("Starte /offend für " + entry.targetName() + " …", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("Running /offend for " + entry.targetName() + " …", NamedTextColor.YELLOW));
         plugin.getServer().dispatchCommand(sender, "offend " + entry.targetId());
     }
 
@@ -115,9 +115,9 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
                         || entry.status() == ReportManager.Status.CAPTURING
                         || entry.status() == ReportManager.Status.FAILED)
                 .limit(25).toList();
-        sender.sendMessage(Component.text("Offene Reports (" + entries.size() + "):", NamedTextColor.GOLD));
+        sender.sendMessage(Component.text("Open reports (" + entries.size() + "):", NamedTextColor.GOLD));
         if (entries.isEmpty()) {
-            sender.sendMessage(Component.text("Keine offenen Reports.", NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("No open reports.", NamedTextColor.GRAY));
             return;
         }
         for (ReportManager.ReportEntry entry : entries) {
@@ -134,13 +134,13 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
 
         MenuHolder holder = new MenuHolder(MenuType.LIST, page, filter, null);
         Inventory inventory = Bukkit.createInventory(holder, 54,
-                Component.text("Spieler-Reports · " + filter.title + " · " + (page + 1) + "/" + pages,
+                Component.text("Player reports · " + filter.title + " · " + (page + 1) + "/" + pages,
                         NamedTextColor.DARK_AQUA));
         holder.inventory = inventory;
 
-        inventory.setItem(4, item(Material.WRITABLE_BOOK, "§6§lReport-Verwaltung",
-                "§7Reports auswählen, prüfen und bearbeiten.",
-                "§7Klicke einen Eintrag für die Detailansicht."));
+        inventory.setItem(4, item(Material.WRITABLE_BOOK, "§6§lReport management",
+                "§7Select, review, and manage reports.",
+                "§7Click an entry to view its details."));
         int start = page * PAGE_SIZE;
         int end = Math.min(entries.size(), start + PAGE_SIZE);
         for (int i = start; i < end; i++) {
@@ -155,11 +155,11 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         inventory.setItem(47, filterItem(Filter.FAILED, filter));
         inventory.setItem(48, filterItem(Filter.RESOLVED, filter));
         inventory.setItem(49, filterItem(Filter.DISMISSED, filter));
-        inventory.setItem(50, item(Material.ARROW, "§eVorherige Seite", "§7Zur vorherigen Seite wechseln."));
-        inventory.setItem(51, item(Material.PAPER, "§fSeite " + (page + 1) + " von " + pages,
-                "§7" + entries.size() + " Reports in dieser Ansicht."));
-        inventory.setItem(52, item(Material.SPECTRAL_ARROW, "§eNächste Seite", "§7Zur nächsten Seite wechseln."));
-        inventory.setItem(53, item(Material.BARRIER, "§cSchließen", "§7Menü schließen."));
+        inventory.setItem(50, item(Material.ARROW, "§ePrevious page", "§7Go to the previous page."));
+        inventory.setItem(51, item(Material.PAPER, "§fPage " + (page + 1) + " of " + pages,
+                "§7" + entries.size() + " reports in this view."));
+        inventory.setItem(52, item(Material.SPECTRAL_ARROW, "§eNext page", "§7Zur nächsten Page wechseln."));
+        inventory.setItem(53, item(Material.BARRIER, "§cClose", "§7Close the menu."));
         player.openInventory(inventory);
     }
 
@@ -185,19 +185,19 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         String statusColor = statusLegacyColor(entry.status());
         return item(material, statusColor + "§l#" + entry.id() + " §f" + safeLegacyText(entry.targetName()),
                 "§7Status: " + statusName(entry.status()),
-                "§7Gemeldet von: §f" + safeLegacyText(entry.reporterName()),
-                "§7Zeit: §f" + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())),
-                "§7Grund: §f" + shorten(safeLegacyText(entry.reason()), 70),
-                entry.replayPath() == null ? "§cKein Replay verfügbar" : "§aReplay gespeichert",
-                "§eKlicken für Details");
+                "§7Reported by: §f" + safeLegacyText(entry.reporterName()),
+                "§7Time: §f" + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())),
+                "§7Reason: §f" + shorten(safeLegacyText(entry.reason()), 70),
+                entry.replayPath() == null ? "§cNo replay available" : "§aReplay saved",
+                "§eClick for details");
     }
 
     private ItemStack filterItem(Filter option, Filter selected) {
         Material material = option == selected ? Material.LIME_DYE : Material.GRAY_DYE;
         String color = option == selected ? "§a§l" : "§7";
         return item(material, color + option.title, option == selected
-                ? "§aAktiver Filter"
-                : "§7Klicken, um diesen Filter anzuzeigen.");
+                ? "§aActive filter"
+                : "§7Click to show this filter.");
     }
 
     private void openDetails(Player player, ReportManager.ReportEntry entry) {
@@ -207,40 +207,40 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         holder.inventory = inventory;
 
         inventory.setItem(4, item(Material.PLAYER_HEAD, "§6§l" + safeLegacyText(entry.targetName()),
-                "§7Spieler-UUID: §f" + entry.targetId(),
-                "§7Gemeldet von: §f" + safeLegacyText(entry.reporterName()),
-                "§7Reporter-UUID: §f" + entry.reporterId(),
-                "§7Zeit: §f" + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())),
+                "§7Player UUID: §f" + entry.targetId(),
+                "§7Reported by: §f" + safeLegacyText(entry.reporterName()),
+                "§7Reporter UUID: §f" + entry.reporterId(),
+                "§7Time: §f" + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())),
                 "§7Status: " + statusName(entry.status())));
-        inventory.setItem(20, item(Material.BOOK, "§eMeldegrund",
+        inventory.setItem(20, item(Material.BOOK, "§eReport reason",
                 "§7" + shorten(safeLegacyText(entry.reason()), 120)));
         inventory.setItem(22, item(entry.replayPath() == null ? Material.BARRIER : Material.MAP,
-                entry.replayPath() == null ? "§cKein Replay verfügbar" : "§aReplay-Pfad anzeigen",
-                entry.replayPath() == null ? "§7Für diesen Report wurde kein Clip gespeichert."
-                        : "§7Klicke hier, um den Dateipfad im Chat",
-                entry.replayPath() == null ? "§7anzuzeigen." : "§7mit Kopierfunktion auszugeben."));
-        inventory.setItem(29, item(Material.ANVIL, "§c§lOffenden",
-                "§7Führt die bestehende /offend-Funktion aus.",
-                "§7Nur nach eigener Replay-Prüfung verwenden.",
+                entry.replayPath() == null ? "§cNo replay available" : "§aShow replay path",
+                entry.replayPath() == null ? "§7No clip was saved for this report."
+                        : "§7Click here to display the file path in chat",
+                entry.replayPath() == null ? "§7display it." : "§7with a copy-to-clipboard action."));
+        inventory.setItem(29, item(Material.ANVIL, "§c§lOpenden",
+                "§7Runs the existing /offend command.",
+                "§7Only use after reviewing the replay yourself.",
                 entry.status() == ReportManager.Status.OPEN && entry.replayPath() != null
-                        ? "§eKlicken zum Fortfahren" : "§cFür diesen Report nicht verfügbar"));
-        inventory.setItem(31, item(Material.LIME_CONCRETE, "§aAls erledigt markieren",
-                "§7Schließt den Report als geprüft ab."));
-        inventory.setItem(33, item(Material.GRAY_CONCRETE, "§7Report verwerfen",
-                "§7Markiert den Report als unbegründet oder ungültig."));
-        inventory.setItem(49, item(Material.ARROW, "§eZurück zur Report-Liste",
-                "§7Zurück zur vorherigen Übersicht."));
-        inventory.setItem(53, item(Material.BARRIER, "§cSchließen", "§7Menü schließen."));
+                        ? "§eClick to continue" : "§cNot available for this report"));
+        inventory.setItem(31, item(Material.LIME_CONCRETE, "§aMark as resolved",
+                "§7Closes the report as reviewed."));
+        inventory.setItem(33, item(Material.GRAY_CONCRETE, "§7Dismiss report",
+                "§7Marks the report as unfounded or invalid."));
+        inventory.setItem(49, item(Material.ARROW, "§eBack to report list",
+                "§7Return to the previous overview."));
+        inventory.setItem(53, item(Material.BARRIER, "§cClose", "§7Close the menu."));
         player.openInventory(inventory);
     }
 
     private void sendDetails(CommandSender sender, ReportManager.ReportEntry entry) {
         sender.sendMessage(Component.text("Report #" + entry.id(), NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Spieler: " + entry.targetName() + " (" + entry.targetId() + ")", NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("Gemeldet von: " + entry.reporterName(), NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("Zeit: " + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Player: " + entry.targetName() + " (" + entry.targetId() + ")", NamedTextColor.WHITE));
+        sender.sendMessage(Component.text("Reported by: " + entry.reporterName(), NamedTextColor.WHITE));
+        sender.sendMessage(Component.text("Time: " + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Status: " + entry.status().name(), NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text("Grund: " + entry.reason(), NamedTextColor.WHITE));
+        sender.sendMessage(Component.text("Reason: " + entry.reason(), NamedTextColor.WHITE));
         sendReplayPath(sender, entry);
         sender.sendMessage(Component.text("Aktionen: /reports offend " + entry.id()
                 + " | /reports resolve " + entry.id() + " | /reports dismiss " + entry.id(), NamedTextColor.GRAY));
@@ -248,10 +248,10 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
 
     private void sendReplayPath(CommandSender sender, ReportManager.ReportEntry entry) {
         if (entry.replayPath() == null) {
-            sender.sendMessage(Component.text("Replay: noch nicht verfügbar.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Replay: not available yet.", NamedTextColor.RED));
             return;
         }
-        sender.sendMessage(Component.text("Replay-Pfad (anklicken zum Kopieren): ", NamedTextColor.GRAY)
+        sender.sendMessage(Component.text("Replay path (click to copy): ", NamedTextColor.GRAY)
                 .append(Component.text(entry.replayPath(), NamedTextColor.AQUA)
                         .clickEvent(ClickEvent.copyToClipboard(entry.replayPath()))));
     }
@@ -309,7 +309,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         if (entry == null) {
-            player.sendMessage(Component.text("Dieser Report existiert nicht mehr.", NamedTextColor.RED));
+            player.sendMessage(Component.text("This report no longer exists.", NamedTextColor.RED));
             player.closeInventory();
             return;
         }
@@ -322,17 +322,17 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             }
             case 31 -> {
                 if (reports.setStatus(entry.id(), ReportManager.Status.RESOLVED)) {
-                    player.sendMessage(Component.text("Report #" + entry.id() + " wurde als erledigt markiert.", NamedTextColor.GREEN));
+                    player.sendMessage(Component.text("Report #" + entry.id() + " was marked as resolved.", NamedTextColor.GREEN));
                 } else {
-                    player.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                    player.sendMessage(Component.text("Could not permanently save the report status.", NamedTextColor.RED));
                 }
                 openDetails(player, entry);
             }
             case 33 -> {
                 if (reports.setStatus(entry.id(), ReportManager.Status.DISMISSED)) {
-                    player.sendMessage(Component.text("Report #" + entry.id() + " wurde verworfen.", NamedTextColor.GRAY));
+                    player.sendMessage(Component.text("Report #" + entry.id() + " was dismissed.", NamedTextColor.GRAY));
                 } else {
-                    player.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                    player.sendMessage(Component.text("Could not permanently save the report status.", NamedTextColor.RED));
                 }
                 openDetails(player, entry);
             }
@@ -366,11 +366,11 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
 
     private static String statusName(ReportManager.Status status) {
         return switch (status) {
-            case OPEN -> "§aOffen";
-            case CAPTURING -> "§eReplay wird gespeichert";
-            case FAILED -> "§cReplay fehlgeschlagen";
-            case RESOLVED -> "§7Erledigt";
-            case DISMISSED -> "§8Verworfen";
+            case OPEN -> "§aOpen";
+            case CAPTURING -> "§eSaving replay";
+            case FAILED -> "§cReplay failed";
+            case RESOLVED -> "§7Resolved";
+            case DISMISSED -> "§8Dismissed";
         };
     }
 
@@ -400,7 +400,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private enum Filter {
-        OPEN("Offen"), ALL("Alle"), FAILED("Fehler"), RESOLVED("Erledigt"), DISMISSED("Verworfen");
+        OPEN("Open"), ALL("Alle"), FAILED("Fehler"), RESOLVED("Resolved"), DISMISSED("Dismissed");
         private final String title;
         Filter(String title) { this.title = title; }
     }
