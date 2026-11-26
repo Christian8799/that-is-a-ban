@@ -48,12 +48,13 @@ final class Layer2Service {
         if (store.isWriteBlocked()) {
             return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
         }
-        return hook.clearLayer2Async(uuid)
+        Set<UUID> affected = store.unmarkOffenderGroup(uuid);
+        CompletableFuture<?>[] removals = affected.stream()
+                .map(hook::clearLayer2Async)
+                .toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(removals)
                 .thenCompose(ignored -> hook.users().loadUser(uuid))
-                .thenApply(user -> {
-                    store.unmarkOffender(uuid);
-                    return hook.has(user, hook.markerNode());
-                });
+                .thenApply(user -> hook.has(user, hook.markerNode()));
     }
 
     CompletableFuture<Integer> forgetPlayer(UUID uuid) {
@@ -189,11 +190,13 @@ final class Layer2Service {
                 if (hook.has(user, hook.markerNode())) {
                     return hook.applyLayer2Async(other).thenApply(v -> {
                         store.trackLayer2(other);
+                        store.linkAutoOffender(uuid, other);
                         return (String) null;
                     });
                 }
                 return hook.applyLayer2Async(other).thenApply(v -> {
                     store.trackLayer2(other);
+                    store.linkAutoOffender(uuid, other);
                     return name != null ? name : other.toString();
                 });
             }));
