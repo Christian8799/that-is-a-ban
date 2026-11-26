@@ -9,6 +9,7 @@ public final class ThatsABan extends JavaPlugin {
     private LinkStore store;
     private CountryFilterIntegration countryFilter;
     private SpectatorIntegration spectatorFeature;
+    private ReportManager reportManager;
 
     @Override
     public void onEnable() {
@@ -61,6 +62,14 @@ public final class ThatsABan extends JavaPlugin {
         }
 
         registerSpectatorFeature();
+
+        FlashbackClipIntegration flashbackClips = new FlashbackClipIntegration(this);
+        reportManager = new ReportManager(this, flashbackClips);
+        getServer().getPluginManager().registerEvents(reportManager, this);
+        registerCommand("report", new ReportCommand(reportManager));
+        registerCommand("reports", new ReportsCommand(this, reportManager));
+        reportManager.initialize();
+
         getServer().getScheduler().runTask(this, this::checkIntegrations);
         getLogger().info("ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert.");
     }
@@ -206,6 +215,7 @@ public final class ThatsABan extends JavaPlugin {
     @Override
     public void onDisable() {
         if (spectatorFeature != null) spectatorFeature.shutdown();
+        if (reportManager != null) reportManager.shutdown();
         if (store != null) store.save();
         if (countryFilter != null) {
             try {

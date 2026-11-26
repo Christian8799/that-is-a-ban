@@ -4,7 +4,7 @@ version: ${version}
 api-version: "1.21.11"
 author: Christian8799
 description: Anti-Cheat-Connector with privacy tools and protected admin spectating
-softdepend: [LuckPerms, ProtocolLib, SuperVanish, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
+softdepend: [LuckPerms, ProtocolLib, SuperVanish, FlashbackServer, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
 
 commands:
   offend:
@@ -18,6 +18,14 @@ commands:
     description: Geschützte Admin-Beobachtung verwalten
     usage: /<command> <observe|off|permanent> [Spieler] [vanish]
     permission: thatsaban.spectator
+  report:
+    description: Meldet einen Spieler und speichert einen Replay-Clip
+    usage: /<command> <Spieler> <Grund>
+    permission: thatsaban.report
+  reports:
+    description: Zeigt und verwaltet Spieler-Reports
+    usage: /<command> [list|view|offend|resolve|dismiss] [ID]
+    permission: thatsaban.reports
 
 permissions:
   thatsaban.admin:
@@ -50,6 +58,15 @@ permissions:
   thatsaban.exempt:
     description: Ausnahme von /offend und IP-Kopplung
     default: false
+  thatsaban.report:
+    description: Darf andere Spieler melden
+    default: true
+  thatsaban.reports:
+    description: Darf Reports einsehen und verwalten
+    default: op
+  thatsaban.reports.notify:
+    description: Erhält Benachrichtigungen über neue Reports
+    default: op
   thatsaban.spectator:
     description: Darf geschützte Admin-Beobachtung verwenden
     default: op

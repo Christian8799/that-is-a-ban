@@ -1,6 +1,6 @@
 # That's a Ban
 
-**Dokumentation:** [English](README.md) · [Deutsch](README.de.md)
+**Dokumentation:** [English](README.md) · [Deutsch](README.de.md) · [Spieler-Reports und Replay-Clips](docs/REPORTS.md)
 
 **That's a Ban** ist ein Anti-Cheat-Connector und ein Werkzeug für Datenschutz- und Moderationsabläufe auf **Paper 1.21.11**. Das Plugin implementiert keine eigenen Cheat-Erkennungsregeln. Es verbindet vorhandene Plugins und steuert über LuckPerms, welche Anti-Cheat-Integrationen für Spieler in Layer 1 beziehungsweise Layer 2 greifen.
 

@@ -4,7 +4,7 @@
 
 The plugin also includes an optional protected admin spectator mode, a local GeoIP region filter, and an opt-in pseudonymous account-link network.
 
-**Documentation:** [English](README.md) · [Deutsch](README.de.md)
+**Documentation:** [English](README.md) · [Deutsch](README.de.md) · [Player reports and replay clips](docs/REPORTS.md)
 
 ## Contents
 

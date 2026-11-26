@@ -11,6 +11,14 @@ layer2:
 offend:
   kick-online-target: false
 
+reports:
+  enabled: true
+  cooldown-seconds: 60
+  max-reason-length: 200
+  # FlashbackServer clips.window-seconds must be at least this value.
+  # FlashbackServer retains two keyframe segments, so the saved clip may be longer.
+  minimum-clip-window-seconds: 60
+
 privacy:
   # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
   # Umgebungsvariable THATSABAN_HMAC_KEY_PATH hat Vorrang.
