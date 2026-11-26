@@ -187,20 +187,21 @@ final class ReportManager implements Listener {
             id = UUID.randomUUID().toString().substring(0, 8).toLowerCase(Locale.ROOT);
         } while (reports.containsKey(id));
 
-        ReportEntry entry = new ReportEntry(id, reporter.getUniqueId(), reporter.getName(),
+        final String reportId = id;
+        ReportEntry entry = new ReportEntry(reportId, reporter.getUniqueId(), reporter.getName(),
                 target.getUniqueId(), target.getName(), reason, now, Status.CAPTURING, null);
-        reports.put(id, entry);
+        reports.put(reportId, entry);
         cooldowns.put(reporter.getUniqueId(), now);
         save();
 
         Path output = plugin.getDataFolder().toPath().resolve("reports")
-                .resolve(id + "-" + safeFileName(target.getName()) + ".flashback");
+                .resolve(reportId + "-" + safeFileName(target.getName()) + ".flashback");
         try {
             Files.createDirectories(output.getParent());
             clips.saveClip(target, output).whenComplete((path, error) -> {
                 if (!plugin.isEnabled()) return;
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    ReportEntry current = reports.get(id);
+                    ReportEntry current = reports.get(reportId);
                     if (current == null) return;
                     if (error != null || path == null) {
                         current.status = Status.FAILED;
