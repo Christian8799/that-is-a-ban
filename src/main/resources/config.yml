@@ -1,4 +1,4 @@
-# that-s-a-ban - Konfiguration
+# that-s-a-ban configuration
 config-version: 5
 
 layer2:
@@ -20,11 +20,11 @@ reports:
   minimum-clip-window-seconds: 60
 
 privacy:
-  # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
-  # Umgebungsvariable THATSABAN_HMAC_KEY_PATH hat Vorrang.
+  # Optional absolute path outside the plugin directory; empty = plugins/ThatsABan/ip-hmac.key.
+  # The THATSABAN_HMAC_KEY_PATH environment variable takes precedence.
   hmac-key-path: ""
-  # Standardmäßig keine spielerbezogenen Audit-Einträge in Paper-Logs schreiben.
-  # Bei Aktivierung werden nur UUIDs (keine Spielernamen/IP-Adressen) protokolliert.
+  # Do not write player-related audit entries to Paper logs by default.
+  # When enabled, only UUIDs are logged (no player names or IP addresses).
   audit-logging: false
 
 bedrock:
@@ -39,13 +39,13 @@ country-filter:
     - "Bavaria"
   allow-private-addresses: false
 
-# Datenschutzfreundliche Voreinstellungen: IP-Kopplung bleibt ausgeschaltet.
+# Privacy-friendly defaults: IP linking remains disabled.
 alt-detection:
   enabled: false
   retention-days: 30
-  offender-retention-days: 365 # Endliche Frist seit letzter Aktivität; maximal 3650 Tage
-  auto-apply: false # false = nur Staff-Vorschläge; /offend erfordert eine bewusste Bestätigung
-  retroactive: false # Bereits bekannte IP-Übereinstimmungen nicht automatisch rückwirkend einstufen
+  offender-retention-days: 365 # Finite retention period since last activity; maximum 3650 days
+  auto-apply: false # false = staff suggestions only; /offend requires deliberate confirmation
+  retroactive: false # Do not automatically classify previously known IP matches retroactively
   ignore-private-addresses: true
   ignored-ips: []
 
