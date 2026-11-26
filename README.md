@@ -93,7 +93,7 @@ The active file is `plugins/ThatsABan/config.yml`. Every operator-editable optio
 
 ```yaml
 # That's a Ban configuration (values match the shipped defaults)
-config-version: 3
+config-version: 4
 
 layer2:
   marker-permission: "thatsaban.layer2"
@@ -177,7 +177,7 @@ messages:
 
 | Key | Default | Description and accepted values |
 |---|---|---|
-| `config-version` | `3` | Internal migration version. Do not edit manually. |
+| `config-version` | `4` | Internal migration version. Do not edit manually. |
 | `layer2.marker-permission` | `thatsaban.layer2` | LuckPerms marker node identifying a Layer 2 player. |
 | `layer2.negated-permissions` | `foxav.bypass`, `handshaker.bypass` | List of bypass nodes removed/negated for Layer 2 players. Adapt these to your installed anti-cheat plugins. |
 | `layer2.exempt-permission` | `thatsaban.exempt` | Players with this node are exempt from `/offend` and IP linking. |
