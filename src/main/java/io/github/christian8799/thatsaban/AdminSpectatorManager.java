@@ -142,6 +142,27 @@ final class AdminSpectatorManager implements Listener {
         }
     }
 
+    List<String> permanentPlayerNames(String prefix, boolean permanentOnly) {
+        String normalizedPrefix = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
+        java.util.Set<String> candidates = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        if (permanentOnly) {
+            for (UUID uuid : permanent) {
+                String name = Bukkit.getOfflinePlayer(uuid).getName();
+                if (name != null && name.toLowerCase(java.util.Locale.ROOT).startsWith(normalizedPrefix)) {
+                    candidates.add(name);
+                }
+            }
+        } else {
+            for (org.bukkit.OfflinePlayer offlinePlayer : Bukkit.getOfflinePlayers()) {
+                String name = offlinePlayer.getName();
+                if (name != null && name.toLowerCase(java.util.Locale.ROOT).startsWith(normalizedPrefix)) {
+                    candidates.add(name);
+                }
+            }
+        }
+        return List.copyOf(candidates);
+    }
+
     boolean isObserving(Player observer) {
         return sessions.containsKey(observer.getUniqueId())
                 || hasPendingRestore(observer.getUniqueId());
