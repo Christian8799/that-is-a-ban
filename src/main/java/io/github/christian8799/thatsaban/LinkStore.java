@@ -52,6 +52,7 @@ final class LinkStore {
     private final Map<UUID, Long> offenders = new HashMap<>();
     private final Map<UUID, Long> layer2LastSeen = new HashMap<>();
     private final Set<UUID> expiredOffenders = new HashSet<>();
+    private final Map<UUID, Set<UUID>> autoOffenderAlts = new HashMap<>();
 
     private byte[] hmacKey;
     private boolean dirty;
@@ -133,6 +134,28 @@ final class LinkStore {
                 expiredOffenders.add(UUID.fromString(id));
             } catch (IllegalArgumentException ignored) {
                 // Skip invalid UUID entry.
+            }
+        }
+
+        ConfigurationSection autoLinks = yaml.getConfigurationSection("auto-offender-alts");
+        if (autoLinks != null) {
+            for (String mainId : autoLinks.getKeys(false)) {
+                try {
+                    UUID main = UUID.fromString(mainId);
+                    Set<UUID> linked = new HashSet<>();
+                    for (String altId : autoLinks.getStringList(mainId)) {
+                        try {
+                            linked.add(UUID.fromString(altId));
+                        } catch (IllegalArgumentException ignored) {
+                            // Skip invalid linked account UUID.
+                        }
+                    }
+                    if (!linked.isEmpty()) {
+                        autoOffenderAlts.put(main, linked);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // Skip invalid main account UUID.
+                }
             }
         }
 
@@ -317,6 +340,10 @@ final class LinkStore {
         yaml.set("layer2-last-seen", new HashMap<>(layer2LastSeen));
         yaml.set("expired-layer2-markers",
                 expiredOffenders.stream().map(UUID::toString).toList());
+        for (Map.Entry<UUID, Set<UUID>> entry : autoOffenderAlts.entrySet()) {
+            yaml.set("auto-offender-alts." + entry.getKey(),
+                    entry.getValue().stream().map(UUID::toString).toList());
+        }
         for (Map.Entry<UUID, Long> entry : offenders.entrySet()) {
             yaml.set("offender-last-seen." + entry.getKey(), entry.getValue());
         }
@@ -441,6 +468,29 @@ final class LinkStore {
         return layer2LastSeen.containsKey(uuid);
     }
 
+    synchronized void linkAutoOffender(UUID main, UUID alt) {
+        if (main.equals(alt)) {
+            return;
+        }
+        autoOffenderAlts.computeIfAbsent(main, ignored -> new HashSet<>()).add(alt);
+        dirty = true;
+    }
+
+    synchronized Set<UUID> unmarkOffenderGroup(UUID main) {
+        Set<UUID> affected = new HashSet<>();
+        affected.add(main);
+        affected.addAll(autoOffenderAlts.getOrDefault(main, Set.of()));
+        autoOffenderAlts.remove(main);
+        for (Set<UUID> linked : autoOffenderAlts.values()) {
+            linked.remove(main);
+        }
+        autoOffenderAlts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        for (UUID uuid : affected) {
+            unmarkOffender(uuid);
+        }
+        return affected;
+    }
+
     synchronized void unmarkOffender(UUID uuid) {
         boolean changed = offenders.remove(uuid) != null;
         changed |= layer2LastSeen.remove(uuid) != null;
@@ -456,6 +506,11 @@ final class LinkStore {
         ipsByPlayer.remove(uuid);
         names.remove(uuid);
         offenders.remove(uuid);
+        autoOffenderAlts.remove(uuid);
+        for (Set<UUID> linked : autoOffenderAlts.values()) {
+            linked.remove(uuid);
+        }
+        autoOffenderAlts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         layer2LastSeen.remove(uuid);
         expiredOffenders.remove(uuid);
         for (String hash : hashes) {
