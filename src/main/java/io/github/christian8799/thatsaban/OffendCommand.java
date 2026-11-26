@@ -44,17 +44,30 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
         if (online != null) {
             resolvedId = online.getUniqueId();
             resolvedName = online.getName();
-        } else if (known != null) {
-            resolvedId = known;
-            resolvedName = store.nameOf(known);
         } else {
-            OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(input);
-            if (cached == null) {
-                sender.sendMessage(msg.get("player-not-found", Placeholder.unparsed("player", input)));
-                return true;
+            UUID suppliedUuid = null;
+            try {
+                suppliedUuid = UUID.fromString(input);
+            } catch (IllegalArgumentException ignored) {
+                // Continue with the cached name lookups below.
             }
-            resolvedId = cached.getUniqueId();
-            resolvedName = cached.getName() != null ? cached.getName() : input;
+
+            if (suppliedUuid != null) {
+                OfflinePlayer offline = Bukkit.getOfflinePlayer(suppliedUuid);
+                resolvedId = suppliedUuid;
+                resolvedName = offline.getName() != null ? offline.getName() : suppliedUuid.toString();
+            } else if (known != null) {
+                resolvedId = known;
+                resolvedName = store.nameOf(known);
+            } else {
+                OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(input);
+                if (cached == null) {
+                    sender.sendMessage(msg.get("player-not-found", Placeholder.unparsed("player", input)));
+                    return true;
+                }
+                resolvedId = cached.getUniqueId();
+                resolvedName = cached.getName() != null ? cached.getName() : input;
+            }
         }
 
         final UUID targetId = resolvedId;
