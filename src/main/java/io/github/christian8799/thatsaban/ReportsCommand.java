@@ -392,9 +392,20 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
                     .filter(value -> value.startsWith(prefix)).toList();
         }
         if (args.length == 2) {
+            String action = args[0].toLowerCase(Locale.ROOT);
+            if (!List.of("view", "offend", "resolve", "dismiss").contains(action)) return List.of();
             String prefix = args[1].toLowerCase(Locale.ROOT);
-            return reports.reports().stream().map(ReportManager.ReportEntry::id)
-                    .filter(id -> id.startsWith(prefix)).toList();
+            return reports.reports().stream()
+                    .filter(entry -> switch (action) {
+                        case "offend" -> entry.status() == ReportManager.Status.OPEN && entry.replayPath() != null
+                                && sender.hasPermission("thatsaban.offend");
+                        case "resolve", "dismiss" -> entry.status() == ReportManager.Status.OPEN
+                                || entry.status() == ReportManager.Status.FAILED;
+                        default -> true;
+                    })
+                    .map(ReportManager.ReportEntry::id)
+                    .filter(id -> id.startsWith(prefix))
+                    .toList();
         }
         return List.of();
     }
