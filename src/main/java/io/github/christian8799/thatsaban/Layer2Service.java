@@ -39,7 +39,7 @@ final class Layer2Service {
             }
             boolean already = hook.has(user, hook.markerNode());
             return hook.applyLayer2Async(uuid)
-                    .thenCompose(v -> flagAlts(store.markOffender(uuid)))
+                    .thenCompose(v -> flagAlts(uuid, store.markOffender(uuid)))
                     .thenApply(alts -> new OffendResult(already ? Status.ALREADY : Status.DONE, alts));
         });
     }
@@ -171,7 +171,7 @@ final class Layer2Service {
         }
     }
 
-    private CompletableFuture<List<String>> flagAlts(Set<UUID> others) {
+    private CompletableFuture<List<String>> flagAlts(UUID main, Set<UUID> others) {
         FileConfiguration cfg = plugin.getConfig();
         if (!cfg.getBoolean("alt-detection.enabled", true)
                 || !cfg.getBoolean("alt-detection.retroactive", false)
@@ -194,7 +194,7 @@ final class Layer2Service {
                 if (hook.has(user, hook.markerNode())) {
                     return hook.applyLayer2Async(other).thenApply(v -> {
                         store.trackLayer2(other);
-                        store.linkAutoOffender(uuid, other);
+                        store.linkAutoOffender(main, other);
                         return (String) null;
                     });
                 }
