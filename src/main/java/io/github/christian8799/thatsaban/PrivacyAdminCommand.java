@@ -221,8 +221,10 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                 return List.of();
             }
             String prefix = args[1].toLowerCase(Locale.ROOT);
-            return Bukkit.getOnlinePlayers().stream().map(Player::getName)
-                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).toList();
+            if (action.equals("unoffend")) {
+                return store.offenderNames(prefix);
+            }
+            return store.knownPlayerNames(prefix);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("network")
                 && (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))) {
