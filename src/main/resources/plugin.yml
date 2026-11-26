@@ -16,7 +16,7 @@ commands:
     usage: /<command> <info|network|unoffend|forget> <player|UUID> [depth|confirm]
   adminspec:
     description: Manage protected admin observation
-    usage: /<command> <observe|off|permanent> [player] [vanish]
+    usage: /<command> <observe|tp|offend|off|permanent> [player] [vanish]
     permission: thatsaban.spectator
   report:
     description: Report a player and save a replay clip
