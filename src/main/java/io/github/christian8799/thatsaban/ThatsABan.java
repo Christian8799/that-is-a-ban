@@ -238,6 +238,7 @@ public final class ThatsABan extends JavaPlugin {
                 }
             }
             setEnglishMessageDefaults();
+            setGermanMessageDefaults();
             version = 5;
         }
         if (getConfig().getInt("config-version", 0) != version) {
@@ -262,11 +263,46 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("alt-suggestion-staff", "<yellow>Review required:</yellow> <white><player></white> shares a flagged IP. Review the context before taking action; if confirmed, use /offend <player>."),
                 java.util.Map.entry("alt-auto-applied-staff", "<red>Automatic action:</red> <white><player></white> was moved to Layer 2 due to an IP match."),
                 java.util.Map.entry("country-denied", "<red>Connections are only allowed from an IP address in Bavaria."),
-                java.util.Map.entry("country-lookup-failed", "<red>Your IP address could not be geolocated locally. Please try again later.")
+                java.util.Map.entry("country-lookup-failed", "<red>Your IP address could not be geolocated locally. Please try again later."),
+                java.util.Map.entry("log-luckperms-enabled", "LuckPerms integration enabled."),
+                java.util.Map.entry("log-luckperms-missing", "LuckPerms is missing or disabled."),
+                java.util.Map.entry("log-geoip-missing", "The local IP2Location database is missing or unreadable."),
+                java.util.Map.entry("feature-luckperms-required", "Disabled: This command requires LuckPerms."),
+                java.util.Map.entry("log-enabled", "ThatsABan enabled. Optional integrations were initialized independently."),
+                java.util.Map.entry("log-supervanish-missing", "SuperVanish is missing or disabled."),
+                java.util.Map.entry("log-supervanish-enabled", "SuperVanish integration enabled."),
+                java.util.Map.entry("feature-protocollib-missing", "Admin spectator mode disabled: ProtocolLib is missing or disabled."),
+                java.util.Map.entry("log-protocollib-missing", "ProtocolLib is missing or disabled."),
+                java.util.Map.entry("log-protocollib-enabled", "ProtocolLib integration enabled: admin spectator mode is available."),
+                java.util.Map.entry("feature-protocollib-incompatible", "Admin spectator mode disabled: ProtocolLib is incompatible or could not be initialized."),
+                java.util.Map.entry("log-command-missing", "Command is missing from plugin.yml:")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.en." + entry.getKey())) {
                 getConfig().set("messages.en." + entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+
+    private void setGermanMessageDefaults() {
+        java.util.Map<String, String> defaults = java.util.Map.ofEntries(
+                java.util.Map.entry("log-luckperms-enabled", "LuckPerms-Integration aktiv."),
+                java.util.Map.entry("log-luckperms-missing", "LuckPerms fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-geoip-missing", "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar."),
+                java.util.Map.entry("feature-luckperms-required", "Deaktiviert: Dieser Befehl benötigt LuckPerms."),
+                java.util.Map.entry("log-enabled", "ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert."),
+                java.util.Map.entry("log-supervanish-missing", "SuperVanish fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-supervanish-enabled", "SuperVanish-Integration aktiv."),
+                java.util.Map.entry("feature-protocollib-missing", "Admin-Spectator deaktiviert: ProtocolLib fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-protocollib-missing", "ProtocolLib fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-protocollib-enabled", "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar."),
+                java.util.Map.entry("feature-protocollib-incompatible", "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."),
+                java.util.Map.entry("log-command-missing", "Befehl fehlt in plugin.yml:")
+        );
+        for (var entry : defaults.entrySet()) {
+            if (!getConfig().contains("messages.de." + entry.getKey())) {
+                getConfig().set("messages.de." + entry.getKey(), entry.getValue());
             }
         }
     }
