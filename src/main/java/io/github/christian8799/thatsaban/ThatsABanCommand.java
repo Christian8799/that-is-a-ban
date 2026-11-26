@@ -1,5 +1,6 @@
 package io.github.christian8799.thatsaban;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -8,6 +9,7 @@ import org.bukkit.command.TabCompleter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.TreeSet;
 
 final class ThatsABanCommand implements CommandExecutor, TabCompleter {
 
@@ -46,10 +48,31 @@ final class ThatsABanCommand implements CommandExecutor, TabCompleter {
             if (sender.hasPermission("thatsaban.admin") && "reload".startsWith(prefix)) {
                 suggestions.add("reload");
             }
+            if ((sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))
+                    && "network".startsWith(prefix)) {
+                suggestions.add("network");
+            }
             if (delegate instanceof TabCompleter completer) {
                 suggestions.addAll(completer.onTabComplete(sender, command, alias, args));
             }
             return suggestions.stream().distinct().toList();
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("network")
+                && (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))) {
+            String prefix = args[1].toLowerCase(Locale.ROOT);
+            TreeSet<String> suggestions = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            Bukkit.getOnlinePlayers().stream()
+                    .map(org.bukkit.entity.Player::getName)
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
+                    .forEach(suggestions::add);
+            suggestions.addAll(store.knownPlayerNames(prefix));
+            return List.copyOf(suggestions);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("network")
+                && (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))) {
+            return List.of("1", "2", "3").stream()
+                    .filter(value -> value.startsWith(args[2]))
+                    .toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("unoffend")
                 && delegate instanceof PrivacyAdminCommand
