@@ -24,7 +24,6 @@ import java.util.UUID;
 
 /** Interactive, permission-aware account network browser. */
 final class AccountNetworkMenu implements Listener {
-    private static final int[] EXTRA_ACCOUNT_SLOTS = {45, 46, 48, 50, 52, 53};
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
 
@@ -37,7 +36,7 @@ final class AccountNetworkMenu implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    void open(Player viewer, UUID rootId, int depth, int requestedPage) {
+    void open(Player viewer, UUID rootId, int depth) {
         if (!viewer.hasPermission("thatsaban.network") && !viewer.hasPermission("thatsaban.admin")) {
             viewer.sendMessage("Missing permission: thatsaban.network.");
             return;
@@ -93,11 +92,7 @@ final class AccountNetworkMenu implements Listener {
             inventory.setItem(22, item(Material.BARRIER, "§cNo stored connections",
                     "§7No connections were found within the retention period."));
         }
-        inventory.setItem(47, item(Material.REDSTONE, "§cDepth -1",
-                "§7Current depth: §f" + depth));
         inventory.setItem(49, item(Material.BARRIER, "§cClose"));
-        inventory.setItem(51, item(Material.EMERALD, "§aDepth +1",
-                "§7Current depth: §f" + depth));
         viewer.openInventory(inventory);
     }
 
@@ -117,15 +112,11 @@ final class AccountNetworkMenu implements Listener {
         int slot = event.getRawSlot();
         UUID selected = holder.accountSlots.get(slot);
         if (selected != null) {
-            open(player, selected, holder.depth, 0);
+            open(player, selected, holder.depth);
             return;
         }
         if (slot == 49) {
             player.closeInventory();
-        } else if (slot == 47 && holder.depth > 1) {
-            open(player, holder.rootId, holder.depth - 1, 0);
-        } else if (slot == 51 && holder.depth < 3) {
-            open(player, holder.rootId, holder.depth + 1, 0);
         }
     }
 
