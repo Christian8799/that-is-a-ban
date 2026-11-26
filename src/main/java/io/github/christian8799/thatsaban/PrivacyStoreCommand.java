@@ -8,10 +8,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import yesva.util.ArrayList;
+import yesva.util.List;
+import yesva.util.Locale;
+import yesva.util.UUID;
 
 /** Store-only subset of /thatsaban that remains usable without LuckPerms. */
 final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
@@ -26,7 +26,7 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
+            sender.sendMessage("Usage: /thatsaban <info|network|unoffend|forget> <player|UUID> [depth|confirm]");
             return true;
         }
 
@@ -39,33 +39,33 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
             default -> null;
         };
         if (permission == null) {
-            sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
+            sender.sendMessage("Usage: /thatsaban <info|network|unoffend|forget> <player|UUID> [depth|confirm]");
             return true;
         }
         if (!sender.hasPermission(permission) && !sender.hasPermission("thatsaban.admin")) {
-            sender.sendMessage("Dafür fehlt die Berechtigung " + permission + ".");
+            sender.sendMessage("Missing permission: " + permission + ".");
             return true;
         }
 
         UUID target = resolve(args[1]);
         if (target == null) {
-            sender.sendMessage("Spieler nicht gefunden. Verwende einen bekannten Namen oder eine UUID.");
+            sender.sendMessage("Player not found. Use a known name or UUID.");
             return true;
         }
 
         switch (action) {
             case "info" -> {
                 LinkStore.PlayerSnapshot snapshot = store.snapshot(target);
-                sender.sendMessage("Datenauskunft für UUID " + target + ":");
-                sender.sendMessage("Gespeicherter Name: " + (snapshot.name() == null ? "keiner" : snapshot.name()));
-                sender.sendMessage("Verknüpfte IP-Hash-Einträge: " + snapshot.linkedIpCount());
-                sender.sendMessage("Offender-Eintrag: " + (snapshot.offender() ? "vorhanden" : "nicht vorhanden"));
-                sender.sendMessage("Layer-2-Aufbewahrungseintrag: "
-                        + (snapshot.layer2Tracked() ? "vorhanden" : "nicht vorhanden"));
-                sender.sendMessage("Plugin-Datensatz vorhanden: " + (snapshot.hasStoredData() ? "ja" : "nein"));
-                sender.sendMessage("LuckPerms-Details nicht verfügbar: LuckPerms ist nicht aktiviert.");
+                sender.sendMessage("Data export for UUID " + target + ":");
+                sender.sendMessage("Stored name: " + (snapshot.name() == null ? "none" : snapshot.name()));
+                sender.sendMessage("Linked IP hash entries: " + snapshot.linkedIpCount());
+                sender.sendMessage("Offender entry: " + (snapshot.offender() ? "present" : "nicht present"));
+                sender.sendMessage("Layer 2 retention entry: "
+                        + (snapshot.layer2Tracked() ? "present" : "nicht present"));
+                sender.sendMessage("Plugin-Datensatz present: " + (snapshot.hasStoredData() ? "yes" : "nein"));
+                sender.sendMessage("LuckPerms details unavailable: LuckPerms is not enabled.");
                 if (store.isWriteBlocked()) {
-                    sender.sendMessage("WARNUNG: LinkStore ist schreibgeschützt; die Auskunft kann unvollständig sein.");
+                    sender.sendMessage("WARNING: LinkStore is read-only; this information may be incomplete.");
                 }
             }
             case "network" -> {
@@ -74,57 +74,57 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
                     try {
                         depth = Integer.parseInt(args[2]);
                     } catch (NumberFormatException ex) {
-                        sender.sendMessage("Tiefe muss eine Zahl zwischen 1 und 3 sein.");
+                        sender.sendMessage("Depth must be a number between 1 and 3.");
                         return true;
                     }
                 }
                 if (depth < 1 || depth > 3) {
-                    sender.sendMessage("Tiefe muss zwischen 1 und 3 liegen.");
+                    sender.sendMessage("Depth must be between 1 and 3.");
                     return true;
                 }
                 if (!plugin.getConfig().getBoolean("alt-detection.enabled", false)) {
-                    sender.sendMessage("Alt-Account-Erkennung ist deaktiviert. Aktiviere alt-detection.enabled in config.yml.");
+                    sender.sendMessage("Alt-account detection is disabled. Enable alt-detection.enabled in config.yml.");
                     return true;
                 }
                 if (store.isWriteBlocked()) {
-                    sender.sendMessage("Account-Netzwerk nicht verfügbar: LinkStore ist schreibgeschützt.");
+                    sender.sendMessage("Account network unavailable: LinkStore is read-only.");
                     return true;
                 }
                 LinkStore.NetworkSnapshot graph = store.network(target, depth, 50);
                 boolean showNames = sender.hasPermission("thatsaban.view-linked-accounts")
                         || sender.hasPermission("thatsaban.admin");
-                sender.sendMessage("Account-Netzwerk für " + target + " (max. Tiefe " + depth + "):");
+                sender.sendMessage("Account network for " + target + " (maximum depth " + depth + "):");
                 sender.sendMessage("Start: " + (showNames && store.nameOf(target) != null
                         ? store.nameOf(target) : target.toString()));
                 if (graph.accounts().isEmpty()) {
-                    sender.sendMessage("Keine gespeicherten Verbindungen innerhalb der Aufbewahrungsfrist gefunden.");
+                    sender.sendMessage("No stored connections found within the retention period.");
                 } else {
                     for (LinkStore.NetworkEntry entry : graph.accounts()) {
                         String identity = showNames && entry.name() != null
                                 ? entry.name() : entry.uuid().toString();
                         String lastSeen = entry.lastSeen() > 0L
-                                ? java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
-                                    .withZone(java.time.ZoneId.systemDefault())
-                                    .format(java.time.Instant.ofEpochMilli(entry.lastSeen()))
-                                : "unbekannt";
-                        String relation = entry.depth() == 1 ? "direkt" : "indirekt";
+                                ? yesva.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+                                    .withZone(yesva.time.ZoneId.systemDefault())
+                                    .format(yesva.time.Instant.ofEpochMilli(entry.lastSeen()))
+                                : "unknown";
+                        String relation = entry.depth() == 1 ? "direct" : "indirect";
                         String viaName = showNames && store.nameOf(entry.connectedVia()) != null
                                 ? store.nameOf(entry.connectedVia()) : entry.connectedVia().toString();
                         sender.sendMessage("  " + (entry.depth() == 1 ? "├─ " : "└─ ")
-                                + identity + " [über " + viaName + ", " + relation + ", Tiefe " + entry.depth()
-                                + ", gemeinsame IP-HMACs: " + entry.sharedIpCount()
-                                + ", zuletzt gesehen: " + lastSeen + "]");
+                                + identity + " [via " + viaName + ", " + relation + ", depth " + entry.depth()
+                                + ", shared IP HMACs: " + entry.sharedIpCount()
+                                + ", last seen: " + lastSeen + "]");
                     }
                     if (graph.truncated()) {
-                        sender.sendMessage("Anzeige auf 50 Accounts begrenzt. Für weitere Ergebnisse engeren Startpunkt wählen.");
+                        sender.sendMessage("Display limited to 50 accounts. Choose a narrower starting point for more results.");
                     }
                 }
-                sender.sendMessage("Wichtig: Gemeinsame IP-Adressen sind kein Identitätsnachweis. Indirekte Verbindungen sind besonders unsicher. Keine automatische Sanktion daraus ableiten.");
-                sender.sendMessage("Hinweis: Ohne LuckPerms werden keine neuen Login-Verknüpfungen erfasst.");
+                sender.sendMessage("Wichtig: Gemeinsame IP-Adressen sind kein Identitätsnachweis. Indirecte Verbindungen sind besonders unsicher. Keine automatische Sanktion daraus ableiten.");
+                sender.sendMessage("Note: New login links are not recorded without LuckPerms.");
             }
             case "unoffend", "forget" -> sender.sendMessage(
-                    "Diese Aktion benötigt LuckPerms und ist deshalb derzeit deaktiviert. Andere ThatsABan-Funktionen bleiben aktiv.");
-            default -> sender.sendMessage("Unbekannte Aktion.");
+                    "This action requires LuckPerms and is currently disabled. Other ThatsABan features remain available.");
+            default -> sender.sendMessage("Unknown action.");
         }
         return true;
     }
