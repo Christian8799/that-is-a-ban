@@ -283,7 +283,8 @@ IPv6 addresses are truncated to /64 before HMAC generation. Raw IP addresses are
 |---|---|---|
 | `/offend <player>` | Deliberately classifies a Java player into Layer 2 | `thatsaban.offend` |
 | `/report <player> <reason>` | Submits a report and saves the target's rolling replay clip (requires FlashbackServer) | `thatsaban.report` |
-| `/reports [list|view|offend|resolve|dismiss] [ID]` | Staff report queue, replay path and review actions | `thatsaban.reports` plus `thatsaban.offend` for the offend action |
+| `/reports` | Opens the interactive staff GUI with filters, pagination and report details | `thatsaban.reports` |
+| `/reports [view|offend|resolve|dismiss] <ID>` | Opens a detail view or performs the selected staff action; subcommands also work from console | `thatsaban.reports`; `thatsaban.offend` for offend | `thatsaban.reports` plus `thatsaban.offend` for the offend action |
 | `/thatsaban unoffend <player|UUID>` | Removes the plugin-managed Layer 2/offender classification | `thatsaban.layer2.remove` or `thatsaban.admin` |
 
 ### Privacy and account-network commands
