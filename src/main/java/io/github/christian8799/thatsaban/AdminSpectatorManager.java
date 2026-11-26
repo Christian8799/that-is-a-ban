@@ -303,7 +303,9 @@ final class AdminSpectatorManager implements Listener {
             }
             boolean returnTeleportSucceeded = false;
             try {
-                observer.setSpectatorTarget(null);
+                if (observer.getGameMode() == GameMode.SPECTATOR) {
+                    observer.setSpectatorTarget(null);
+                }
                 if (!observer.teleport(session.snapshot().location())) {
                     sessions.put(observerId, session);
                     keepObserverHidden(observer);
@@ -712,7 +714,9 @@ final class AdminSpectatorManager implements Listener {
             } else {
                 hideObserverFromAll(player);
             }
-            player.setSpectatorTarget(null);
+            if (player.getGameMode() == GameMode.SPECTATOR) {
+                player.setSpectatorTarget(null);
+            }
             if (!player.teleport(location)) {
                 keepObserverHidden(player);
                 plugin.getLogger().severe("Could not restore stored spectator position; player remains hidden: " + uuid);
@@ -762,8 +766,8 @@ final class AdminSpectatorManager implements Listener {
 
     private void keepObserverHidden(Player observer) {
         try {
-            observer.setSpectatorTarget(null);
             observer.setGameMode(GameMode.SPECTATOR);
+            observer.setSpectatorTarget(null);
             observer.setAllowFlight(true);
             observer.setFlying(true);
             hideObserverFromAll(observer);
@@ -773,6 +777,9 @@ final class AdminSpectatorManager implements Listener {
     }
 
     private void restoreSnapshot(Player player, Snapshot snapshot) {
+        if (player.getGameMode() == GameMode.SPECTATOR) {
+            player.setSpectatorTarget(null);
+        }
         player.setGameMode(snapshot.gameMode());
         player.setAllowFlight(snapshot.allowFlight());
         player.setFlying(snapshot.flying() && snapshot.allowFlight());
@@ -785,9 +792,9 @@ final class AdminSpectatorManager implements Listener {
         UUID previousTargetId = snapshot.spectatorTarget();
         if (player.getGameMode() == GameMode.SPECTATOR && previousTargetId != null) {
             org.bukkit.entity.Entity previousTarget = Bukkit.getEntity(previousTargetId);
-            player.setSpectatorTarget(previousTarget);
-        } else {
-            player.setSpectatorTarget(null);
+            if (previousTarget != null) {
+                player.setSpectatorTarget(previousTarget);
+            }
         }
         // Permanent Spectator wins over the pre-observation game mode.
         enforcePermanent(player);
@@ -926,7 +933,9 @@ final class AdminSpectatorManager implements Listener {
             synchronized (own) {
                 // Keep the persisted snapshot so the next login can restore the original
                 // location and player settings before this account becomes visible.
-                quitter.setSpectatorTarget(null);
+                if (quitter.getGameMode() == GameMode.SPECTATOR) {
+                    quitter.setSpectatorTarget(null);
+                }
                 audit("ABORT_QUIT_PENDING_RECOVERY", quitter.getUniqueId(), own.target());
             }
         }
