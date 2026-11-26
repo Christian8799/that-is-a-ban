@@ -194,7 +194,8 @@ jobs:
           FLASHBACK_REPO=/tmp/FlashbackServer
           git clone https://github.com/Zeffut/FlashbackServer.git "$FLASHBACK_REPO"
           git -C "$FLASHBACK_REPO" checkout 2a1549593b78b4bce3cb3f9d48f9869d4e39c513
-          "$FLASHBACK_REPO/gradlew" -p "$FLASHBACK_REPO" build --no-daemon
+          "$FLASHBACK_REPO/gradlew" -p "$FLASHBACK_REPO" build --no-daemon \
+            -Dorg.gradle.java.installations.paths="$JAVA21_HOME,$JAVA25_HOME"
           FLASHBACK_JAR="$(find "$FLASHBACK_REPO/build/libs" -maxdepth 1 -type f -name 'FlashbackServer-*.jar' ! -name '*-plain.jar' | head -n 1)"
           test -n "$FLASHBACK_JAR"
           test -s "$FLASHBACK_JAR"
