@@ -59,10 +59,10 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("Data export for UUID " + target + ":");
                 sender.sendMessage("Stored name: " + (snapshot.name() == null ? "none" : snapshot.name()));
                 sender.sendMessage("Linked IP hash entries: " + snapshot.linkedIpCount());
-                sender.sendMessage("Offender entry: " + (snapshot.offender() ? "present" : "nicht present"));
+                sender.sendMessage("Offender entry: " + (snapshot.offender() ? "present" : "not present"));
                 sender.sendMessage("Layer 2 retention entry: "
-                        + (snapshot.layer2Tracked() ? "present" : "nicht present"));
-                sender.sendMessage("Plugin-Datensatz present: " + (snapshot.hasStoredData() ? "yes" : "nein"));
+                        + (snapshot.layer2Tracked() ? "present" : "not present"));
+                sender.sendMessage("Plugin record exists: " + (snapshot.hasStoredData() ? "yes" : "no"));
                 sender.sendMessage("LuckPerms details unavailable: LuckPerms is not enabled.");
                 if (store.isWriteBlocked()) {
                     sender.sendMessage("WARNING: LinkStore is read-only; this information may be incomplete.");
@@ -119,7 +119,7 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
                         sender.sendMessage("Display limited to 50 accounts. Choose a narrower starting point for more results.");
                     }
                 }
-                sender.sendMessage("Wichtig: Gemeinsame IP-Adressen sind kein Identitätsnachweis. Indirecte Verbindungen sind besonders unsicher. Keine automatische Sanktion daraus ableiten.");
+                sender.sendMessage("Important: Shared IP addresses do not prove identity. Indirect connections are especially unreliable. Do not derive automatic sanctions from this data.");
                 sender.sendMessage("Note: New login links are not recorded without LuckPerms.");
             }
             case "unoffend", "forget" -> sender.sendMessage(
