@@ -24,6 +24,7 @@ import java.util.UUID;
 
 /** Interactive, permission-aware account network browser. */
 final class AccountNetworkMenu implements Listener {
+    private static final int[] EXTRA_ACCOUNT_SLOTS = {45, 46, 47, 48, 50, 51, 52, 53};
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
 
