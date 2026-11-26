@@ -33,20 +33,20 @@ final class CountryFilter implements CountryFilterIntegration {
         File databaseFile = new File(plugin.getDataFolder(), configuredPath);
 
         if (!databaseFile.isFile() || !databaseFile.canRead()) {
-            plugin.getLogger().severe("Lokale GeoIP-Datenbank fehlt oder ist nicht lesbar: "
+            plugin.getLogger().severe("Local GeoIP database is missing or unreadable: "
                     + databaseFile.getPath()
-                    + ". Der Country-/Region-Filter wird deaktiviert; andere Plugin-Funktionen bleiben aktiv.");
+                    + ". The country/region filter will be disabled; other plugin features remain available.");
             return;
         }
 
         try {
             database.Open(databaseFile.getAbsolutePath());
             databaseReady = true;
-            plugin.getLogger().info("Lokale GeoIP-Datenbank geladen.");
+            plugin.getLogger().info("Local GeoIP database loaded.");
         } catch (IOException | RuntimeException ex) {
-            plugin.getLogger().severe("Lokale GeoIP-Datenbank konnte nicht geladen werden: "
+            plugin.getLogger().severe("Could not load local GeoIP database: "
                     + ex.getClass().getSimpleName()
-                    + ". Der Country-/Region-Filter wird deaktiviert; andere Plugin-Funktionen bleiben aktiv.");
+                    + ". The country/region filter will be disabled; other plugin features remain available.");
         }
     }
 
@@ -90,8 +90,8 @@ final class CountryFilter implements CountryFilterIntegration {
             return allowed ? CountryFilterIntegration.Result.ALLOWED : CountryFilterIntegration.Result.DENIED;
         } catch (Exception ex) {
             // Keine IP, keinen Datenbankinhalt und keine Exception-Details protokollieren.
-            plugin.getLogger().warning("Lokale GeoIP-Abfrage fehlgeschlagen "
-                    + "(Details werden aus Datenschutzgruenden nicht protokolliert).");
+            plugin.getLogger().warning("Local GeoIP lookup failed "
+                    + "(details are not logged for privacy reasons).");
             return CountryFilterIntegration.Result.UNAVAILABLE;
         }
     }
