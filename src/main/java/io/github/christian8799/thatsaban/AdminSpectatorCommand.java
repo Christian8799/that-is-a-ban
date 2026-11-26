@@ -146,14 +146,31 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
         if (!sender.hasPermission("thatsaban.spectator")) return List.of();
 
         if (args.length == 1) {
-            return List.of("observe", "menu", "tp", "offend", "off", "permanent").stream()
-                    .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
+            String prefix = args[0].toLowerCase(Locale.ROOT);
+            java.util.List<String> options = new java.util.ArrayList<>();
+            options.add("observe");
+            if (sender instanceof Player player) {
+                options.add("menu");
+                if (manager.isObserving(player)) {
+                    options.add("tp");
+                    options.add("off");
+                    if (sender.hasPermission("thatsaban.offend")) options.add("offend");
+                }
+            }
+            if (sender.hasPermission("thatsaban.spectator.permanent")) {
+                options.add("permanent");
+            }
+            return options.stream()
+                    .filter(value -> value.startsWith(prefix))
                     .toList();
         }
+
         if (args.length == 2 && (args[0].equalsIgnoreCase("observe")
-                || args[0].equalsIgnoreCase("tp")) && sender instanceof Player) {
+                || args[0].equalsIgnoreCase("tp")) && sender instanceof Player player) {
+            if (args[0].equalsIgnoreCase("tp") && !manager.isObserving(player)) return List.of();
             String prefix = args[1].toLowerCase(Locale.ROOT);
             return Bukkit.getOnlinePlayers().stream()
+                    .filter(target -> !target.equals(player))
                     .map(Player::getName)
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
                     .toList();
@@ -164,16 +181,18 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("permanent")
                 && sender.hasPermission("thatsaban.spectator.permanent")) {
-            return List.of("add", "remove");
+            String prefix = args[1].toLowerCase(Locale.ROOT);
+            return List.of("add", "remove").stream()
+                    .filter(value -> value.startsWith(prefix))
+                    .toList();
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("permanent")
                 && sender.hasPermission("thatsaban.spectator.permanent")) {
-            String prefix = args[2].toLowerCase(Locale.ROOT);
-            return Bukkit.getOnlinePlayers().stream()
-                    .map(Player::getName)
-                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
-                    .toList();
+            boolean permanentOnly = args[1].equalsIgnoreCase("remove");
+            if (!permanentOnly && !args[1].equalsIgnoreCase("add")) return List.of();
+            return manager.permanentPlayerNames(args[2], permanentOnly);
         }
         return List.of();
     }
+}
 }
