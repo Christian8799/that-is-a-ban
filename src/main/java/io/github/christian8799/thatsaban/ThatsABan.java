@@ -51,9 +51,10 @@ public final class ThatsABan extends JavaPlugin {
         registerCommand("offend", luckPerms == null
                 ? new FeatureUnavailableCommand(messages.text("feature-luckperms-required"))
                 : luckPerms.offendCommand());
-        registerCommand("thatsaban", luckPerms == null
+        org.bukkit.command.CommandExecutor privacyCommand = luckPerms == null
                 ? new PrivacyStoreCommand(this, store)
-                : luckPerms.privacyCommand());
+                : luckPerms.privacyCommand();
+        registerCommand("thatsaban", new ThatsABanCommand(this, store, privacyCommand));
 
         if (luckPerms != null) {
             LuckPermsIntegration active = luckPerms;
@@ -320,6 +321,51 @@ public final class ThatsABan extends JavaPlugin {
     }
 
     Messages messages() { return messages; }
+
+
+    void reloadConfiguration(org.bukkit.command.CommandSender sender) {
+        reloadConfig();
+        sender.sendMessage(messages.get("reload-success"));
+
+        List<String> missing = new java.util.ArrayList<>();
+        checkDependency(missing, "LuckPerms");
+        checkDependency(missing, "ProtocolLib");
+        checkDependency(missing, "SuperVanish");
+        checkDependency(missing, "FlashbackServer");
+
+        for (String key : List.of("layer1-plugins", "layer2-plugins")) {
+            for (String name : getConfig().getStringList("integrations." + key)) {
+                checkDependency(missing, name);
+            }
+        }
+
+        if (getConfig().getBoolean("country-filter.enabled", true)) {
+            File database = new File(getDataFolder(),
+                    getConfig().getString("country-filter.database-file",
+                            "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN"));
+            if (!database.isFile() || !database.canRead()) {
+                missing.add("IP2Location database (" + database.getPath() + ")");
+            }
+        }
+
+        if (missing.isEmpty()) {
+            sender.sendMessage(messages.get("reload-no-missing"));
+        } else {
+            sender.sendMessage(messages.get("reload-missing-header"));
+            for (String dependency : missing) {
+                sender.sendMessage(messages.get("reload-missing-entry",
+                        net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                                "dependency", dependency)));
+            }
+        }
+        sender.sendMessage(messages.get("reload-restart-note"));
+    }
+
+    private void checkDependency(List<String> missing, String pluginName) {
+        if (!getServer().getPluginManager().isPluginEnabled(pluginName)) {
+            missing.add(pluginName);
+        }
+    }
 
     private void checkIntegrations() {
         warnMissing("layer1-plugins", "Layer 1");
