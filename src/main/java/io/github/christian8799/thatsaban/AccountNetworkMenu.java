@@ -46,11 +46,6 @@ final class AccountNetworkMenu implements Listener {
             viewer.sendMessage("Alt-account detection is disabled.");
             return;
         }
-        if (store.isWriteBlocked()) {
-            viewer.sendMessage("Account network unavailable: LinkStore is read-only.");
-            return;
-        }
-
         LinkStore.NetworkSnapshot graph = store.network(rootId, depth, 50);
         List<LinkStore.NetworkEntry> entries = graph.accounts();
         int pages = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
