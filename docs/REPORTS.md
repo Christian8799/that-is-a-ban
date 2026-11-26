@@ -9,7 +9,17 @@ That'sABan integrates with the separate, MIT-licensed [FlashbackServer](https://
 - [FlashbackServer](https://github.com/Zeffut/FlashbackServer) installed as a separate plugin. Its upstream project supports Paper 1.21.5–26.3 and is MIT-licensed.
 - The [Flashback client mod](https://modrinth.com/mod/flashback) on the staff member's client to open the saved replay.
 
-FlashbackServer does not publish a ready-made release in its GitHub Releases section at the time this integration was added. Build/install its plugin JAR using the instructions in its upstream repository. That'sABan does not bundle or shade its API.
+The upstream repository currently has no published GitHub release asset, so build the plugin JAR from its source (the integration was checked against commit `2a1549593b78b4bce3cb3f9d48f9869d4e39c513`):
+
+```bash
+git clone https://github.com/Zeffut/FlashbackServer.git
+cd FlashbackServer
+git checkout 2a1549593b78b4bce3cb3f9d48f9869d4e39c513
+./gradlew build --no-daemon
+cp build/libs/FlashbackServer-*.jar /path/to/your/server/plugins/
+```
+
+That'sABan does not bundle or shade its API. Install FlashbackServer as a separate plugin and restart the server.
 
 ## FlashbackServer configuration
 
