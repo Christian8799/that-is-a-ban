@@ -210,6 +210,7 @@ final class ReportManager implements Listener {
                         reporter.sendMessage(Component.text("Report #" + reportId
                                 + " wurde angelegt, aber das Replay konnte nicht gespeichert werden. Bitte informiere das Team.",
                                 NamedTextColor.RED));
+                        notifyStaff(current);
                     } else {
                         current.status = Status.OPEN;
                         current.replayPath = path.toString();
@@ -223,6 +224,7 @@ final class ReportManager implements Listener {
         } catch (RuntimeException | IOException ex) {
             entry.status = Status.FAILED;
             save();
+            notifyStaff(entry);
             reporter.sendMessage(Component.text("Der Report wurde angelegt, aber das Replay konnte nicht gestartet werden.",
                     NamedTextColor.RED));
             plugin.getLogger().warning("Replay-Aufzeichnung für Report " + reportId + " fehlgeschlagen: "
@@ -291,6 +293,9 @@ final class ReportManager implements Listener {
             ConfigurationSection item = section.getConfigurationSection(id);
             if (item == null) continue;
             try {
+                Status storedStatus = Status.valueOf(
+                        item.getString("status", "FAILED").toUpperCase(Locale.ROOT));
+                if (storedStatus == Status.CAPTURING) storedStatus = Status.FAILED;
                 ReportEntry entry = new ReportEntry(
                         id,
                         UUID.fromString(item.getString("reporter-uuid", "")),
@@ -299,7 +304,7 @@ final class ReportManager implements Listener {
                         item.getString("target-name", "unknown"),
                         item.getString("reason", ""),
                         item.getLong("created-at", 0L),
-                        Status.valueOf(item.getString("status", "FAILED").toUpperCase(Locale.ROOT)),
+                        storedStatus,
                         item.getString("replay-path"));
                 reports.put(id.toLowerCase(Locale.ROOT), entry);
             } catch (IllegalArgumentException ex) {
