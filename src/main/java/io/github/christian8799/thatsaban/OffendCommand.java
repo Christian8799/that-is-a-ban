@@ -120,10 +120,18 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
             return List.of();
         }
         String prefix = args[0].toLowerCase(Locale.ROOT);
-        return Bukkit.getOnlinePlayers().stream()
-                .filter(p -> !bedrock.isBedrock(p.getUniqueId(), p.getName()))
+        java.util.Set<String> suggestions = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Bukkit.getOnlinePlayers().stream()
+                .filter(player -> !bedrock.isBedrock(player.getUniqueId(), player.getName()))
                 .map(Player::getName)
-                .filter(n -> n.toLowerCase(Locale.ROOT).startsWith(prefix))
-                .toList();
+                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
+                .forEach(suggestions::add);
+        store.knownPlayerNames(args[0]).stream()
+                .filter(name -> {
+                    UUID uuid = store.uuidByName(name);
+                    return uuid != null && !bedrock.isBedrock(uuid, name);
+                })
+                .forEach(suggestions::add);
+        return List.copyOf(suggestions);
     }
 }
