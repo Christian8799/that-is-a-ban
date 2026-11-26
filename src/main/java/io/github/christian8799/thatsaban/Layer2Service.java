@@ -200,7 +200,7 @@ final class Layer2Service {
                 }
                 return hook.applyLayer2Async(other).thenApply(v -> {
                     store.trackLayer2(other);
-                    store.linkAutoOffender(uuid, other);
+                    store.linkAutoOffender(main, other);
                     return name != null ? name : other.toString();
                 });
             }));
