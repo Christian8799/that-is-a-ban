@@ -180,8 +180,10 @@ public final class ThatsABan extends JavaPlugin {
     }
 
     private void warnFeatureDisabled(String feature, Throwable error) {
+        String detail = error.getMessage();
         getLogger().warning(feature + " wurde deaktiviert; andere Plugin-Funktionen bleiben aktiv. Ursache: "
-                + error.getClass().getSimpleName());
+                + error.getClass().getSimpleName()
+                + (detail == null || detail.isBlank() ? "" : ": " + detail));
     }
 
     private void warnFeatureDisabled(String feature, String reason) {
