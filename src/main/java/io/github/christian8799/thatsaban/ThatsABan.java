@@ -275,7 +275,14 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("log-protocollib-missing", "ProtocolLib is missing or disabled."),
                 java.util.Map.entry("log-protocollib-enabled", "ProtocolLib integration enabled: admin spectator mode is available."),
                 java.util.Map.entry("feature-protocollib-incompatible", "Admin spectator mode disabled: ProtocolLib is incompatible or could not be initialized."),
-                java.util.Map.entry("log-command-missing", "Command is missing from plugin.yml:")
+                java.util.Map.entry("log-command-missing", "Command is missing from plugin.yml:"),
+                java.util.Map.entry("reload-usage", "<red>Usage: /thatsaban reload"),
+                java.util.Map.entry("reload-no-permission", "<red>You do not have permission to reload ThatsABan."),
+                java.util.Map.entry("reload-success", "<green>ThatsABan configuration reloaded."),
+                java.util.Map.entry("reload-no-missing", "<green>No missing optional dependencies or configured integration plugins were detected."),
+                java.util.Map.entry("reload-missing-header", "<yellow>Missing or disabled dependencies:"),
+                java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
+                java.util.Map.entry("reload-restart-note", "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, or startup-only features require a full server restart.")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.en." + entry.getKey())) {
@@ -298,7 +305,14 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("log-protocollib-missing", "ProtocolLib fehlt oder ist nicht aktiviert."),
                 java.util.Map.entry("log-protocollib-enabled", "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar."),
                 java.util.Map.entry("feature-protocollib-incompatible", "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."),
-                java.util.Map.entry("log-command-missing", "Befehl fehlt in plugin.yml:")
+                java.util.Map.entry("log-command-missing", "Befehl fehlt in plugin.yml:"),
+                java.util.Map.entry("reload-usage", "<red>Benutzung: /thatsaban reload"),
+                java.util.Map.entry("reload-no-permission", "<red>Du hast keine Berechtigung, ThatsABan neu zu laden."),
+                java.util.Map.entry("reload-success", "<green>Die ThatsABan-Konfiguration wurde neu geladen."),
+                java.util.Map.entry("reload-no-missing", "<green>Es fehlen keine optionalen Abhängigkeiten oder konfigurierten Integrations-Plugins."),
+                java.util.Map.entry("reload-missing-header", "<yellow>Fehlende oder deaktivierte Abhängigkeiten:"),
+                java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
+                java.util.Map.entry("reload-restart-note", "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad oder Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart.")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.de." + entry.getKey())) {
