@@ -52,6 +52,7 @@ final class ThatsABanCommand implements CommandExecutor, TabCompleter {
             return suggestions.stream().distinct().toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("unoffend")
+                && delegate instanceof PrivacyAdminCommand
                 && (sender.hasPermission("thatsaban.layer2.remove")
                 || sender.hasPermission("thatsaban.admin"))) {
             return store.offenderNames(args[1]);
