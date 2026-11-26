@@ -233,8 +233,8 @@ jobs:
           cat server.log
           grep -q "Done (" server.log
           grep -q "FlashbackServer enabled." server.log
-          grep -q "Report-System initialisiert" server.log
-          grep -q "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar." server.log
+          grep -q "Report system initialized" server.log
+          grep -q "ProtocolLib integration enabled: admin spectator mode is available." server.log
 
           for plugin in LuckPerms ProtocolLib FlashbackServer ThatsABan GrimAC CheatDetector FoxGate HandShaker; do
             if ! grep -Ei "(Loading server plugin|Enabling) ${plugin}([[:space:]]| v)" server.log; then
@@ -291,10 +291,10 @@ jobs:
           cat server.log
           grep -q "Done (" server.log
           grep -q "Enabling ThatsABan" server.log
-          grep -q "LuckPerms-Integration (Layer 2, /offend, /thatsaban) wurde deaktiviert" server.log
-          grep -q "Admin-Spectator (ProtocolLib) wurde deaktiviert" server.log
-          grep -q "Spieler-Reports deaktiviert: FlashbackServer fehlt oder seine Clip-API ist nicht verfügbar." server.log
-          grep -q "ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert." server.log
+          grep -q "LuckPerms-Integration (Layer 2, /offend, /thatsaban) was disabled" server.log
+          grep -q "Admin-Spectator (ProtocolLib) was disabled" server.log
+          grep -q "Player reports disabled: FlashbackServer is missing or its clip API is unavailable." server.log
+          grep -q "ThatsABan enabled. Optional integrations were initialized independently." server.log
 
           if grep -Ei "Error occurred while enabling ThatsABan|Could not load .*ThatsABan|NoClassDefFoundError.*(luckperms|com/comphenix)" server.log; then
             echo "ThatsABan failed while optional dependencies were absent."
