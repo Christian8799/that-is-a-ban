@@ -73,6 +73,10 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("Depth must be between 1 and 3.");
                     return true;
                 }
+                if (sender instanceof Player player) {
+                    plugin.accountNetworkMenu().open(player, target, depth, 0);
+                    return true;
+                }
                 if (!plugin.getConfig().getBoolean("alt-detection.enabled", false)) {
                     sender.sendMessage("Alt-account detection is disabled. Enable alt-detection.enabled in config.yml.");
                     return true;
