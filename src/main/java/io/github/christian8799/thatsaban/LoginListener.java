@@ -43,7 +43,7 @@ final class LoginListener implements Listener {
                     }
                 }
             } catch (LinkageError | RuntimeException ex) {
-                plugin.getLogger().warning("Country-/Region-Prüfung ist zur Laufzeit ausgefallen; Login wird aus Sicherheitsgründen abgelehnt.");
+                plugin.getLogger().warning("Country/region check failed at runtime; login is denied for security reasons.");
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                         plugin.messages().plain("country-lookup-failed"));
                 return;
@@ -55,14 +55,14 @@ final class LoginListener implements Listener {
             try {
                 luckPerms.recordNetworkLogin(uuid, name, address);
             } catch (LinkageError | Exception ignored) {
-                plugin.getLogger().warning("Login-Netzwerkerfassung fehlgeschlagen; Details werden nicht protokolliert.");
+                plugin.getLogger().warning("Login network capture failed; details are not logged.");
             }
             return;
         }
         try {
             luckPerms.handleLogin(uuid, name, address);
         } catch (LinkageError | Exception ignored) {
-            plugin.getLogger().warning("Login-Prüfung fehlgeschlagen; Details werden nicht protokolliert.");
+            plugin.getLogger().warning("Login check failed; details are not logged.");
         }
     }
 }
