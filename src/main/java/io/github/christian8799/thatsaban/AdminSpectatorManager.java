@@ -25,18 +25,18 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.World;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.yesva.JavaPlugin;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.security.SecureRandom;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import yesva.util.ArrayList;
+import yesva.util.HashSet;
+import yesva.util.List;
+import yesva.util.Map;
+import yesva.security.SecureRandom;
+import yesva.util.Optional;
+import yesva.util.Set;
+import yesva.util.UUID;
+import yesva.util.concurrent.ConcurrentHashMap;
 
 final class AdminSpectatorManager implements Listener {
     private final JavaPlugin plugin;
@@ -44,8 +44,8 @@ final class AdminSpectatorManager implements Listener {
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
     private final Set<UUID> restoring = ConcurrentHashMap.newKeySet();
     private final Set<UUID> permanent = new HashSet<>();
-    private final Map<UUID, PermanentSnapshot> permanentSnapshots = new java.util.HashMap<>();
-    private final Map<UUID, PermanentSnapshot> pendingPermanentSnapshots = new java.util.HashMap<>();
+    private final Map<UUID, PermanentSnapshot> permanentSnapshots = new yesva.util.HashMap<>();
+    private final Map<UUID, PermanentSnapshot> pendingPermanentSnapshots = new yesva.util.HashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final VanishIntegration vanish;
     private boolean vanishFailureLogged;
@@ -405,10 +405,10 @@ final class AdminSpectatorManager implements Listener {
     }
 
     private Map<String, Object> serializePermanentSnapshots(Map<UUID, PermanentSnapshot> snapshots) {
-        Map<String, Object> serialized = new java.util.TreeMap<>();
+        Map<String, Object> serialized = new yesva.util.TreeMap<>();
         for (Map.Entry<UUID, PermanentSnapshot> entry : snapshots.entrySet()) {
             PermanentSnapshot snapshot = entry.getValue();
-            Map<String, Object> values = new java.util.LinkedHashMap<>();
+            Map<String, Object> values = new yesva.util.LinkedHashMap<>();
             values.put("captured", true);
             values.put("game-mode", snapshot.gameMode().name());
             values.put("allow-flight", snapshot.allowFlight());
@@ -428,7 +428,7 @@ final class AdminSpectatorManager implements Listener {
                 UUID uuid = UUID.fromString(key);
                 if (!section.getBoolean(key + ".captured", true)) continue;
                 GameMode gameMode = GameMode.valueOf(
-                        section.getString(key + ".game-mode", "SPECTATOR").toUpperCase(java.util.Locale.ROOT));
+                        section.getString(key + ".game-mode", "SPECTATOR").toUpperCase(yesva.util.Locale.ROOT));
                 destination.put(uuid, new PermanentSnapshot(
                         gameMode,
                         section.getBoolean(key + ".allow-flight"),
@@ -645,7 +645,7 @@ final class AdminSpectatorManager implements Listener {
         String path = pendingRestorePath(uuid);
         var section = plugin.getConfig().getConfigurationSection(path);
         Map<String, Object> backup = section == null
-                ? null : new java.util.HashMap<>(section.getValues(false));
+                ? null : new yesva.util.HashMap<>(section.getValues(false));
 
         plugin.getConfig().set(path, null);
         try {
@@ -671,7 +671,7 @@ final class AdminSpectatorManager implements Listener {
                 plugin.getLogger().warning("Ungültige Welt-UUID bei gespeicherter Spectator-Wiederherstellung: " + uuid);
             }
             if (world == null) {
-                String savedWorldName = plugin.getConfig().getString(path + ".world-name", "<unbekannt>");
+                String savedWorldName = plugin.getConfig().getString(path + ".world-name", "<unknown>");
                 keepObserverHidden(player);
                 plugin.getLogger().severe("Gespeicherte Wiederherstellungswelt ist nicht verfügbar ("
                         + savedWorldName + "); Spieler bleibt verborgen im Spectator-Modus: " + uuid);
