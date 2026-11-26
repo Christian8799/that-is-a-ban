@@ -100,9 +100,9 @@ final class ReportManager implements Listener {
         int requiredWindow = Math.max(1,
                 plugin.getConfig().getInt("reports.minimum-clip-window-seconds", 60));
         if (configuredWindow < requiredWindow) {
-            plugin.getLogger().warning("FlashbackServer clips.window-seconds ist " + configuredWindow
-                    + "; for at least " + requiredWindow + " seconds of report replay, please "
-                    + "plugins/FlashbackServer/config.yml entsprechend einstellen.");
+            plugin.getLogger().warning("FlashbackServer clips.window-seconds is " + configuredWindow
+                    + "; for at least " + requiredWindow + " seconds of report replay, set "
+                    + "clips.window-seconds in plugins/FlashbackServer/config.yml accordingly.");
         }
 
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -224,7 +224,7 @@ final class ReportManager implements Listener {
                     if (error != null || path == null) {
                         current.status = Status.FAILED;
                         plugin.getLogger().warning("Replay for report " + reportId + " could not be saved: "
-                                + (error == null ? "kein Replay-Pfad" : rootMessage(error)));
+                                + (error == null ? "no replay path" : rootMessage(error)));
                         reporter.sendMessage(Component.text("Report #" + reportId
                                 + " was created, but the replay could not be saved. Please notify the staff team.",
                                 NamedTextColor.RED));
@@ -394,7 +394,7 @@ final class ReportManager implements Listener {
         } catch (IOException ex) {
             storageWriteBlocked = true;
             plugin.getLogger().severe("Could not safely save reports.yml: "
-                    + ex.getClass().getSimpleName() + ". Weitere Report writes are blocked.");
+                    + ex.getClass().getSimpleName() + ". Further report writes are blocked.");
             return false;
         } finally {
             if (temporaryFile != null) {
