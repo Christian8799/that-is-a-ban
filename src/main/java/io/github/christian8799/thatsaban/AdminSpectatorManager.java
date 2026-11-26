@@ -1406,6 +1406,14 @@ final class AdminSpectatorManager implements Listener {
                     }
                     try {
                     PacketType incomingType = event.getPacketType();
+                    if (incomingType == PacketType.Play.Client.POSITION
+                            || incomingType == PacketType.Play.Client.POSITION_LOOK) {
+                        // Spectators must remain attached to the observed player instead of
+                        // detaching by flying. Keep look-only packets available so the
+                        // moderator can still rotate the camera.
+                        event.setCancelled(true);
+                        return;
+                    }
                     if (incomingType == PacketType.Play.Client.SPECTATE) {
                         // Handle the vanilla spectator player-selection menu through the
                         // same validated retarget path as /adminspec tp.
