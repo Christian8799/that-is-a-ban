@@ -137,6 +137,11 @@ final class ReportManager implements Listener {
     }
 
     boolean submit(Player reporter, Player target, String reason) {
+        if (storageWriteBlocked) {
+            reporter.sendMessage(Component.text("Reports sind wegen eines Speicherfehlers vorübergehend deaktiviert. Bitte informiere das Team.",
+                    NamedTextColor.RED));
+            return false;
+        }
         if (!plugin.getConfig().getBoolean("reports.enabled", true)) {
             reporter.sendMessage(Component.text("Das Report-System ist deaktiviert.", NamedTextColor.RED));
             return false;
@@ -195,8 +200,13 @@ final class ReportManager implements Listener {
         ReportEntry entry = new ReportEntry(reportId, reporter.getUniqueId(), reporter.getName(),
                 target.getUniqueId(), target.getName(), reason, now, Status.CAPTURING, null);
         reports.put(reportId, entry);
+        if (!save()) {
+            reports.remove(reportId);
+            reporter.sendMessage(Component.text("Der Report konnte nicht dauerhaft gespeichert werden. Bitte informiere das Team.",
+                    NamedTextColor.RED));
+            return false;
+        }
         cooldowns.put(reporter.getUniqueId(), now);
-        save();
 
         Path output = plugin.getDataFolder().toPath().resolve("reports")
                 .resolve(reportId + "-" + safeFileName(target.getName()) + ".flashback");
@@ -265,10 +275,15 @@ final class ReportManager implements Listener {
     }
 
     boolean setStatus(String id, Status status) {
+        if (storageWriteBlocked) return false;
         ReportEntry entry = find(id);
         if (entry == null) return false;
+        Status previous = entry.status;
         entry.status = status;
-        save();
+        if (!save()) {
+            entry.status = previous;
+            return false;
+        }
         return true;
     }
 
@@ -328,9 +343,9 @@ final class ReportManager implements Listener {
         }
     }
 
-    private void save() {
+    private boolean save() {
         if (storageWriteBlocked) {
-            return;
+            return false;
         }
         YamlConfiguration yaml = new YamlConfiguration();
         for (ReportEntry entry : reports.values()) {
@@ -359,9 +374,12 @@ final class ReportManager implements Listener {
             } catch (AtomicMoveNotSupportedException ex) {
                 Files.move(temporaryFile, storageFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
+            return true;
         } catch (IOException ex) {
+            storageWriteBlocked = true;
             plugin.getLogger().severe("reports.yml konnte nicht sicher gespeichert werden: "
-                    + ex.getClass().getSimpleName());
+                    + ex.getClass().getSimpleName() + ". Weitere Report-Schreibzugriffe sind blockiert.");
+            return false;
         } finally {
             if (temporaryFile != null) {
                 try {
