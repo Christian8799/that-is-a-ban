@@ -182,6 +182,10 @@ messages:
 | `layer2.negated-permissions` | `foxav.bypass`, `handshaker.bypass` | List of bypass nodes removed/negated for Layer 2 players. Adapt these to your installed anti-cheat plugins. |
 | `layer2.exempt-permission` | `thatsaban.exempt` | Players with this node are exempt from `/offend` and IP linking. |
 | `offend.kick-online-target` | `false` | If true, kick an online target after a successful `/offend` action using `messages.kick-relogin`. |
+| `reports.enabled` | `true` | Enables player reports. Requires the separate FlashbackServer plugin for replay clips. |
+| `reports.cooldown-seconds` | `60` | Minimum time between reports submitted by the same player. |
+| `reports.max-reason-length` | `200` | Maximum report reason length in characters. |
+| `reports.minimum-clip-window-seconds` | `60` | Minimum FlashbackServer `clips.window-seconds` accepted for reports; saved clips may be longer due to keyframe rotation. |
 | `privacy.hmac-key-path` | empty | Optional absolute path for the HMAC secret. Empty uses `plugins/ThatsABan/ip-hmac.key`. |
 | `THATSABAN_HMAC_KEY_PATH` | unset | Environment variable overriding `privacy.hmac-key-path`. Use an absolute path to store the key outside the plugin folder. |
 | `privacy.audit-logging` | `false` | Logs successful `/offend` actions with actor and target UUIDs only; no player names or IP addresses. |
