@@ -24,7 +24,7 @@ import java.util.UUID;
 
 /** Interactive, permission-aware account network browser. */
 final class AccountNetworkMenu implements Listener {
-    private static final int PAGE_SIZE = 45;
+    private static final int[] EXTRA_ACCOUNT_SLOTS = {45, 46, 47, 48, 50, 51, 52, 53};
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
 
@@ -37,7 +37,7 @@ final class AccountNetworkMenu implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    void open(Player viewer, UUID rootId, int depth, int requestedPage) {
+    void open(Player viewer, UUID rootId, int depth) {
         if (!viewer.hasPermission("thatsaban.network") && !viewer.hasPermission("thatsaban.admin")) {
             viewer.sendMessage("Missing permission: thatsaban.network.");
             return;
@@ -48,11 +48,8 @@ final class AccountNetworkMenu implements Listener {
         }
         LinkStore.NetworkSnapshot graph = store.network(rootId, depth, 50);
         List<LinkStore.NetworkEntry> entries = graph.accounts();
-        int pages = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-        int page = Math.max(0, Math.min(requestedPage, pages - 1));
-        MenuHolder holder = new MenuHolder(rootId, depth, page, entries);
-        Inventory inventory = Bukkit.createInventory(holder, 54,
-                "Account Network · " + (page + 1) + "/" + pages);
+        MenuHolder holder = new MenuHolder(rootId, depth);
+        Inventory inventory = Bukkit.createInventory(holder, 54, "Account Network");
         holder.inventory = inventory;
 
         boolean showNames = viewer.hasPermission("thatsaban.view-linked-accounts")
@@ -65,9 +62,7 @@ final class AccountNetworkMenu implements Listener {
                 "§7Connections: §f" + entries.size() + (graph.truncated() ? "+" : ""),
                 "§8Click a player head to inspect their network."));
 
-        int start = page * PAGE_SIZE;
-        int end = Math.min(entries.size(), start + PAGE_SIZE);
-        for (int index = start; index < end; index++) {
+        for (int index = 0; index < entries.size(); index++) {
             LinkStore.NetworkEntry entry = entries.get(index);
             String displayName = showNames && entry.name() != null
                     ? entry.name() : entry.uuid().toString();
@@ -75,7 +70,7 @@ final class AccountNetworkMenu implements Listener {
                     ? store.nameOf(entry.connectedVia()) : entry.connectedVia().toString();
             String lastSeen = entry.lastSeen() > 0L
                     ? DATE_FORMAT.format(Instant.ofEpochMilli(entry.lastSeen())) : "Unknown";
-            int slot = index - start;
+            int slot = accountSlot(index);
             holder.accountSlots.put(slot, entry.uuid());
             OfflinePlayer offline = Bukkit.getOfflinePlayer(entry.uuid());
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
@@ -98,14 +93,14 @@ final class AccountNetworkMenu implements Listener {
             inventory.setItem(22, item(Material.BARRIER, "§cNo stored connections",
                     "§7No connections were found within the retention period."));
         }
-        inventory.setItem(45, item(Material.ARROW, "§ePrevious page"));
-        inventory.setItem(47, item(Material.REDSTONE, "§cDepth -1",
-                "§7Current depth: §f" + depth));
         inventory.setItem(49, item(Material.BARRIER, "§cClose"));
-        inventory.setItem(51, item(Material.EMERALD, "§aDepth +1",
-                "§7Current depth: §f" + depth));
-        inventory.setItem(53, item(Material.ARROW, "§eNext page"));
         viewer.openInventory(inventory);
+    }
+
+    private int accountSlot(int index) {
+        if (index < 4) return index;
+        if (index < 44) return index + 1;
+        return EXTRA_ACCOUNT_SLOTS[index - 44];
     }
 
     @EventHandler
@@ -116,21 +111,13 @@ final class AccountNetworkMenu implements Listener {
         if (event.getClickedInventory() != event.getView().getTopInventory()) return;
 
         int slot = event.getRawSlot();
-        if (slot >= 0 && slot < PAGE_SIZE) {
-            UUID selected = holder.accountSlots.get(slot);
-            if (selected != null) open(player, selected, holder.depth, 0);
+        UUID selected = holder.accountSlots.get(slot);
+        if (selected != null) {
+            open(player, selected, holder.depth);
             return;
         }
         if (slot == 49) {
             player.closeInventory();
-        } else if (slot == 45 && holder.page > 0) {
-            open(player, holder.rootId, holder.depth, holder.page - 1);
-        } else if (slot == 53) {
-            open(player, holder.rootId, holder.depth, holder.page + 1);
-        } else if (slot == 47 && holder.depth > 1) {
-            open(player, holder.rootId, holder.depth - 1, 0);
-        } else if (slot == 51 && holder.depth < 3) {
-            open(player, holder.rootId, holder.depth + 1, 0);
         }
     }
 
@@ -153,16 +140,12 @@ final class AccountNetworkMenu implements Listener {
     private static final class MenuHolder implements InventoryHolder {
         private final UUID rootId;
         private final int depth;
-        private final int page;
         private final Map<Integer, UUID> accountSlots = new HashMap<>();
-        private final List<LinkStore.NetworkEntry> entries;
         private Inventory inventory;
 
-        private MenuHolder(UUID rootId, int depth, int page, List<LinkStore.NetworkEntry> entries) {
+        private MenuHolder(UUID rootId, int depth) {
             this.rootId = rootId;
             this.depth = depth;
-            this.page = page;
-            this.entries = entries;
         }
 
         @Override

@@ -60,7 +60,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
 
         switch (action) {
             case "network" -> {
-                int depth = 2;
+                int depth = 3;
                 if (args.length >= 3) {
                     try {
                         depth = Integer.parseInt(args[2]);
@@ -74,7 +74,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 if (sender instanceof Player player) {
-                    plugin.accountNetworkMenu().open(player, target, depth, 0);
+                    plugin.accountNetworkMenu().open(player, target, depth);
                     return true;
                 }
                 if (!plugin.getConfig().getBoolean("alt-detection.enabled", false)) {
