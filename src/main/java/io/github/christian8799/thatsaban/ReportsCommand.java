@@ -183,11 +183,11 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             case DISMISSED -> Material.GRAY_WOOL;
         };
         String statusColor = statusLegacyColor(entry.status());
-        return item(material, statusColor + "§l#" + entry.id() + " §f" + entry.targetName(),
+        return item(material, statusColor + "§l#" + entry.id() + " §f" + safeLegacyText(entry.targetName()),
                 "§7Status: " + statusName(entry.status()),
-                "§7Gemeldet von: §f" + entry.reporterName(),
+                "§7Gemeldet von: §f" + safeLegacyText(entry.reporterName()),
                 "§7Zeit: §f" + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())),
-                "§7Grund: §f" + shorten(entry.reason(), 70),
+                "§7Grund: §f" + shorten(safeLegacyText(entry.reason()), 70),
                 entry.replayPath() == null ? "§cKein Replay verfügbar" : "§aReplay gespeichert",
                 "§eKlicken für Details");
     }
@@ -206,14 +206,14 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
                 Component.text("Report #" + entry.id(), NamedTextColor.DARK_AQUA));
         holder.inventory = inventory;
 
-        inventory.setItem(4, item(Material.PLAYER_HEAD, "§6§l" + entry.targetName(),
+        inventory.setItem(4, item(Material.PLAYER_HEAD, "§6§l" + safeLegacyText(entry.targetName()),
                 "§7Spieler-UUID: §f" + entry.targetId(),
-                "§7Gemeldet von: §f" + entry.reporterName(),
+                "§7Gemeldet von: §f" + safeLegacyText(entry.reporterName()),
                 "§7Reporter-UUID: §f" + entry.reporterId(),
                 "§7Zeit: §f" + DATE_FORMAT.format(Instant.ofEpochMilli(entry.createdAt())),
                 "§7Status: " + statusName(entry.status())));
         inventory.setItem(20, item(Material.BOOK, "§eMeldegrund",
-                "§7" + shorten(entry.reason(), 120)));
+                "§7" + shorten(safeLegacyText(entry.reason()), 120)));
         inventory.setItem(22, item(entry.replayPath() == null ? Material.BARRIER : Material.MAP,
                 entry.replayPath() == null ? "§cKein Replay verfügbar" : "§aReplay-Pfad anzeigen",
                 entry.replayPath() == null ? "§7Für diesen Report wurde kein Clip gespeichert."
@@ -372,6 +372,10 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             case RESOLVED -> "§7Erledigt";
             case DISMISSED -> "§8Verworfen";
         };
+    }
+
+    private static String safeLegacyText(String value) {
+        return value == null ? "" : value.replace("§", "").replace('\n', ' ').replace('\r', ' ');
     }
 
     private static String shorten(String value, int maxLength) {
