@@ -158,7 +158,8 @@ final class ReportManager implements Listener {
             return false;
         }
 
-        int maxLength = Math.max(20, plugin.getConfig().getInt("reports.max-reason-length", 200));
+        int maxLength = Math.max(1,
+                Math.min(1000, plugin.getConfig().getInt("reports.max-reason-length", 200)));
         if (reason.isBlank() || reason.length() > maxLength) {
             reporter.sendMessage(Component.text("Der Grund muss zwischen 1 und " + maxLength
                     + " Zeichen lang sein.", NamedTextColor.RED));
