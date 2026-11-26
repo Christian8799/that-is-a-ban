@@ -88,11 +88,11 @@ final class ReportManager implements Listener {
 
     void initialize() {
         if (!plugin.getConfig().getBoolean("reports.enabled", true)) {
-            plugin.getLogger().info("Spieler-Reports sind in config.yml deaktiviert.");
+            plugin.getLogger().info("Player reports are disabled in config.yml.");
             return;
         }
         if (!clips.isAvailable()) {
-            plugin.getLogger().warning("Spieler-Reports deaktiviert: FlashbackServer fehlt oder seine Clip-API ist nicht verfügbar.");
+            plugin.getLogger().warning("Player reports disabled: FlashbackServer is missing or its clip API is unavailable.");
             return;
         }
 
@@ -101,14 +101,14 @@ final class ReportManager implements Listener {
                 plugin.getConfig().getInt("reports.minimum-clip-window-seconds", 60));
         if (configuredWindow < requiredWindow) {
             plugin.getLogger().warning("FlashbackServer clips.window-seconds ist " + configuredWindow
-                    + "; für mindestens " + requiredWindow + " Sekunden Report-Replay bitte "
+                    + "; for at least " + requiredWindow + " seconds of report replay, please "
                     + "plugins/FlashbackServer/config.yml entsprechend einstellen.");
         }
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> armIfNeeded(player), 1L);
         }
-        plugin.getLogger().info("Report-System initialisiert; FlashbackServer-Rolling-Clips werden beim Spielerbeitritt aktiviert.");
+        plugin.getLogger().info("Report system initialized; FlashbackServer rolling clips will be enabled when players join.");
     }
 
     @EventHandler
@@ -135,52 +135,52 @@ final class ReportManager implements Listener {
             }
         } catch (RuntimeException ex) {
             plugin.getLogger().warning("Report-Clip-Puffer für " + player.getName()
-                    + " fehlgeschlagen: " + ex.getClass().getSimpleName());
+                    + " failed: " + ex.getClass().getSimpleName());
         }
     }
 
     boolean submit(Player reporter, Player target, String reason) {
         if (storageWriteBlocked) {
-            reporter.sendMessage(Component.text("Reports sind wegen eines Speicherfehlers vorübergehend deaktiviert. Bitte informiere das Team.",
+            reporter.sendMessage(Component.text("Reports are temporarily disabled due to a storage error. Please notify the staff team.",
                     NamedTextColor.RED));
             return false;
         }
         if (!plugin.getConfig().getBoolean("reports.enabled", true)) {
-            reporter.sendMessage(Component.text("Das Report-System ist deaktiviert.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("The report system is disabled.", NamedTextColor.RED));
             return false;
         }
         if (!clips.isAvailable()) {
-            reporter.sendMessage(Component.text("Reports sind momentan nicht verfügbar.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("Reports are currently unavailable.", NamedTextColor.RED));
             return false;
         }
         if (reporter.getUniqueId().equals(target.getUniqueId())) {
-            reporter.sendMessage(Component.text("Du kannst dich nicht selbst melden.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("You cannot report yourself.", NamedTextColor.RED));
             return false;
         }
 
         int maxLength = Math.max(1,
                 Math.min(1000, plugin.getConfig().getInt("reports.max-reason-length", 200)));
         if (reason.isBlank() || reason.length() > maxLength) {
-            reporter.sendMessage(Component.text("Der Grund muss zwischen 1 und " + maxLength
-                    + " Zeichen lang sein.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("The reason must be between 1 and " + maxLength
+                    + " characters long.", NamedTextColor.RED));
             return false;
         }
 
         int minimumWindow = Math.max(1,
                 plugin.getConfig().getInt("reports.minimum-clip-window-seconds", 60));
         if (clips.configuredWindowSeconds() < minimumWindow) {
-            reporter.sendMessage(Component.text("Das Replay-System ist noch nicht korrekt konfiguriert. Bitte informiere das Team.",
+            reporter.sendMessage(Component.text("The replay system is not configured correctly yet. Please notify the staff team.",
                     NamedTextColor.RED));
             return false;
         }
         try {
             if (!clips.isArmed(target)) {
-                reporter.sendMessage(Component.text("Für diesen Spieler ist noch kein Replay-Puffer bereit. Bitte versuche es später erneut.",
+                reporter.sendMessage(Component.text("No replay buffer is ready for this player yet. Please try again later.",
                         NamedTextColor.RED));
                 return false;
             }
         } catch (RuntimeException ex) {
-            reporter.sendMessage(Component.text("Das Replay-System ist momentan nicht verfügbar.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("The replay system is currently unavailable.", NamedTextColor.RED));
             return false;
         }
 
@@ -190,8 +190,8 @@ final class ReportManager implements Listener {
         Long lastReport = cooldowns.get(reporter.getUniqueId());
         if (lastReport != null && now - lastReport < cooldownMillis) {
             long remaining = Math.max(1, (cooldownMillis - (now - lastReport) + 999) / 1000);
-            reporter.sendMessage(Component.text("Bitte warte noch " + remaining
-                    + " Sekunden, bevor du einen weiteren Spieler meldest.", NamedTextColor.RED));
+            reporter.sendMessage(Component.text("Please wait another " + remaining
+                    + " seconds before reporting another player.", NamedTextColor.RED));
             return false;
         }
 
@@ -206,7 +206,7 @@ final class ReportManager implements Listener {
         reports.put(reportId, entry);
         if (!save()) {
             reports.remove(reportId);
-            reporter.sendMessage(Component.text("Der Report konnte nicht dauerhaft gespeichert werden. Bitte informiere das Team.",
+            reporter.sendMessage(Component.text("The report could not be saved permanently. Please notify the staff team.",
                     NamedTextColor.RED));
             return false;
         }
@@ -223,17 +223,17 @@ final class ReportManager implements Listener {
                     if (current == null) return;
                     if (error != null || path == null) {
                         current.status = Status.FAILED;
-                        plugin.getLogger().warning("Replay für Report " + reportId + " konnte nicht gespeichert werden: "
+                        plugin.getLogger().warning("Replay for report " + reportId + " could not be saved: "
                                 + (error == null ? "kein Replay-Pfad" : rootMessage(error)));
                         reporter.sendMessage(Component.text("Report #" + reportId
-                                + " wurde angelegt, aber das Replay konnte nicht gespeichert werden. Bitte informiere das Team.",
+                                + " was created, but the replay could not be saved. Please notify the staff team.",
                                 NamedTextColor.RED));
                         notifyStaff(current);
                     } else {
                         current.status = Status.OPEN;
                         current.replayPath = path.toString();
                         reporter.sendMessage(Component.text("Report #" + reportId
-                                + " wurde erstellt. Das Team wurde benachrichtigt.", NamedTextColor.GREEN));
+                                + " was created. The staff team has been notified.", NamedTextColor.GREEN));
                         notifyStaff(current);
                     }
                     save();
@@ -243,20 +243,20 @@ final class ReportManager implements Listener {
             entry.status = Status.FAILED;
             save();
             notifyStaff(entry);
-            reporter.sendMessage(Component.text("Der Report wurde angelegt, aber das Replay konnte nicht gestartet werden.",
+            reporter.sendMessage(Component.text("The report was created, but the replay could not be started.",
                     NamedTextColor.RED));
-            plugin.getLogger().warning("Replay-Aufzeichnung für Report " + reportId + " fehlgeschlagen: "
+            plugin.getLogger().warning("Replay recording for report " + reportId + " failed: "
                     + ex.getClass().getSimpleName());
             return false;
         }
 
-        reporter.sendMessage(Component.text("Report wird erstellt …", NamedTextColor.YELLOW));
+        reporter.sendMessage(Component.text("Creating report…", NamedTextColor.YELLOW));
         return true;
     }
 
     private void notifyStaff(ReportEntry entry) {
         Component message = Component.text("[Report #" + entry.id + "] ", NamedTextColor.GOLD)
-                .append(Component.text(entry.targetName + " wurde von " + entry.reporterName + " gemeldet. ",
+                .append(Component.text(entry.targetName + " was reported by " + entry.reporterName + " gemeldet. ",
                         NamedTextColor.YELLOW))
                 .append(Component.text("/reports view " + entry.id, NamedTextColor.AQUA));
         for (Player staff : Bukkit.getOnlinePlayers()) {
@@ -298,8 +298,8 @@ final class ReportManager implements Listener {
                 try {
                     clips.disarm(player);
                 } catch (RuntimeException ex) {
-                    plugin.getLogger().warning("Report-Puffer konnte für " + player.getName()
-                            + " beim Deaktivieren nicht beendet werden.");
+                    plugin.getLogger().warning("Could not stop report buffer for " + player.getName()
+                            + " during plugin shutdown.");
                 }
             }
         }
@@ -311,8 +311,8 @@ final class ReportManager implements Listener {
         if (!storageFile.isFile()) return;
         if (!restrictOwnerOnly(storageFile.toPath())) {
             storageWriteBlocked = true;
-            plugin.getLogger().severe("Dateirechte von reports.yml konnten nicht auf owner-only gesetzt werden. "
-                    + "Report-Schreibzugriffe sind blockiert.");
+            plugin.getLogger().severe("Could not set reports.yml permissions to owner-only. "
+                    + "Report writes are blocked.");
             return;
         }
         YamlConfiguration yaml = new YamlConfiguration();
@@ -320,8 +320,8 @@ final class ReportManager implements Listener {
             yaml.load(storageFile);
         } catch (IOException | InvalidConfigurationException ex) {
             storageWriteBlocked = true;
-            plugin.getLogger().severe("reports.yml ist fehlerhaft oder nicht lesbar. "
-                    + "Die Datei bleibt unverändert; Report-Schreibzugriffe sind bis zur manuellen Prüfung blockiert.");
+            plugin.getLogger().severe("reports.yml is invalid or unreadable. "
+                    + "The file remains unchanged; report writes are blocked until manual inspection.");
             return;
         }
         ConfigurationSection section = yaml.getConfigurationSection("reports");
@@ -348,7 +348,7 @@ final class ReportManager implements Listener {
                 // cannot immediately reset every reporter's cooldown.
                 cooldowns.merge(entry.reporterId(), entry.createdAt(), Math::max);
             } catch (IllegalArgumentException ex) {
-                plugin.getLogger().warning("Ungültiger Report-Eintrag in reports.yml: " + id);
+                plugin.getLogger().warning("Invalid report entry in reports.yml: " + id);
             }
         }
     }
@@ -373,15 +373,15 @@ final class ReportManager implements Listener {
         try {
             Path parent = storageFile.toPath().toAbsolutePath().getParent();
             if (parent == null) {
-                throw new IOException("Report-Verzeichnis ist nicht verfügbar.");
+                throw new IOException("Report directory is unavailable.");
             }
             Files.createDirectories(parent);
             temporaryFile = Files.createTempFile(parent, "reports.yml.tmp-", ".yml");
             yaml.save(temporaryFile.toFile());
             if (!restrictOwnerOnly(temporaryFile)) {
                 storageWriteBlocked = true;
-                plugin.getLogger().severe("Dateirechte der temporären reports.yml konnten nicht gesichert werden. "
-                        + "Report-Schreibzugriffe sind blockiert.");
+                plugin.getLogger().severe("Could not secure permissions for temporary reports.yml. "
+                        + "Report writes are blocked.");
                 return false;
             }
             try {
@@ -393,8 +393,8 @@ final class ReportManager implements Listener {
             return true;
         } catch (IOException ex) {
             storageWriteBlocked = true;
-            plugin.getLogger().severe("reports.yml konnte nicht sicher gespeichert werden: "
-                    + ex.getClass().getSimpleName() + ". Weitere Report-Schreibzugriffe sind blockiert.");
+            plugin.getLogger().severe("Could not safely save reports.yml: "
+                    + ex.getClass().getSimpleName() + ". Weitere Report writes are blocked.");
             return false;
         } finally {
             if (temporaryFile != null) {
