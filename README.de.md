@@ -41,7 +41,7 @@ Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Adm
 | Paper 1.21.11 | Erforderlich | Serverplattform |
 | Java 21 | Erforderlich | Laufzeit und Build |
 | LuckPerms | Optional, für Layer 2 erforderlich | Berechtigungsmarker, Layer-2-Nodes, /offend und LuckPerms-abhängige Datenschutzaktionen |
-| ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung |
+| ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung · [Server-JAR herunterladen](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) |
 | SuperVanish | Optional | Expliziter Vanish-Modus und Vanish-Durchsetzung permanenter Admin-Accounts |
 | FlashbackServer | Optional; für `/report`-Clips erforderlich | Rolling-Flashback-Replay-Puffer für Spieler-Reports; siehe [Report-Einrichtung](docs/REPORTS.md) |
 | IP2Location LITE DB3 BIN (IPv6) | Externe Datei, optional für den restlichen Pluginbetrieb | Lokaler Country-/Region-Filter |
@@ -61,7 +61,7 @@ Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Fehlt ein
 1. Paper 1.21.11 mit Java 21 installieren.
 2. Die That'sABan-JAR in den Ordner plugins legen und den Server einmal starten. Dadurch wird plugins/ThatsABan/config.yml angelegt.
 3. Server stoppen und config.yml nach Bedarf anpassen.
-4. Für Layer 2 LuckPerms installieren. Für /adminspec ProtocolLib 5.5.0-SNAPSHOT installieren.
+4. Für Layer 2 LuckPerms installieren. Für /adminspec die [ProtocolLib-5.5.0-SNAPSHOT-Server-JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) herunterladen und installieren.
 5. Wenn der Country-/Region-Filter verwendet werden soll, die IP2Location-Datenbank wie unter [GeoIP-Datenbank installieren](#geoip-datenbank-installieren) beschrieben ablegen.
 6. Server starten und die Startmeldungen auf deaktivierte optionale Funktionen oder fehlende Integrationen prüfen.
 7. Permissions gezielt an Staff vergeben. Die vollständige Liste steht unter [Permissions](#permissions).
@@ -407,7 +407,7 @@ Der Zielspieler muss bei observe online sein. Permanente Accounts können über 
 
 ### Abhängigkeiten und Verhalten
 
-- ProtocolLib ist für /adminspec zwingend erforderlich. Die verwendete Paper-Server-Plugin-Version ist ProtocolLib 5.5.0-SNAPSHOT aus dem offiziellen ProtocolLib-Dev-Build. Das plattformneutrale Maven-Artefakt allein ist kein installierbares Server-Plugin.
+- ProtocolLib ist für /adminspec zwingend erforderlich. Verwende die [ProtocolLib-5.5.0-SNAPSHOT-Server-JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) aus dem offiziellen Dev-Build. Das plattformneutrale Maven-Artefakt allein ist kein installierbares Server-Plugin.
 - SuperVanish wird nur für den expliziten vanish-Modus und die Vanish-Durchsetzung permanenter Accounts verwendet.
 - Ohne SuperVanish bleibt der normale Beobachtungsmodus verfügbar. Permanente Accounts werden dann über Bukkit-Spieler-Sichtbarkeit verborgen.
 - Der Beobachter wird vor Spielern verborgen, die bereits online sind oder während der Sitzung beitreten.
