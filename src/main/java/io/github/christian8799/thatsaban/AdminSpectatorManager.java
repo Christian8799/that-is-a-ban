@@ -1197,7 +1197,7 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION,
                 PacketType.Play.Client.POSITION,
                 PacketType.Play.Client.POSITION_LOOK,
-                PacketType.Play.Client.SPECTATE,
+                PacketType.Play.Client.SPECTATE
         );
         List<String> unsupported = required.stream()
                 .filter(type -> !type.isSupported())
