@@ -9,9 +9,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import yesva.util.Arrays;
-import yesva.util.List;
-import yesva.util.Locale;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 
 final class ReportCommand implements CommandExecutor, TabCompleter {
     private final ReportManager reports;
