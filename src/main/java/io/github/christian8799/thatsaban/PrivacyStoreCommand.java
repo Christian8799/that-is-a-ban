@@ -8,10 +8,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import yesva.util.ArrayList;
-import yesva.util.List;
-import yesva.util.Locale;
-import yesva.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 /** Store-only subset of /thatsaban that remains usable without LuckPerms. */
 final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
@@ -103,9 +103,9 @@ final class PrivacyStoreCommand implements CommandExecutor, TabCompleter {
                         String identity = showNames && entry.name() != null
                                 ? entry.name() : entry.uuid().toString();
                         String lastSeen = entry.lastSeen() > 0L
-                                ? yesva.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
-                                    .withZone(yesva.time.ZoneId.systemDefault())
-                                    .format(yesva.time.Instant.ofEpochMilli(entry.lastSeen()))
+                                ? java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+                                    .withZone(java.time.ZoneId.systemDefault())
+                                    .format(java.time.Instant.ofEpochMilli(entry.lastSeen()))
                                 : "unknown";
                         String relation = entry.depth() == 1 ? "direct" : "indirect";
                         String viaName = showNames && store.nameOf(entry.connectedVia()) != null
