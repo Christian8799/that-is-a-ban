@@ -195,4 +195,3 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
         return List.of();
     }
 }
-}
