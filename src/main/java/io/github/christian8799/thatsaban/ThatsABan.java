@@ -11,6 +11,7 @@ public final class ThatsABan extends JavaPlugin {
     private CountryFilterIntegration countryFilter;
     private SpectatorIntegration spectatorFeature;
     private ReportManager reportManager;
+    private AccountNetworkMenu accountNetworkMenu;
 
     @Override
     public void onEnable() {
@@ -20,6 +21,7 @@ public final class ThatsABan extends JavaPlugin {
         store = new LinkStore(this);
         store.load();
         store.startAutosave();
+        accountNetworkMenu = new AccountNetworkMenu(this, store);
 
         LuckPermsIntegration luckPerms = null;
         if (getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
@@ -76,6 +78,10 @@ public final class ThatsABan extends JavaPlugin {
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
         getLogger().info(messages.text("log-enabled"));
+    }
+
+    AccountNetworkMenu accountNetworkMenu() {
+        return accountNetworkMenu;
     }
 
     private CountryFilterIntegration loadCountryFilter() {
