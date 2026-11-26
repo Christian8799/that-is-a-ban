@@ -50,13 +50,15 @@ That'sABan automatically arms a rolling clip buffer for each player after they j
 
 | Command | Effect |
 |---|---|
-| `/reports` or `/reports list` | List pending, capturing and failed reports |
-| `/reports view <ID>` | Show the report reason, reporter, timestamp, status and replay path |
+| `/reports` or `/reports list` | Opens the interactive staff GUI for players; the console receives a text list |
+| `/reports view <ID>` | Opens the report detail GUI for players; the console receives text details |
 | `/reports offend <ID>` | Invoke the existing `/offend <player>` command as the staff sender; normal permission and Bedrock checks still apply |
 | `/reports resolve <ID>` | Mark a report as resolved |
 | `/reports dismiss <ID>` | Dismiss a report |
 
 The replay path in `/reports view` is clickable to copy. Download the `.flashback` file from the server using your normal server file access, then open it with the Flashback client mod. The replay is not streamed to the staff member's Minecraft client by this plugin.
+
+The GUI provides filters for open, all, failed, resolved and dismissed reports, paginates through the report queue, and opens a detail view with replay-path copying plus the existing offend/resolve/dismiss actions. All inventory interactions are locked to the plugin menu so staff cannot accidentally move items while using it. The command subcommands remain available for console use and automation.
 
 ## Permissions
 
