@@ -206,6 +206,15 @@ public final class ThatsABan extends JavaPlugin {
             getConfig().set("privacy.audit-logging", false);
             version = 3;
         }
+        if (version < 4) {
+            if (!getConfig().contains("reports.enabled")) getConfig().set("reports.enabled", true);
+            if (!getConfig().contains("reports.cooldown-seconds")) getConfig().set("reports.cooldown-seconds", 60);
+            if (!getConfig().contains("reports.max-reason-length")) getConfig().set("reports.max-reason-length", 200);
+            if (!getConfig().contains("reports.minimum-clip-window-seconds")) {
+                getConfig().set("reports.minimum-clip-window-seconds", 60);
+            }
+            version = 4;
+        }
         if (getConfig().getInt("config-version", 0) != version) {
             getConfig().set("config-version", version);
             saveConfig();
