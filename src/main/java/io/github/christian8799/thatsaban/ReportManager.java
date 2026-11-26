@@ -205,15 +205,15 @@ final class ReportManager implements Listener {
                     if (current == null) return;
                     if (error != null || path == null) {
                         current.status = Status.FAILED;
-                        plugin.getLogger().warning("Replay für Report " + id + " konnte nicht gespeichert werden: "
+                        plugin.getLogger().warning("Replay für Report " + reportId + " konnte nicht gespeichert werden: "
                                 + (error == null ? "kein Replay-Pfad" : rootMessage(error)));
-                        reporter.sendMessage(Component.text("Report #" + id
+                        reporter.sendMessage(Component.text("Report #" + reportId
                                 + " wurde angelegt, aber das Replay konnte nicht gespeichert werden. Bitte informiere das Team.",
                                 NamedTextColor.RED));
                     } else {
                         current.status = Status.OPEN;
                         current.replayPath = path.toString();
-                        reporter.sendMessage(Component.text("Report #" + id
+                        reporter.sendMessage(Component.text("Report #" + reportId
                                 + " wurde erstellt. Das Team wurde benachrichtigt.", NamedTextColor.GREEN));
                         notifyStaff(current);
                     }
@@ -225,7 +225,7 @@ final class ReportManager implements Listener {
             save();
             reporter.sendMessage(Component.text("Der Report wurde angelegt, aber das Replay konnte nicht gestartet werden.",
                     NamedTextColor.RED));
-            plugin.getLogger().warning("Replay-Aufzeichnung für Report " + id + " fehlgeschlagen: "
+            plugin.getLogger().warning("Replay-Aufzeichnung für Report " + reportId + " fehlgeschlagen: "
                     + ex.getClass().getSimpleName());
             return false;
         }
@@ -303,7 +303,7 @@ final class ReportManager implements Listener {
                         item.getString("replay-path"));
                 reports.put(id.toLowerCase(Locale.ROOT), entry);
             } catch (IllegalArgumentException ex) {
-                plugin.getLogger().warning("Ungültiger Report-Eintrag in reports.yml: " + id);
+                plugin.getLogger().warning("Ungültiger Report-Eintrag in reports.yml: " + reportId);
             }
         }
     }
