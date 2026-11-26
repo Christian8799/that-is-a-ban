@@ -6,6 +6,48 @@ The plugin also includes an optional protected admin spectator mode, a local Geo
 
 **Documentation:** [English](README.md) · [Deutsch](README.de.md) · [Player reports and replay clips](docs/REPORTS.md)
 
+## Dependency links
+
+The links below point to the official project pages, source repositories, or download pages. Optional integrations are only needed when you use the corresponding feature; they are not bundled into the That'sABan JAR.
+
+### Server platform and build runtime
+
+| Dependency | Version / role | Link |
+|---|---|---|
+| Paper | Required server platform; API target 1.21.11 | [Paper downloads](https://papermc.io/downloads/paper) · [Documentation](https://docs.papermc.io/paper/) |
+| Java | Required runtime and compiler; Java 21 | [Eclipse Temurin JDK 21](https://adoptium.net/temurin/releases/?version=21) |
+| Gradle | Build system | [Gradle](https://gradle.org/) |
+
+### Direct Gradle dependencies
+
+| Dependency | Gradle coordinate | Link |
+|---|---|---|
+| Paper API | `io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT` (`compileOnly`) | [Paper API](https://github.com/PaperMC/Paper) |
+| LuckPerms API | `net.luckperms:api:5.4` (`compileOnly`) | [LuckPerms](https://luckperms.net/) · [API source](https://github.com/LuckPerms/LuckPerms) |
+| ProtocolLib | `net.dmulloy2:ProtocolLib:5.5.0-SNAPSHOT` (`compileOnly`) | [ProtocolLib source and releases](https://github.com/dmulloy2/ProtocolLib) |
+| IP2Location Java | `com.ip2location:ip2location-java:8.13.0` (`implementation`; included in the plugin JAR) | [Official Java library](https://github.com/ip2location/ip2location-java) · [Documentation](https://www.ip2location.com/documentation/ip2location-libraries/java) |
+
+### Optional server-plugin integrations
+
+| Plugin | Used for | Link |
+|---|---|---|
+| SuperVanish | Optional vanish mode and permanent-admin vanish enforcement | [SpigotMC resource](https://www.spigotmc.org/resources/supervanish-be-invisible.1331/) · [Source](https://github.com/LeonMangler/SuperVanish) |
+| FlashbackServer | Optional rolling replay clips for `/report` | [GitHub project](https://github.com/Zeffut/FlashbackServer) · [Modrinth](https://modrinth.com/plugin/flashback-server) |
+| GrimAC | Optional Layer 1 anti-cheat integration | [Official source](https://github.com/GrimAnticheat/Grim) · [Modrinth](https://modrinth.com/plugin/grim) |
+| CheatDetector | Optional Layer 1 integration | [SpigotMC resource](https://www.spigotmc.org/resources/cheatdetector.134018/) |
+| FoxGate | Optional Layer 2 AntiVPN integration | [Modrinth](https://modrinth.com/plugin/foxgate) · [Source](https://github.com/IDCTeam-Group/FoxGate-Issues) |
+| Hand Shaker | Optional Layer 2 integration | [Modrinth](https://modrinth.com/plugin/hand-shaker) · [Source](https://github.com/LyingYi/Hand-Shaker) |
+| Geyser | Optional Bedrock-player detection | [Official downloads](https://geysermc.org/download) · [Source](https://github.com/GeyserMC/Geyser) |
+| Floodgate | Optional Bedrock-player detection/API | [Hangar](https://hangar.papermc.io/GeyserMC/Floodgate) · [Source](https://github.com/GeyserMC/Floodgate) |
+
+### External GeoIP database
+
+| Dependency | Role | Link |
+|---|---|---|
+| IP2Location LITE DB3 BIN (IPv6) | Optional external database file for the local country/region filter; not bundled in the JAR | [Download DB3](https://lite.ip2location.com/database/db3-ip-country-region-city) · [License and terms](https://lite.ip2location.com/) |
+
+
+
 ## Contents
 
 - [Requirements and optional integrations](#requirements-and-optional-integrations)
