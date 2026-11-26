@@ -1,5 +1,5 @@
 # that-s-a-ban - Konfiguration
-config-version: 4
+config-version: 5
 
 layer2:
   marker-permission: "thatsaban.layer2"
@@ -77,6 +77,18 @@ messages:
     alt-auto-applied-staff: "<red>Automatic action:</red> <white><player></white> was moved to Layer 2 due to an IP match."
     country-denied: "<red>Connections are only allowed from an IP address in Bavaria."
     country-lookup-failed: "<red>Your IP address could not be geolocated locally. Please try again later."
+    log-luckperms-enabled: "LuckPerms integration enabled."
+    log-luckperms-missing: "LuckPerms is missing or disabled."
+    log-geoip-missing: "The local IP2Location database is missing or unreadable."
+    feature-luckperms-required: "Disabled: This command requires LuckPerms."
+    log-enabled: "ThatsABan enabled. Optional integrations were initialized independently."
+    log-supervanish-missing: "SuperVanish is missing or disabled."
+    log-supervanish-enabled: "SuperVanish integration enabled."
+    feature-protocollib-missing: "Admin spectator mode disabled: ProtocolLib is missing or disabled."
+    log-protocollib-missing: "ProtocolLib is missing or disabled."
+    log-protocollib-enabled: "ProtocolLib integration enabled: admin spectator mode is available."
+    feature-protocollib-incompatible: "Admin spectator mode disabled: ProtocolLib is incompatible or could not be initialized."
+    log-command-missing: "Command is missing from plugin.yml:"
   de:
     prefix: "<gray>[<red>that-s-a-ban</red>]</gray> "
     usage: "<red>Benutzung: /offend Spielername"
@@ -92,3 +104,15 @@ messages:
     alt-auto-applied-staff: "<red>Automatische Einstufung:</red> <white><player></white> wurde wegen einer IP-Übereinstimmung in Layer 2 versetzt."
     country-denied: "<red>Verbindungen sind nur mit einer bayerischen IP-Adresse erlaubt."
     country-lookup-failed: "<red>Deine IP-Adresse konnte lokal nicht geografisch zugeordnet werden. Bitte versuche es später erneut."
+    log-luckperms-enabled: "LuckPerms-Integration aktiv."
+    log-luckperms-missing: "LuckPerms fehlt oder ist nicht aktiviert."
+    log-geoip-missing: "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar."
+    feature-luckperms-required: "Deaktiviert: Dieser Befehl benötigt LuckPerms."
+    log-enabled: "ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert."
+    log-supervanish-missing: "SuperVanish fehlt oder ist nicht aktiviert."
+    log-supervanish-enabled: "SuperVanish-Integration aktiv."
+    feature-protocollib-missing: "Admin-Spectator deaktiviert: ProtocolLib fehlt oder ist nicht aktiviert."
+    log-protocollib-missing: "ProtocolLib fehlt oder ist deaktiviert."
+    log-protocollib-enabled: "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar."
+    feature-protocollib-incompatible: "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."
+    log-command-missing: "Befehl fehlt in plugin.yml:"
