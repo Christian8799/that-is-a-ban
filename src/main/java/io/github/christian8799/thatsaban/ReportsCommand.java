@@ -78,12 +78,18 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             case "view" -> sendDetails(sender, entry);
             case "offend" -> offend(sender, entry);
             case "resolve" -> {
-                reports.setStatus(id, ReportManager.Status.RESOLVED);
-                sender.sendMessage(Component.text("Report #" + id + " wurde als erledigt markiert.", NamedTextColor.GREEN));
+                if (reports.setStatus(id, ReportManager.Status.RESOLVED)) {
+                    sender.sendMessage(Component.text("Report #" + id + " wurde als erledigt markiert.", NamedTextColor.GREEN));
+                } else {
+                    sender.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                }
             }
             case "dismiss" -> {
-                reports.setStatus(id, ReportManager.Status.DISMISSED);
-                sender.sendMessage(Component.text("Report #" + id + " wurde verworfen.", NamedTextColor.GRAY));
+                if (reports.setStatus(id, ReportManager.Status.DISMISSED)) {
+                    sender.sendMessage(Component.text("Report #" + id + " wurde verworfen.", NamedTextColor.GRAY));
+                } else {
+                    sender.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                }
             }
             default -> sender.sendMessage(Component.text("Unbekannte Aktion. Nutze /reports.", NamedTextColor.RED));
         }
@@ -315,13 +321,19 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
                         && player.hasPermission("thatsaban.offend")) player.closeInventory();
             }
             case 31 -> {
-                reports.setStatus(entry.id(), ReportManager.Status.RESOLVED);
-                player.sendMessage(Component.text("Report #" + entry.id() + " wurde als erledigt markiert.", NamedTextColor.GREEN));
+                if (reports.setStatus(entry.id(), ReportManager.Status.RESOLVED)) {
+                    player.sendMessage(Component.text("Report #" + entry.id() + " wurde als erledigt markiert.", NamedTextColor.GREEN));
+                } else {
+                    player.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                }
                 openDetails(player, entry);
             }
             case 33 -> {
-                reports.setStatus(entry.id(), ReportManager.Status.DISMISSED);
-                player.sendMessage(Component.text("Report #" + entry.id() + " wurde verworfen.", NamedTextColor.GRAY));
+                if (reports.setStatus(entry.id(), ReportManager.Status.DISMISSED)) {
+                    player.sendMessage(Component.text("Report #" + entry.id() + " wurde verworfen.", NamedTextColor.GRAY));
+                } else {
+                    player.sendMessage(Component.text("Der Report-Status konnte nicht dauerhaft gespeichert werden.", NamedTextColor.RED));
+                }
                 openDetails(player, entry);
             }
             default -> { }
