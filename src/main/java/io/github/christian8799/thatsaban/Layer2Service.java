@@ -108,12 +108,26 @@ final class Layer2Service {
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
 
-        if (hook.has(user, hook.exemptNode()) || store.isWriteBlocked()) {
+        if (hook.has(user, hook.exemptNode())) {
             return;
         }
 
         boolean offender = store.isOffender(uuid);
         boolean marked = hook.has(user, hook.markerNode());
+
+        // Enforce existing LuckPerms state even when the local store is read-only.
+        // A stored offender must also regain its Layer-2 nodes if they were removed
+        // or a previous LuckPerms save failed.
+        if ((offender || marked) && hook.applyLayer2(user)) {
+            hook.save(user);
+        }
+
+        // Store writes and IP-network processing are unavailable in read-only mode,
+        // but that must never disable enforcement of an existing Layer-2 marker.
+        if (store.isWriteBlocked()) {
+            return;
+        }
+
         if (offender) {
             store.renewOffender(uuid);
         } else if (marked) {
@@ -122,9 +136,6 @@ final class Layer2Service {
             } else {
                 store.trackLayer2(uuid);
             }
-        }
-        if (marked && hook.applyLayer2(user)) {
-            hook.save(user);
         }
 
         FileConfiguration cfg = plugin.getConfig();
