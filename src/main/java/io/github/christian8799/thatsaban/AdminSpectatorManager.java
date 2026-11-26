@@ -1196,7 +1196,9 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Client.JIGSAW_GENERATE,
                 PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION,
                 PacketType.Play.Client.POSITION,
-                PacketType.Play.Client.POSITION_LOOK
+                PacketType.Play.Client.POSITION_LOOK,
+                PacketType.Play.Client.SPECTATE,
+                PacketType.Play.Client.SPECTATE_ENTITY
         );
         List<String> unsupported = required.stream()
                 .filter(type -> !type.isSupported())
@@ -1257,7 +1259,9 @@ final class AdminSpectatorManager implements Listener {
                 PacketType.Play.Client.JIGSAW_GENERATE,
                 PacketType.Play.Client.TEST_INSTANCE_BLOCK_ACTION,
                 PacketType.Play.Client.POSITION,
-                PacketType.Play.Client.POSITION_LOOK) {
+                PacketType.Play.Client.POSITION_LOOK,
+                PacketType.Play.Client.SPECTATE,
+                PacketType.Play.Client.SPECTATE_ENTITY) {
             @Override
             public void onPacketSending(PacketEvent event) {
                 Session session = sessions.get(event.getPlayer().getUniqueId());
@@ -1361,8 +1365,16 @@ final class AdminSpectatorManager implements Listener {
                         return;
                     }
                     try {
-                    if (event.getPacketType() == PacketType.Play.Client.TILE_NBT_QUERY
-                            || event.getPacketType() == PacketType.Play.Client.ENTITY_NBT_QUERY) {
+                    PacketType incomingType = event.getPacketType();
+                    if (incomingType == PacketType.Play.Client.SPECTATE
+                            || incomingType == PacketType.Play.Client.SPECTATE_ENTITY) {
+                        // Keep target changes behind /adminspec observe so the manager
+                        // can validate coordinate bounds and update the tracked target.
+                        event.setCancelled(true);
+                        return;
+                    }
+                    if (incomingType == PacketType.Play.Client.TILE_NBT_QUERY
+                            || incomingType == PacketType.Play.Client.ENTITY_NBT_QUERY) {
                         // Prevent a hidden observer from requesting raw block/entity NBT
                         // containing server-side coordinates.
                         event.setCancelled(true);
