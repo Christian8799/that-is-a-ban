@@ -24,7 +24,7 @@ The links below point to the official project pages, source repositories, or dow
 |---|---|---|
 | Paper API | `io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT` (`compileOnly`) | [Paper API](https://github.com/PaperMC/Paper) |
 | LuckPerms API | `net.luckperms:api:5.4` (`compileOnly`) | [LuckPerms](https://luckperms.net/) · [API source](https://github.com/LuckPerms/LuckPerms) |
-| ProtocolLib | `net.dmulloy2:ProtocolLib:5.5.0-SNAPSHOT` (`compileOnly`) | [ProtocolLib source and releases](https://github.com/dmulloy2/ProtocolLib) |
+| ProtocolLib | `net.dmulloy2:ProtocolLib:5.5.0-SNAPSHOT` (`compileOnly`) | [Download ProtocolLib 5.5.0-SNAPSHOT server JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) · [Source](https://github.com/dmulloy2/ProtocolLib) |
 | IP2Location Java | `com.ip2location:ip2location-java:8.13.0` (`implementation`; included in the plugin JAR) | [Official Java library](https://github.com/ip2location/ip2location-java) · [Documentation](https://www.ip2location.com/documentation/ip2location-libraries/java) |
 
 ### Optional server-plugin integrations
@@ -94,7 +94,7 @@ Optional plugins are not bundled into the That'sABan JAR. If an integration is u
 1. Install Paper 1.21.11 and Java 21.
 2. Put the That'sABan JAR in the server's `plugins` directory and start the server once. This creates `plugins/ThatsABan/config.yml`.
 3. Stop the server and edit the configuration as needed.
-4. Install LuckPerms for Layer 2. Install the ProtocolLib 5.5.0-SNAPSHOT **server plugin build** for `/adminspec`. Install FlashbackServer if you want the optional report/replay workflow; see [Player reports and replay clips](docs/REPORTS.md).
+4. Install LuckPerms for Layer 2. Download the [ProtocolLib 5.5.0-SNAPSHOT server plugin JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) for `/adminspec`. Install FlashbackServer if you want the optional report/replay workflow; see [Player reports and replay clips](docs/REPORTS.md).
 5. If you use the country/region filter, install the IP2Location database as described in [Install the GeoIP database](#install-the-geoip-database).
 6. Start the server and check the startup log for disabled optional features or missing integrations.
 7. Grant staff permissions deliberately; see [Permissions](#permissions).
