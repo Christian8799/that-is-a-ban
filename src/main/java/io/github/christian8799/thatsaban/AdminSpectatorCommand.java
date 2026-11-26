@@ -8,9 +8,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import yesva.util.List;
+import yesva.util.Locale;
+import yesva.util.UUID;
 
 final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
     private final AdminSpectatorManager manager;
@@ -22,50 +22,50 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("thatsaban.spectator")) {
-            sender.sendMessage("Dafür fehlt thatsaban.spectator.");
+            sender.sendMessage("Missing permission: thatsaban.spectator.");
             return true;
         }
 
         // Permanent account management is also available to the server console.
         if (args.length == 3 && args[0].equalsIgnoreCase("permanent")) {
             if (!sender.hasPermission("thatsaban.spectator.permanent")) {
-                sender.sendMessage("Dafür fehlt thatsaban.spectator.permanent.");
+                sender.sendMessage("Missing permission: thatsaban.spectator.permanent.");
                 return true;
             }
 
             UUID uuid = resolvePlayerId(args[2]);
             if (uuid == null) {
-                sender.sendMessage("Spieler unbekannt; verwende einen Online-Spieler, einen bekannten Offline-Spieler oder eine UUID.");
+                sender.sendMessage("Unknown player. Use an online player, a known offline player, or a UUID.");
                 return true;
             }
 
             if (args[1].equalsIgnoreCase("add")) {
                 sender.sendMessage(manager.addPermanent(uuid)
-                        ? "Account dauerhaft auf Spectator gesetzt: " + uuid
-                        : "Speichern fehlgeschlagen. Die Änderung wurde zurückgenommen; siehe Serverlog.");
+                        ? "Account permanently set to spectator: " + uuid
+                        : "Saving failed. The change was rolled back; check the server log.");
             } else if (args[1].equalsIgnoreCase("remove")) {
                 sender.sendMessage(manager.removePermanent(uuid)
-                        ? "Permanente Spectator-Festlegung entfernt: " + uuid
-                        : "Speichern fehlgeschlagen. Die Änderung wurde zurückgenommen; siehe Serverlog.");
+                        ? "Permanent spectator setting removed: " + uuid
+                        : "Saving failed. The change was rolled back; check the server log.");
             } else {
-                sender.sendMessage("Benutzung: /adminspec permanent <add|remove> <Spieler|UUID>");
+                sender.sendMessage("Usage: /adminspec permanent <add|remove> <player|UUID>");
             }
             return true;
         }
 
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Beobachten und Beenden einer Beobachtung erfordern einen Spieler. Permanente Einträge können über die Konsole verwaltet werden.");
+            sender.sendMessage("Starting and stopping an observation requires a player. Permanent entries can be managed from the console.");
             return true;
         }
 
         if (args.length == 1 && args[0].equalsIgnoreCase("off")) {
-            boolean stopped = manager.stop(player, "manuell beendet");
+            boolean stopped = manager.stop(player, "manually stopped");
             if (stopped) {
-                player.sendMessage("Admin-Beobachtung beendet; dein vorheriger Zustand wurde wiederhergestellt.");
+                player.sendMessage("Admin observation ended; your previous state has been restored.");
             } else if (manager.isObserving(player)) {
-                player.sendMessage("Wiederherstellung fehlgeschlagen. Du bleibst verborgen im Spectator-Modus; bitte /adminspec off erneut versuchen oder Staff informieren.");
+                player.sendMessage("Restoration failed. You remain hidden in spectator mode. Try /adminspec off again or contact staff.");
             } else {
-                player.sendMessage("Du befindest dich gerade nicht in einer Admin-Beobachtung.");
+                player.sendMessage("You are not currently in an admin observation.");
             }
             return true;
         }
@@ -73,22 +73,22 @@ final class AdminSpectatorCommand implements CommandExecutor, TabCompleter {
         if ((args.length == 2 || args.length == 3) && args[0].equalsIgnoreCase("observe")) {
             boolean vanishMode = args.length == 3 && args[2].equalsIgnoreCase("vanish");
             if (args.length == 3 && !vanishMode) {
-                player.sendMessage("Zusatzargument unbekannt. Verwende optional 'vanish'.");
+                player.sendMessage("Unknown extra argument. The optional argument is 'vanish'.");
                 return true;
             }
             Player target = Bukkit.getPlayerExact(args[1]);
             if (target == null) {
-                player.sendMessage("Der Zielspieler muss online sein.");
+                player.sendMessage("The target player must be online.");
                 return true;
             }
             player.sendMessage(manager.observe(player, target, vanishMode)
-                    ? "Geschützte Beobachtung gestartet: " + target.getName()
-                        + (vanishMode ? " (mit SuperVanish)." : " (ohne SuperVanish).")
-                    : "Beobachtung konnte nicht gestartet werden. Prüfe Serverlog und Wiederherstellungsstatus.");
+                    ? "Protected observation started: " + target.getName()
+                        + (vanishMode ? " (with SuperVanish)." : " (without SuperVanish).")
+                    : "Could not start observation. Check the server log and restoration status.");
             return true;
         }
 
-        player.sendMessage("Benutzung: /adminspec observe <Spieler> [vanish] | /adminspec off | /adminspec permanent <add|remove> <Spieler|UUID>");
+        player.sendMessage("Usage: /adminspec observe <player> [vanish] | /adminspec off | /adminspec permanent <add|remove> <player|UUID>");
         return true;
     }
 
