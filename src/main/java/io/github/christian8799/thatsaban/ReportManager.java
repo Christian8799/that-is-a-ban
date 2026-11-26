@@ -5,6 +5,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -16,6 +17,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -69,6 +72,7 @@ final class ReportManager implements Listener {
     private final FlashbackClipIntegration clips;
     private final File storageFile;
     private final Map<String, ReportEntry> reports = new LinkedHashMap<>();
+    private boolean storageWriteBlocked;
     private final Map<UUID, Long> cooldowns = new HashMap<>();
     private final java.util.Set<UUID> armedByThisPlugin = new java.util.HashSet<>();
 
@@ -286,7 +290,15 @@ final class ReportManager implements Listener {
 
     private void load() {
         if (!storageFile.isFile()) return;
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(storageFile);
+        YamlConfiguration yaml = new YamlConfiguration();
+        try {
+            yaml.load(storageFile);
+        } catch (IOException | InvalidConfigurationException ex) {
+            storageWriteBlocked = true;
+            plugin.getLogger().severe("reports.yml ist fehlerhaft oder nicht lesbar. "
+                    + "Die Datei bleibt unverändert; Report-Schreibzugriffe sind bis zur manuellen Prüfung blockiert.");
+            return;
+        }
         ConfigurationSection section = yaml.getConfigurationSection("reports");
         if (section == null) return;
         for (String id : section.getKeys(false)) {
@@ -314,6 +326,9 @@ final class ReportManager implements Listener {
     }
 
     private void save() {
+        if (storageWriteBlocked) {
+            return;
+        }
         YamlConfiguration yaml = new YamlConfiguration();
         for (ReportEntry entry : reports.values()) {
             String base = "reports." + entry.id();
@@ -326,11 +341,32 @@ final class ReportManager implements Listener {
             yaml.set(base + ".status", entry.status().name());
             yaml.set(base + ".replay-path", entry.replayPath());
         }
+        Path temporaryFile = null;
         try {
-            if (storageFile.getParentFile() != null) Files.createDirectories(storageFile.getParentFile().toPath());
-            yaml.save(storageFile);
+            Path parent = storageFile.toPath().toAbsolutePath().getParent();
+            if (parent == null) {
+                throw new IOException("Report-Verzeichnis ist nicht verfügbar.");
+            }
+            Files.createDirectories(parent);
+            temporaryFile = Files.createTempFile(parent, "reports.yml.tmp-", ".yml");
+            yaml.save(temporaryFile.toFile());
+            try {
+                Files.move(temporaryFile, storageFile.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(temporaryFile, storageFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException ex) {
-            plugin.getLogger().severe("reports.yml konnte nicht gespeichert werden: " + ex.getMessage());
+            plugin.getLogger().severe("reports.yml konnte nicht sicher gespeichert werden: "
+                    + ex.getClass().getSimpleName());
+        } finally {
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException ignored) {
+                    // A leftover temporary file is harmless and is never treated as the active report store.
+                }
+            }
         }
     }
 
