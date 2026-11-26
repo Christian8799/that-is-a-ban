@@ -476,10 +476,15 @@ final class LinkStore {
         dirty = true;
     }
 
-    synchronized Set<UUID> unmarkOffenderGroup(UUID main) {
+    synchronized Set<UUID> autoOffenderGroup(UUID main) {
         Set<UUID> affected = new HashSet<>();
         affected.add(main);
         affected.addAll(autoOffenderAlts.getOrDefault(main, Set.of()));
+        return affected;
+    }
+
+    synchronized Set<UUID> unmarkOffenderGroup(UUID main) {
+        Set<UUID> affected = autoOffenderGroup(main);
         autoOffenderAlts.remove(main);
         for (Set<UUID> linked : autoOffenderAlts.values()) {
             linked.remove(main);
