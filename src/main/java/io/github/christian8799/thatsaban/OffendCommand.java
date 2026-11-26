@@ -82,7 +82,7 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
         layer2.offend(targetId).whenComplete((result, error) ->
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     if (error != null || result == null) {
-                        plugin.getLogger().warning("/offend konnte nicht abgeschlossen werden.");
+                        plugin.getLogger().warning("/offend could not be completed.");
                         sender.sendMessage(msg.get("error"));
                         return;
                     }
