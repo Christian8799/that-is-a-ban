@@ -568,6 +568,15 @@ final class LinkStore {
         return names.get(uuid);
     }
 
+    synchronized List<String> offenderNames(String prefix) {
+        String normalizedPrefix = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
+        return offenders.keySet().stream()
+                .map(uuid -> names.getOrDefault(uuid, uuid.toString()))
+                .filter(name -> name.toLowerCase(java.util.Locale.ROOT).startsWith(normalizedPrefix))
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
     synchronized Set<UUID> pendingExpiredOffenders() {
         return new HashSet<>(expiredOffenders);
     }
