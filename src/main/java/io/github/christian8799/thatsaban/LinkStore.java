@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Paths;
 import java.nio.file.InvalidPathException;
 import java.nio.file.StandardOpenOption;
@@ -317,16 +319,43 @@ final class LinkStore {
         for (Map.Entry<UUID, Long> entry : offenders.entrySet()) {
             yaml.set("offender-last-seen." + entry.getKey(), entry.getValue());
         }
+        Path temporaryFile = null;
         try {
-            plugin.getDataFolder().mkdirs();
-            yaml.save(file);
+            Path parent = file.toPath().toAbsolutePath().getParent();
+            if (parent == null) {
+                throw new IOException("LinkStore-Verzeichnis ist nicht verfügbar.");
+            }
+            Files.createDirectories(parent);
+            temporaryFile = Files.createTempFile(parent, "data.yml.tmp-", ".yml");
+            yaml.save(temporaryFile.toFile());
+
+            // Protect the temporary file before it replaces the existing store.
+            if (!restrictOwnerOnly(temporaryFile.toFile())) {
+                writeBlocked = true;
+                return;
+            }
+            try {
+                Files.move(temporaryFile, file.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(temporaryFile, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
             if (!restrictOwnerOnly(file)) {
                 writeBlocked = true;
                 return;
             }
             dirty = false;
         } catch (IOException ex) {
-            plugin.getLogger().warning("data.yml konnte nicht gespeichert werden.");
+            plugin.getLogger().warning("data.yml konnte nicht gespeichert werden: "
+                    + ex.getClass().getSimpleName());
+        } finally {
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException ignored) {
+                    // A leftover temporary file is harmless and is never treated as the active store.
+                }
+            }
         }
     }
 
