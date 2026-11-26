@@ -176,7 +176,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             case RESOLVED -> Material.LIME_WOOL;
             case DISMISSED -> Material.GRAY_WOOL;
         };
-        NamedTextColor statusColor = statusColor(entry.status());
+        String statusColor = statusLegacyColor(entry.status());
         return item(material, statusColor + "§l#" + entry.id() + " §f" + entry.targetName(),
                 "§7Status: " + statusName(entry.status()),
                 "§7Gemeldet von: §f" + entry.reporterName(),
@@ -342,13 +342,13 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         return stack;
     }
 
-    private static NamedTextColor statusColor(ReportManager.Status status) {
+    private static String statusLegacyColor(ReportManager.Status status) {
         return switch (status) {
-            case OPEN -> NamedTextColor.GREEN;
-            case CAPTURING -> NamedTextColor.YELLOW;
-            case FAILED -> NamedTextColor.RED;
-            case RESOLVED -> NamedTextColor.GRAY;
-            case DISMISSED -> NamedTextColor.DARK_GRAY;
+            case OPEN -> "§a";
+            case CAPTURING -> "§e";
+            case FAILED -> "§c";
+            case RESOLVED -> "§7";
+            case DISMISSED -> "§8";
         };
     }
 
