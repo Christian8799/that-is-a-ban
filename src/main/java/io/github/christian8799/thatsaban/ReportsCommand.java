@@ -3,6 +3,7 @@ package io.github.christian8799.thatsaban;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -332,10 +333,10 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
     private ItemStack item(Material material, String name, String... loreLines) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
-        meta.displayName(Component.text(name.replaceAll("§[0-9A-FK-ORa-fk-or]", "")));
+        meta.displayName(LegacyComponentSerializer.legacySection().deserialize(name));
         List<Component> lore = new ArrayList<>();
         for (String line : loreLines) {
-            lore.add(Component.text(line.replaceAll("§[0-9A-FK-ORa-fk-or]", "")));
+            lore.add(LegacyComponentSerializer.legacySection().deserialize(line));
         }
         meta.lore(lore);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
