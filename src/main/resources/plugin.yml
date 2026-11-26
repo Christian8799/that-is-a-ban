@@ -3,47 +3,74 @@ main: io.github.christian8799.thatsaban.ThatsABan
 version: ${version}
 api-version: "1.21.11"
 author: Christian8799
-description: Anti-Cheat-Connector - Layer 1/2, Datenschutzbefehle, IP-Kopplung und LuckPerms
-depend: [LuckPerms]
-softdepend: [GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
+description: Anti-Cheat-Connector with privacy tools and protected admin spectating
+softdepend: [LuckPerms, ProtocolLib, SuperVanish, FlashbackServer, GrimAC, CheatDetector, FoxGate, HandShaker, Geyser-Spigot, floodgate]
 
 commands:
   offend:
-    description: Versetzt einen Spieler nach Staff-Entscheidung in Layer 2
-    usage: /<command> <Spieler>
+    description: Moves a player to Layer 2 after a staff decision
+    usage: /<command> <player>
     permission: thatsaban.offend
   thatsaban:
-    description: Datenschutz-Auskunft, Account-Netzwerk, Layer-2-Entfernung und Datenlöschung
-    usage: /<command> <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]
+    description: Privacy data export, account network, Layer 2 removal, and data deletion
+    usage: /<command> <reload|info|network|unoffend|forget> [player|UUID] [depth|confirm]
+  adminspec:
+    description: Manage protected admin observation
+    usage: /<command> <observe|menu|tp|offend|off|permanent> [player] [vanish]
+    permission: thatsaban.spectator
+  report:
+    description: Report a player and save a replay clip
+    usage: /<command> <player> <reason>
+    permission: thatsaban.report
+  reports:
+    description: View and manage player reports
+    usage: /<command> [list|view|offend|resolve|dismiss] [ID]
 
 permissions:
   thatsaban.admin:
-    description: Übergeordnete Berechtigung für alle Datenschutz-Administrationsbefehle
+    description: Administrative permission for privacy commands
     default: op
   thatsaban.offend:
-    description: Darf /offend benutzen
+    description: Can use /offend
     default: op
   thatsaban.privacy.read:
-    description: Darf gespeicherte Plugin-Daten zu einem Spieler abfragen
+    description: Can view stored plugin data for a player
     default: op
   thatsaban.layer2.remove:
-    description: Darf Layer 2 und den Offender-Eintrag eines Spielers entfernen
+    description: Can remove Layer 2 and a player's offender entry
     default: op
   thatsaban.privacy.erase:
-    description: Darf Plugin-Daten eines Spielers vollständig löschen
+    description: Can permanently delete a player's plugin data
     default: op
   thatsaban.network:
-    description: Darf das gespeicherte Alt-Account-Netzwerk einsehen
+    description: Can view the stored alt-account network
     default: op
   thatsaban.view-linked-accounts:
-    description: Darf Namen von Accounts mit gemeinsamer IP-Verknüpfung sehen
+    description: Can view names of accounts linked by a shared IP address
     default: op
   thatsaban.notify:
-    description: Erhält Hinweise zu IP-Übereinstimmungen, die Staff prüfen soll
+    description: Receives notifications about IP matches that staff should review
     default: op
   thatsaban.layer2:
-    description: Marker-Node für Layer 2 (wird per LuckPerms gesetzt)
+    description: Marker node for Layer 2
     default: false
   thatsaban.exempt:
-    description: Ausnahme von /offend und IP-Kopplung
+    description: Exemption from /offend and IP linking
     default: false
+  thatsaban.report:
+    description: Can report other players
+    default: true
+  thatsaban.reports:
+    description: Can view and manage reports
+    default: op
+  thatsaban.reports.notify:
+    description: Receives notifications about new reports
+    default: op
+  thatsaban.spectator:
+    description: Can use protected admin observation
+    default: op
+  thatsaban.spectator.permanent:
+    description: Can manage permanent spectator accounts
+    default: op
+    children:
+      thatsaban.spectator: true

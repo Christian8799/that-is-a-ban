@@ -4,21 +4,19 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
-
 import java.net.InetAddress;
 import java.util.UUID;
 
 final class LoginListener implements Listener {
-
     private final ThatsABan plugin;
-    private final Layer2Service layer2;
+    private final LuckPermsIntegration luckPerms;
     private final BedrockDetector bedrock;
-    private final CountryFilter countryFilter;
+    private final CountryFilterIntegration countryFilter;
 
-    LoginListener(ThatsABan plugin, Layer2Service layer2, BedrockDetector bedrock,
-                  CountryFilter countryFilter) {
+    LoginListener(ThatsABan plugin, LuckPermsIntegration luckPerms, BedrockDetector bedrock,
+                  CountryFilterIntegration countryFilter) {
         this.plugin = plugin;
-        this.layer2 = layer2;
+        this.luckPerms = luckPerms;
         this.bedrock = bedrock;
         this.countryFilter = countryFilter;
     }
@@ -29,31 +27,42 @@ final class LoginListener implements Listener {
         String name = event.getName();
         InetAddress address = event.getAddress();
 
-        CountryFilter.Result country = countryFilter.check(address);
-        if (country == CountryFilter.Result.DENIED) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    plugin.messages().plain("country-denied"));
-            return;
-        }
-        if (country == CountryFilter.Result.UNAVAILABLE) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    plugin.messages().plain("country-lookup-failed"));
-            return;
+        if (countryFilter != null) {
+            try {
+                if (countryFilter.isAvailable()) {
+                    CountryFilterIntegration.Result country = countryFilter.check(address);
+                    if (country == CountryFilterIntegration.Result.DENIED) {
+                        event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                                plugin.messages().plain("country-denied"));
+                        return;
+                    }
+                    if (country == CountryFilterIntegration.Result.UNAVAILABLE) {
+                        event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                                plugin.messages().plain("country-lookup-failed"));
+                        return;
+                    }
+                }
+            } catch (LinkageError | RuntimeException ex) {
+                plugin.getLogger().warning("Country/region check failed at runtime; login is denied for security reasons.");
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                        plugin.messages().plain("country-lookup-failed"));
+                return;
+            }
         }
 
+        if (luckPerms == null) return;
         if (bedrock.isBedrock(uuid, name)) {
-            // Bedrock accounts appear in the network view but remain exempt from Layer 2 actions.
             try {
-                layer2.recordNetworkLogin(uuid, name, address);
-            } catch (Exception ignored) {
-                plugin.getLogger().warning("Login-Netzwerkerfassung fehlgeschlagen; Details werden nicht protokolliert.");
+                luckPerms.recordNetworkLogin(uuid, name, address);
+            } catch (LinkageError | Exception ignored) {
+                plugin.getLogger().warning("Login network capture failed; details are not logged.");
             }
             return;
         }
         try {
-            layer2.handleLogin(uuid, name, address);
-        } catch (Exception ignored) {
-            plugin.getLogger().warning("Login-Prüfung fehlgeschlagen; Details werden nicht protokolliert.");
+            luckPerms.handleLogin(uuid, name, address);
+        } catch (LinkageError | Exception ignored) {
+            plugin.getLogger().warning("Login check failed; details are not logged.");
         }
     }
 }

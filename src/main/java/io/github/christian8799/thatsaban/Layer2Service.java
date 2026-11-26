@@ -39,7 +39,7 @@ final class Layer2Service {
             }
             boolean already = hook.has(user, hook.markerNode());
             return hook.applyLayer2Async(uuid)
-                    .thenCompose(v -> flagAlts(store.markOffender(uuid)))
+                    .thenCompose(v -> flagAlts(uuid, store.markOffender(uuid)))
                     .thenApply(alts -> new OffendResult(already ? Status.ALREADY : Status.DONE, alts));
         });
     }
@@ -48,12 +48,17 @@ final class Layer2Service {
         if (store.isWriteBlocked()) {
             return CompletableFuture.failedFuture(new IllegalStateException("LinkStore write-blocked"));
         }
-        return hook.clearLayer2Async(uuid)
+        Set<UUID> affected = store.autoOffenderGroup(uuid);
+        CompletableFuture<?>[] removals = affected.stream()
+                .map(hook::clearLayer2Async)
+                .toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(removals)
+                .thenApply(ignored -> {
+                    store.unmarkOffenderGroup(uuid);
+                    return null;
+                })
                 .thenCompose(ignored -> hook.users().loadUser(uuid))
-                .thenApply(user -> {
-                    store.unmarkOffender(uuid);
-                    return hook.has(user, hook.markerNode());
-                });
+                .thenApply(user -> hook.has(user, hook.markerNode()));
     }
 
     CompletableFuture<Integer> forgetPlayer(UUID uuid) {
@@ -63,7 +68,7 @@ final class Layer2Service {
         return hook.clearLayer2Async(uuid).thenApply(v -> store.forgetPlayer(uuid));
     }
 
-    /** Entfernt abgelaufene Offender-Marker auch aus LuckPerms, einschließlich Offline-Usern. */
+    /** Also removes expired offender markers from LuckPerms, including offline users. */
     void cleanupExpired() {
         if (store.isWriteBlocked()) {
             return;
@@ -82,7 +87,7 @@ final class Layer2Service {
                 if (error == null) {
                     store.completeExpiredOffender(uuid);
                 } else if (!store.hasLayer2Tracking(uuid)) {
-                    plugin.getLogger().warning("Ein abgelaufener Layer-2-Marker konnte nicht aus LuckPerms entfernt werden; der Löschauftrag bleibt vorgemerkt.");
+                    plugin.getLogger().warning("An expired Layer 2 marker could not be removed from LuckPerms; the removal will be retried.");
                 }
             });
         }
@@ -108,12 +113,26 @@ final class Layer2Service {
     void handleLogin(UUID uuid, String name, InetAddress address) {
         User user = hook.userNow(uuid);
 
-        if (hook.has(user, hook.exemptNode()) || store.isWriteBlocked()) {
+        if (hook.has(user, hook.exemptNode())) {
             return;
         }
 
         boolean offender = store.isOffender(uuid);
         boolean marked = hook.has(user, hook.markerNode());
+
+        // Enforce existing LuckPerms state even when the local store is read-only.
+        // A stored offender must also regain its Layer-2 nodes if they were removed
+        // or a previous LuckPerms save failed.
+        if ((offender || marked) && hook.applyLayer2(user)) {
+            hook.save(user);
+        }
+
+        // Store writes and IP-network processing are unavailable in read-only mode,
+        // but that must never disable enforcement of an existing Layer-2 marker.
+        if (store.isWriteBlocked()) {
+            return;
+        }
+
         if (offender) {
             store.renewOffender(uuid);
         } else if (marked) {
@@ -122,9 +141,6 @@ final class Layer2Service {
             } else {
                 store.trackLayer2(uuid);
             }
-        }
-        if (marked && hook.applyLayer2(user)) {
-            hook.save(user);
         }
 
         FileConfiguration cfg = plugin.getConfig();
@@ -155,7 +171,7 @@ final class Layer2Service {
         }
     }
 
-    private CompletableFuture<List<String>> flagAlts(Set<UUID> others) {
+    private CompletableFuture<List<String>> flagAlts(UUID main, Set<UUID> others) {
         FileConfiguration cfg = plugin.getConfig();
         if (!cfg.getBoolean("alt-detection.enabled", true)
                 || !cfg.getBoolean("alt-detection.retroactive", false)
@@ -178,11 +194,13 @@ final class Layer2Service {
                 if (hook.has(user, hook.markerNode())) {
                     return hook.applyLayer2Async(other).thenApply(v -> {
                         store.trackLayer2(other);
+                        store.linkAutoOffender(main, other);
                         return (String) null;
                     });
                 }
                 return hook.applyLayer2Async(other).thenApply(v -> {
                     store.trackLayer2(other);
+                    store.linkAutoOffender(main, other);
                     return name != null ? name : other.toString();
                 });
             }));

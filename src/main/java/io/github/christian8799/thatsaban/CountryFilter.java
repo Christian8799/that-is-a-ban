@@ -16,9 +16,7 @@ import java.util.stream.Collectors;
  * Prueft die Region ausschliesslich mit einer lokalen IP2Location-BIN-Datenbank.
  * Es werden keine IP-Adressen an externe GeoIP-Dienste uebertragen oder protokolliert.
  */
-final class CountryFilter {
-
-    enum Result { ALLOWED, DENIED, UNAVAILABLE }
+final class CountryFilter implements CountryFilterIntegration {
 
     private final ThatsABan plugin;
     private final IP2Location database = new IP2Location();
@@ -35,41 +33,47 @@ final class CountryFilter {
         File databaseFile = new File(plugin.getDataFolder(), configuredPath);
 
         if (!databaseFile.isFile() || !databaseFile.canRead()) {
-            plugin.getLogger().severe("Lokale GeoIP-Datenbank fehlt oder ist nicht lesbar: "
+            plugin.getLogger().severe("Local GeoIP database is missing or unreadable: "
                     + databaseFile.getPath()
-                    + ". Die Regionssperre bleibt aus Sicherheitsgruenden geschlossen.");
+                    + ". The country/region filter will be disabled; other plugin features remain available.");
             return;
         }
 
         try {
             database.Open(databaseFile.getAbsolutePath());
             databaseReady = true;
-            plugin.getLogger().info("Lokale GeoIP-Datenbank geladen.");
+            plugin.getLogger().info("Local GeoIP database loaded.");
         } catch (IOException | RuntimeException ex) {
-            plugin.getLogger().severe("Lokale GeoIP-Datenbank konnte nicht geladen werden: "
+            plugin.getLogger().severe("Could not load local GeoIP database: "
                     + ex.getClass().getSimpleName()
-                    + ". Die Regionssperre bleibt aus Sicherheitsgruenden geschlossen.");
+                    + ". The country/region filter will be disabled; other plugin features remain available.");
         }
     }
 
-    Result check(InetAddress address) {
+    @Override
+    public boolean isAvailable() {
+        return !plugin.getConfig().getBoolean("country-filter.enabled", true) || databaseReady;
+    }
+
+    @Override
+    public synchronized CountryFilterIntegration.Result check(InetAddress address) {
         FileConfiguration cfg = plugin.getConfig();
         if (!cfg.getBoolean("country-filter.enabled", true)) {
-            return Result.ALLOWED;
+            return CountryFilterIntegration.Result.ALLOWED;
         }
         if (cfg.getBoolean("country-filter.allow-private-addresses", false)
                 && (address.isAnyLocalAddress() || address.isLoopbackAddress()
                 || address.isLinkLocalAddress() || address.isSiteLocalAddress())) {
-            return Result.ALLOWED;
+            return CountryFilterIntegration.Result.ALLOWED;
         }
         if (!databaseReady) {
-            return Result.UNAVAILABLE;
+            return CountryFilterIntegration.Result.UNAVAILABLE;
         }
 
         try {
             IPResult result = database.IPQuery(address.getHostAddress());
             if (result == null || !"OK".equalsIgnoreCase(result.getStatus())) {
-                return Result.UNAVAILABLE;
+                return CountryFilterIntegration.Result.UNAVAILABLE;
             }
 
             String country = result.getCountryShort();
@@ -83,16 +87,17 @@ final class CountryFilter {
             boolean allowed = "DE".equalsIgnoreCase(country)
                     && region != null
                     && allowedRegions.contains(region);
-            return allowed ? Result.ALLOWED : Result.DENIED;
+            return allowed ? CountryFilterIntegration.Result.ALLOWED : CountryFilterIntegration.Result.DENIED;
         } catch (Exception ex) {
             // Keine IP, keinen Datenbankinhalt und keine Exception-Details protokollieren.
-            plugin.getLogger().warning("Lokale GeoIP-Abfrage fehlgeschlagen "
-                    + "(Details werden aus Datenschutzgruenden nicht protokolliert).");
-            return Result.UNAVAILABLE;
+            plugin.getLogger().warning("Local GeoIP lookup failed "
+                    + "(details are not logged for privacy reasons).");
+            return CountryFilterIntegration.Result.UNAVAILABLE;
         }
     }
 
-    void close() {
+    @Override
+    public synchronized void close() {
         if (databaseReady) {
             database.Close();
             databaseReady = false;

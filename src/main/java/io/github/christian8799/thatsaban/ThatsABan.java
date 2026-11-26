@@ -1,74 +1,219 @@
 package io.github.christian8799.thatsaban;
 
-import net.luckperms.api.LuckPerms;
 import org.bukkit.command.PluginCommand;
-import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
-
+import java.io.File;
 import java.util.List;
 
 public final class ThatsABan extends JavaPlugin {
-
     private Messages messages;
     private LinkStore store;
-    private CountryFilter countryFilter;
+    private CountryFilterIntegration countryFilter;
+    private SpectatorIntegration spectatorFeature;
+    private ReportManager reportManager;
+    private AccountNetworkMenu accountNetworkMenu;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        migrateConfig();
-
-        RegisteredServiceProvider<LuckPerms> provider =
-                getServer().getServicesManager().getRegistration(LuckPerms.class);
-        if (provider == null) {
-            getLogger().severe("LuckPerms nicht gefunden - that-s-a-ban wird deaktiviert.");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
         messages = new Messages(this);
+        migrateConfig();
         store = new LinkStore(this);
         store.load();
         store.startAutosave();
+        accountNetworkMenu = new AccountNetworkMenu(this, store);
 
-        LuckPermsHook hook = new LuckPermsHook(this, provider.getProvider());
+        LuckPermsIntegration luckPerms = null;
+        if (getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
+            try {
+                luckPerms = loadLuckPermsIntegration();
+                getLogger().info(messages.text("log-luckperms-enabled"));
+            } catch (LinkageError | RuntimeException ex) {
+                warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)", ex);
+            }
+        } else {
+            warnFeatureDisabled("LuckPerms-Integration (Layer 2, /offend, /thatsaban)",
+                    messages.text("log-luckperms-missing"));
+        }
+
         BedrockDetector bedrock = new BedrockDetector(this);
-        Layer2Service layer2 = new Layer2Service(this, store, hook);
-        countryFilter = new CountryFilter(this);
-
-        layer2.cleanupExpired();
-        getServer().getScheduler().runTaskTimer(this, layer2::cleanupExpired, 1200L, 1200L);
+        try {
+            countryFilter = loadCountryFilter();
+            if (!countryFilter.isAvailable()) {
+                warnFeatureDisabled("Country-/Region-Filter",
+                        messages.text("log-geoip-missing"));
+            }
+        } catch (LinkageError | RuntimeException ex) {
+            countryFilter = null;
+            warnFeatureDisabled("Country-/Region-Filter (IP2Location)", ex);
+        }
 
         getServer().getPluginManager().registerEvents(
-                new LoginListener(this, layer2, bedrock, countryFilter), this);
+                new LoginListener(this, luckPerms, bedrock, countryFilter), this);
 
-        PluginCommand offendCommand = getCommand("offend");
-        if (offendCommand != null) {
-            OffendCommand offend = new OffendCommand(this, layer2, bedrock, store);
-            offendCommand.setExecutor(offend);
-            offendCommand.setTabCompleter(offend);
+        registerCommand("offend", luckPerms == null
+                ? new FeatureUnavailableCommand(messages.text("feature-luckperms-required"))
+                : luckPerms.offendCommand());
+        org.bukkit.command.CommandExecutor privacyCommand = luckPerms == null
+                ? new PrivacyStoreCommand(this, store)
+                : luckPerms.privacyCommand();
+        registerCommand("thatsaban", new ThatsABanCommand(this, store, privacyCommand));
+
+        if (luckPerms != null) {
+            LuckPermsIntegration active = luckPerms;
+            active.cleanupExpired();
+            getServer().getScheduler().runTaskTimer(this, active::cleanupExpired, 1200L, 1200L);
         }
 
-        PluginCommand privacyCommand = getCommand("thatsaban");
-        if (privacyCommand != null) {
-            PrivacyAdminCommand admin = new PrivacyAdminCommand(this, store, layer2, hook);
-            privacyCommand.setExecutor(admin);
-            privacyCommand.setTabCompleter(admin);
-        }
+        registerSpectatorFeature();
+
+        FlashbackClipIntegration flashbackClips = new FlashbackClipIntegration(this);
+        reportManager = new ReportManager(this, flashbackClips);
+        getServer().getPluginManager().registerEvents(reportManager, this);
+        registerCommand("report", new ReportCommand(reportManager));
+        ReportsCommand reportsCommand = new ReportsCommand(this, reportManager);
+        registerCommand("reports", reportsCommand);
+        getServer().getPluginManager().registerEvents(reportsCommand, this);
+        reportManager.initialize();
 
         getServer().getScheduler().runTask(this, this::checkIntegrations);
+        getLogger().info(messages.text("log-enabled"));
+    }
+
+    AccountNetworkMenu accountNetworkMenu() {
+        return accountNetworkMenu;
+    }
+
+    private CountryFilterIntegration loadCountryFilter() {
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".CountryFilter",
+                    true, getClass().getClassLoader());
+            return (CountryFilterIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class)
+                    .newInstance(this);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            throw new IllegalStateException("Could not create country filter.", cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Could not load country filter.", ex);
+        }
+    }
+
+    private LuckPermsIntegration loadLuckPermsIntegration() {
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".LuckPermsFeatures",
+                    true, getClass().getClassLoader());
+            return (LuckPermsIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class, LinkStore.class)
+                    .newInstance(this, store);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            throw new IllegalStateException("Could not create LuckPerms integration.", cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Could not load LuckPerms integration.", ex);
+        }
+    }
+
+    private VanishIntegration loadVanishIntegration() {
+        if (!getServer().getPluginManager().isPluginEnabled("SuperVanish")) {
+            warnFeatureDisabled("SuperVanish", messages.text("log-supervanish-missing"));
+            return null;
+        }
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".SuperVanishFeatures",
+                    true, getClass().getClassLoader());
+            VanishIntegration integration = (VanishIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class)
+                    .newInstance(this);
+            getLogger().info(messages.text("log-supervanish-enabled"));
+            return integration;
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            warnFeatureDisabled("SuperVanish-Integration", ex.getCause() == null ? ex : ex.getCause());
+            return null;
+        } catch (ReflectiveOperationException | LinkageError ex) {
+            warnFeatureDisabled("SuperVanish-Integration", ex);
+            return null;
+        }
+    }
+
+    private SpectatorIntegration loadSpectatorIntegration(VanishIntegration vanish) {
+        try {
+            Class<?> type = Class.forName(getClass().getPackageName() + ".ProtocolLibFeatures",
+                    true, getClass().getClassLoader());
+            return (SpectatorIntegration) type
+                    .getDeclaredConstructor(ThatsABan.class, VanishIntegration.class)
+                    .newInstance(this, vanish);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof LinkageError error) throw error;
+            if (cause instanceof RuntimeException error) throw error;
+            throw new IllegalStateException("Could not create ProtocolLib integration.", cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Could not load ProtocolLib integration.", ex);
+        }
+    }
+
+    private void registerSpectatorFeature() {
+        if (!getServer().getPluginManager().isPluginEnabled("ProtocolLib")) {
+            registerCommand("adminspec", new FeatureUnavailableCommand(
+                    messages.text("feature-protocollib-missing")));
+            warnFeatureDisabled("Admin-Spectator (ProtocolLib)", messages.text("log-protocollib-missing"));
+            return;
+        }
+        try {
+            VanishIntegration vanish = loadVanishIntegration();
+            spectatorFeature = loadSpectatorIntegration(vanish);
+            registerCommand("adminspec", spectatorFeature.command());
+            getLogger().info(messages.text("log-protocollib-enabled"));
+        } catch (LinkageError | RuntimeException ex) {
+            spectatorFeature = null;
+            registerCommand("adminspec", new FeatureUnavailableCommand(
+                    messages.text("feature-protocollib-incompatible")));
+            warnFeatureDisabled("Admin-Spectator (ProtocolLib)", ex);
+        }
+    }
+
+    private void registerCommand(String name, org.bukkit.command.CommandExecutor executor) {
+        PluginCommand command = getCommand(name);
+        if (command == null) {
+            getLogger().warning("Command '" + name + "' is missing from plugin.yml.");
+            return;
+        }
+        command.setExecutor(executor);
+        if (executor instanceof org.bukkit.command.TabCompleter completer) command.setTabCompleter(completer);
+    }
+
+    private void warnFeatureDisabled(String feature, Throwable error) {
+        String detail = error.getMessage();
+        getLogger().warning(feature + " was disabled; other plugin features remain available. Cause: "
+                + error.getClass().getSimpleName()
+                + (detail == null || detail.isBlank() ? "" : ": " + detail));
+    }
+
+    private void warnFeatureDisabled(String feature, String reason) {
+        getLogger().warning(feature + " was disabled; other plugin features remain available. Cause: " + reason);
     }
 
     private void migrateConfig() {
         int version = getConfig().getInt("config-version", 0);
         if (version < 2) {
-            getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
-            getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
+            if (!getConfig().contains("country-filter.database-file")) {
+                getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
+            }
+            if (!getConfig().contains("country-filter.allowed-region-names")) {
+                getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
+            }
             getConfig().set("alt-detection.enabled", false);
-            getConfig().set("alt-detection.retention-days", 30);
+            if (!getConfig().contains("alt-detection.retention-days")) {
+                getConfig().set("alt-detection.retention-days", 30);
+            }
             version = 2;
-            getLogger().warning("Datenschutz-Migration: IP-Kopplung wurde deaktiviert. "
-                    + "Die lokale GeoIP-Datenbank muss unter plugins/ThatsABan/geoip abgelegt werden.");
+            getLogger().warning("Privacy migration: IP linking has been disabled. "
+                    + "The local GeoIP database must be placed in plugins/ThatsABan/geoip.");
         }
         if (version < 3) {
             if (getConfig().getLong("alt-detection.offender-retention-days", 0L) <= 0L) {
@@ -79,24 +224,168 @@ public final class ThatsABan extends JavaPlugin {
             getConfig().set("privacy.audit-logging", false);
             version = 3;
         }
-        if (getConfig().getInt("config-version", 0) != version) {
-            getConfig().set("config-version", version);
-            saveConfig();
+        if (version < 4) {
+            if (!getConfig().contains("reports.enabled")) getConfig().set("reports.enabled", true);
+            if (!getConfig().contains("reports.cooldown-seconds")) getConfig().set("reports.cooldown-seconds", 60);
+            if (!getConfig().contains("reports.max-reason-length")) getConfig().set("reports.max-reason-length", 200);
+            if (!getConfig().contains("reports.minimum-clip-window-seconds")) {
+                getConfig().set("reports.minimum-clip-window-seconds", 60);
+            }
+            version = 4;
+        }
+        if (version < 5) {
+            if (!getConfig().contains("language")) getConfig().set("language", "en");
+            if (!getConfig().contains("messages.de.prefix")) {
+                var oldMessages = getConfig().getConfigurationSection("messages");
+                if (oldMessages != null) {
+                    for (String key : oldMessages.getKeys(false)) {
+                        if (!oldMessages.isConfigurationSection(key) && !getConfig().contains("messages.de." + key)) {
+                            getConfig().set("messages.de." + key, oldMessages.get(key));
+                        }
+                    }
+                }
+            }
+            version = 5;
+        }
+        setEnglishMessageDefaults();
+        setGermanMessageDefaults();
+        getConfig().set("config-version", version);
+        saveConfig();
+    }
+
+
+    private void setEnglishMessageDefaults() {
+        java.util.Map<String, String> defaults = java.util.Map.ofEntries(
+                java.util.Map.entry("prefix", "<gray>[<red>that-s-a-ban</red>]</gray> "),
+                java.util.Map.entry("usage", "<red>Usage: /offend <player>"),
+                java.util.Map.entry("player-not-found", "<red>Player <white><player></white> is not known to this server."),
+                java.util.Map.entry("bedrock-immune", "<yellow><player></yellow> is a Bedrock player and is immune to /offend."),
+                java.util.Map.entry("exempt", "<yellow><player></yellow> is exempt (thatsaban.exempt)."),
+                java.util.Map.entry("already", "<yellow><player></yellow> is already in Layer 2."),
+                java.util.Map.entry("done", "<green><player></green> was moved to <red>Layer 2</red>."),
+                java.util.Map.entry("done-alts", "<gray>Also automatically moved to Layer 2: <white><alts></white>"),
+                java.util.Map.entry("error", "<red>Could not apply Layer 2. Check the console."),
+                java.util.Map.entry("kick-relogin", "<red>Your security level has changed. Please reconnect."),
+                java.util.Map.entry("alt-suggestion-staff", "<yellow>Review required:</yellow> <white><player></white> shares a flagged IP. Review the context before taking action; if confirmed, use /offend <player>."),
+                java.util.Map.entry("alt-auto-applied-staff", "<red>Automatic action:</red> <white><player></white> was moved to Layer 2 due to an IP match."),
+                java.util.Map.entry("country-denied", "<red>Connections are only allowed from an IP address in Bavaria."),
+                java.util.Map.entry("country-lookup-failed", "<red>Your IP address could not be geolocated locally. Please try again later."),
+                java.util.Map.entry("log-luckperms-enabled", "LuckPerms integration enabled."),
+                java.util.Map.entry("log-luckperms-missing", "LuckPerms is missing or disabled."),
+                java.util.Map.entry("log-geoip-missing", "The local IP2Location database is missing or unreadable."),
+                java.util.Map.entry("feature-luckperms-required", "Disabled: This command requires LuckPerms."),
+                java.util.Map.entry("log-enabled", "ThatsABan enabled. Optional integrations were initialized independently."),
+                java.util.Map.entry("log-supervanish-missing", "SuperVanish is missing or disabled."),
+                java.util.Map.entry("log-supervanish-enabled", "SuperVanish integration enabled."),
+                java.util.Map.entry("feature-protocollib-missing", "Admin spectator mode disabled: ProtocolLib is missing or disabled."),
+                java.util.Map.entry("log-protocollib-missing", "ProtocolLib is missing or disabled."),
+                java.util.Map.entry("log-protocollib-enabled", "ProtocolLib integration enabled: admin spectator mode is available."),
+                java.util.Map.entry("feature-protocollib-incompatible", "Admin spectator mode disabled: ProtocolLib is incompatible or could not be initialized."),
+                java.util.Map.entry("log-command-missing", "Command is missing from plugin.yml:"),
+                java.util.Map.entry("reload-usage", "<red>Usage: /thatsaban reload"),
+                java.util.Map.entry("reload-no-permission", "<red>You do not have permission to reload ThatsABan."),
+                java.util.Map.entry("reload-success", "<green>ThatsABan configuration reloaded."),
+                java.util.Map.entry("reload-no-missing", "<green>No missing optional dependencies or configured integration plugins were detected."),
+                java.util.Map.entry("reload-missing-header", "<yellow>Missing or disabled dependencies:"),
+                java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
+                java.util.Map.entry("reload-restart-note", "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, or startup-only features require a full server restart.")
+        );
+        for (var entry : defaults.entrySet()) {
+            if (!getConfig().contains("messages.en." + entry.getKey())) {
+                getConfig().set("messages.en." + entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+
+    private void setGermanMessageDefaults() {
+        java.util.Map<String, String> defaults = java.util.Map.ofEntries(
+                java.util.Map.entry("log-luckperms-enabled", "LuckPerms-Integration aktiv."),
+                java.util.Map.entry("log-luckperms-missing", "LuckPerms fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-geoip-missing", "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar."),
+                java.util.Map.entry("feature-luckperms-required", "Deaktiviert: Dieser Befehl benötigt LuckPerms."),
+                java.util.Map.entry("log-enabled", "ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert."),
+                java.util.Map.entry("log-supervanish-missing", "SuperVanish fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-supervanish-enabled", "SuperVanish-Integration aktiv."),
+                java.util.Map.entry("feature-protocollib-missing", "Admin-Spectator deaktiviert: ProtocolLib fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-protocollib-missing", "ProtocolLib fehlt oder ist nicht aktiviert."),
+                java.util.Map.entry("log-protocollib-enabled", "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar."),
+                java.util.Map.entry("feature-protocollib-incompatible", "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."),
+                java.util.Map.entry("log-command-missing", "Befehl fehlt in plugin.yml:"),
+                java.util.Map.entry("reload-usage", "<red>Benutzung: /thatsaban reload"),
+                java.util.Map.entry("reload-no-permission", "<red>Du hast keine Berechtigung, ThatsABan neu zu laden."),
+                java.util.Map.entry("reload-success", "<green>Die ThatsABan-Konfiguration wurde neu geladen."),
+                java.util.Map.entry("reload-no-missing", "<green>Es fehlen keine optionalen Abhängigkeiten oder konfigurierten Integrations-Plugins."),
+                java.util.Map.entry("reload-missing-header", "<yellow>Fehlende oder deaktivierte Abhängigkeiten:"),
+                java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
+                java.util.Map.entry("reload-restart-note", "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad oder Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart.")
+        );
+        for (var entry : defaults.entrySet()) {
+            if (!getConfig().contains("messages.de." + entry.getKey())) {
+                getConfig().set("messages.de." + entry.getKey(), entry.getValue());
+            }
         }
     }
 
     @Override
     public void onDisable() {
-        if (store != null) {
-            store.save();
-        }
+        if (spectatorFeature != null) spectatorFeature.shutdown();
+        if (reportManager != null) reportManager.shutdown();
+        if (store != null) store.save();
         if (countryFilter != null) {
-            countryFilter.close();
+            try {
+                countryFilter.close();
+            } catch (LinkageError | RuntimeException ex) {
+                getLogger().warning("Could not close country filter: " + ex.getClass().getSimpleName());
+            }
         }
     }
 
-    Messages messages() {
-        return messages;
+    Messages messages() { return messages; }
+
+
+    void reloadConfiguration(org.bukkit.command.CommandSender sender) {
+        reloadConfig();
+        sender.sendMessage(messages.get("reload-success"));
+
+        List<String> missing = new java.util.ArrayList<>();
+        checkDependency(missing, "LuckPerms");
+        checkDependency(missing, "ProtocolLib");
+        checkDependency(missing, "SuperVanish");
+        checkDependency(missing, "FlashbackServer");
+
+        for (String key : List.of("layer1-plugins", "layer2-plugins")) {
+            for (String name : getConfig().getStringList("integrations." + key)) {
+                checkDependency(missing, name);
+            }
+        }
+
+        if (getConfig().getBoolean("country-filter.enabled", true)) {
+            File database = new File(getDataFolder(),
+                    getConfig().getString("country-filter.database-file",
+                            "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN"));
+            if (!database.isFile() || !database.canRead()) {
+                missing.add("IP2Location database (" + database.getPath() + ")");
+            }
+        }
+
+        if (missing.isEmpty()) {
+            sender.sendMessage(messages.get("reload-no-missing"));
+        } else {
+            sender.sendMessage(messages.get("reload-missing-header"));
+            for (String dependency : missing) {
+                sender.sendMessage(messages.get("reload-missing-entry",
+                        net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                                "dependency", dependency)));
+            }
+        }
+        sender.sendMessage(messages.get("reload-restart-note"));
+    }
+
+    private void checkDependency(List<String> missing, String pluginName) {
+        if (!getServer().getPluginManager().isPluginEnabled(pluginName)) {
+            missing.add(pluginName);
+        }
     }
 
     private void checkIntegrations() {
@@ -107,7 +396,7 @@ public final class ThatsABan extends JavaPlugin {
     private void warnMissing(String key, String layer) {
         for (String name : getConfig().getStringList("integrations." + key)) {
             if (getServer().getPluginManager().getPlugin(name) == null) {
-                getLogger().warning(layer + ": Ein konfiguriertes Integrations-Plugin fehlt. "
+                getLogger().warning(layer + ": A configured integration plugin is missing. "
                         + "(Details: config.yml -> integrations." + key + ")");
             }
         }

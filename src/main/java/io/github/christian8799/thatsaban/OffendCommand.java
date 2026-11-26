@@ -44,17 +44,30 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
         if (online != null) {
             resolvedId = online.getUniqueId();
             resolvedName = online.getName();
-        } else if (known != null) {
-            resolvedId = known;
-            resolvedName = store.nameOf(known);
         } else {
-            OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(input);
-            if (cached == null) {
-                sender.sendMessage(msg.get("player-not-found", Placeholder.unparsed("player", input)));
-                return true;
+            UUID suppliedUuid = null;
+            try {
+                suppliedUuid = UUID.fromString(input);
+            } catch (IllegalArgumentException ignored) {
+                // Continue with the cached name lookups below.
             }
-            resolvedId = cached.getUniqueId();
-            resolvedName = cached.getName() != null ? cached.getName() : input;
+
+            if (suppliedUuid != null) {
+                OfflinePlayer offline = Bukkit.getOfflinePlayer(suppliedUuid);
+                resolvedId = suppliedUuid;
+                resolvedName = offline.getName() != null ? offline.getName() : suppliedUuid.toString();
+            } else if (known != null) {
+                resolvedId = known;
+                resolvedName = store.nameOf(known);
+            } else {
+                OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(input);
+                if (cached == null) {
+                    sender.sendMessage(msg.get("player-not-found", Placeholder.unparsed("player", input)));
+                    return true;
+                }
+                resolvedId = cached.getUniqueId();
+                resolvedName = cached.getName() != null ? cached.getName() : input;
+            }
         }
 
         final UUID targetId = resolvedId;
@@ -69,7 +82,7 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
         layer2.offend(targetId).whenComplete((result, error) ->
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     if (error != null || result == null) {
-                        plugin.getLogger().warning("/offend konnte nicht abgeschlossen werden.");
+                        plugin.getLogger().warning("/offend could not be completed.");
                         sender.sendMessage(msg.get("error"));
                         return;
                     }
@@ -103,14 +116,22 @@ final class OffendCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length != 1) {
+        if (!sender.hasPermission("thatsaban.offend") || args.length != 1) {
             return List.of();
         }
         String prefix = args[0].toLowerCase(Locale.ROOT);
-        return Bukkit.getOnlinePlayers().stream()
-                .filter(p -> !bedrock.isBedrock(p.getUniqueId(), p.getName()))
+        java.util.Set<String> suggestions = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Bukkit.getOnlinePlayers().stream()
+                .filter(player -> !bedrock.isBedrock(player.getUniqueId(), player.getName()))
                 .map(Player::getName)
-                .filter(n -> n.toLowerCase(Locale.ROOT).startsWith(prefix))
-                .toList();
+                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
+                .forEach(suggestions::add);
+        store.knownPlayerNames(args[0]).stream()
+                .filter(name -> {
+                    UUID uuid = store.uuidByName(name);
+                    return uuid != null && !bedrock.isBedrock(uuid, name);
+                })
+                .forEach(suggestions::add);
+        return List.copyOf(suggestions);
     }
 }

@@ -1,5 +1,5 @@
-# that-s-a-ban - Konfiguration
-config-version: 3
+# that-s-a-ban configuration
+config-version: 5
 
 layer2:
   marker-permission: "thatsaban.layer2"
@@ -11,12 +11,20 @@ layer2:
 offend:
   kick-online-target: false
 
+reports:
+  enabled: true
+  cooldown-seconds: 60
+  max-reason-length: 200
+  # FlashbackServer clips.window-seconds must be at least this value.
+  # FlashbackServer retains two keyframe segments, so the saved clip may be longer.
+  minimum-clip-window-seconds: 60
+
 privacy:
-  # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
-  # Umgebungsvariable THATSABAN_HMAC_KEY_PATH hat Vorrang.
+  # Optional absolute path outside the plugin directory; empty = plugins/ThatsABan/ip-hmac.key.
+  # The THATSABAN_HMAC_KEY_PATH environment variable takes precedence.
   hmac-key-path: ""
-  # Standardmäßig keine spielerbezogenen Audit-Einträge in Paper-Logs schreiben.
-  # Bei Aktivierung werden nur UUIDs (keine Spielernamen/IP-Adressen) protokolliert.
+  # Do not write player-related audit entries to Paper logs by default.
+  # When enabled, only UUIDs are logged (no player names or IP addresses).
   audit-logging: false
 
 bedrock:
@@ -31,13 +39,13 @@ country-filter:
     - "Bavaria"
   allow-private-addresses: false
 
-# Datenschutzfreundliche Voreinstellungen: IP-Kopplung bleibt ausgeschaltet.
+# Privacy-friendly defaults: IP linking remains disabled.
 alt-detection:
   enabled: false
   retention-days: 30
-  offender-retention-days: 365 # Endliche Frist seit letzter Aktivität; maximal 3650 Tage
-  auto-apply: false # false = nur Staff-Vorschläge; /offend erfordert eine bewusste Bestätigung
-  retroactive: false # Bereits bekannte IP-Übereinstimmungen nicht automatisch rückwirkend einstufen
+  offender-retention-days: 365 # Finite retention period since last activity; maximum 3650 days
+  auto-apply: false # false = staff suggestions only; /offend requires deliberate confirmation
+  retroactive: false # Do not automatically classify previously known IP matches retroactively
   ignore-private-addresses: true
   ignored-ips: []
 
@@ -49,18 +57,76 @@ integrations:
     - "FoxGate"
     - "HandShaker"
 
+# Select the language used by player messages and plugin logs.
+# Supported values: en, de
+language: en
+
 messages:
-  prefix: "<gray>[<red>that-s-a-ban</red>]</gray> "
-  usage: "<red>Benutzung: /offend Spielername"
-  player-not-found: "<red>Spieler <white><player></white> ist dem Server nicht bekannt."
-  bedrock-immune: "<yellow><player></yellow> ist ein Bedrock-Spieler und immun gegen /offend."
-  exempt: "<yellow><player></yellow> ist ausgenommen (thatsaban.exempt)."
-  already: "<yellow><player></yellow> ist bereits in Layer 2."
-  done: "<green><player></green> wurde in <red>Layer 2</red> versetzt."
-  done-alts: "<gray>Zusätzlich automatisch in Layer 2 versetzt: <white><alts></white>"
-  error: "<red>Layer 2 konnte nicht gesetzt werden - siehe Konsole."
-  kick-relogin: "<red>Deine Sicherheitsstufe wurde geändert. Bitte verbinde dich erneut."
-  alt-suggestion-staff: "<yellow>Prüfung erforderlich:</yellow> <white><player></white> teilt eine markierte IP. Vor einer Einstufung bitte Kontext prüfen; bei Bestätigung /offend <player> verwenden."
-  alt-auto-applied-staff: "<red>Automatische Einstufung:</red> <white><player></white> wurde wegen einer IP-Übereinstimmung in Layer 2 versetzt."
-  country-denied: "<red>Verbindungen sind nur mit einer bayerischen IP-Adresse erlaubt."
-  country-lookup-failed: "<red>Deine IP-Adresse konnte lokal nicht geografisch zugeordnet werden. Bitte versuche es später erneut."
+  en:
+    prefix: "<gray>[<red>that-s-a-ban</red>]</gray> "
+    usage: "<red>Usage: /offend <player>"
+    player-not-found: "<red>Player <white><player></white> is not known to this server."
+    bedrock-immune: "<yellow><player></yellow> is a Bedrock player and is immune to /offend."
+    exempt: "<yellow><player></yellow> is exempt (thatsaban.exempt)."
+    already: "<yellow><player></yellow> is already in Layer 2."
+    done: "<green><player></green> was moved to <red>Layer 2</red>."
+    done-alts: "<gray>Also automatically moved to Layer 2: <white><alts></white>"
+    error: "<red>Could not apply Layer 2. Check the console."
+    kick-relogin: "<red>Your security level has changed. Please reconnect."
+    alt-suggestion-staff: "<yellow>Review required:</yellow> <white><player></white> shares a flagged IP. Review the context before taking action; if confirmed, use /offend <player>."
+    alt-auto-applied-staff: "<red>Automatic action:</red> <white><player></white> was moved to Layer 2 due to an IP match."
+    country-denied: "<red>Connections are only allowed from an IP address in Bavaria."
+    country-lookup-failed: "<red>Your IP address could not be geolocated locally. Please try again later."
+    log-luckperms-enabled: "LuckPerms integration enabled."
+    log-luckperms-missing: "LuckPerms is missing or disabled."
+    log-geoip-missing: "The local IP2Location database is missing or unreadable."
+    feature-luckperms-required: "Disabled: This command requires LuckPerms."
+    log-enabled: "ThatsABan enabled. Optional integrations were initialized independently."
+    log-supervanish-missing: "SuperVanish is missing or disabled."
+    log-supervanish-enabled: "SuperVanish integration enabled."
+    feature-protocollib-missing: "Admin spectator mode disabled: ProtocolLib is missing or disabled."
+    log-protocollib-missing: "ProtocolLib is missing or disabled."
+    log-protocollib-enabled: "ProtocolLib integration enabled: admin spectator mode is available."
+    feature-protocollib-incompatible: "Admin spectator mode disabled: ProtocolLib is incompatible or could not be initialized."
+    log-command-missing: "Command is missing from plugin.yml:"
+    reload-usage: "<red>Usage: /thatsaban reload"
+    reload-no-permission: "<red>You do not have permission to reload ThatsABan."
+    reload-success: "<green>ThatsABan configuration reloaded."
+    reload-no-missing: "<green>No missing optional dependencies or configured integration plugins were detected."
+    reload-missing-header: "<yellow>Missing or disabled dependencies:"
+    reload-missing-entry: "<red>- <dependency>"
+    reload-restart-note: "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, or startup-only features require a full server restart."
+  de:
+    prefix: "<gray>[<red>that-s-a-ban</red>]</gray> "
+    usage: "<red>Benutzung: /offend Spielername"
+    player-not-found: "<red>Spieler <white><player></white> ist dem Server nicht bekannt."
+    bedrock-immune: "<yellow><player></yellow> ist ein Bedrock-Spieler und immun gegen /offend."
+    exempt: "<yellow><player></yellow> ist ausgenommen (thatsaban.exempt)."
+    already: "<yellow><player></yellow> ist bereits in Layer 2."
+    done: "<green><player></green> wurde in <red>Layer 2</red> versetzt."
+    done-alts: "<gray>Zusätzlich automatisch in Layer 2 versetzt: <white><alts></white>"
+    error: "<red>Layer 2 konnte nicht gesetzt werden - siehe Konsole."
+    kick-relogin: "<red>Deine Sicherheitsstufe wurde geändert. Bitte verbinde dich erneut."
+    alt-suggestion-staff: "<yellow>Prüfung erforderlich:</yellow> <white><player></white> teilt eine markierte IP. Vor einer Einstufung bitte Kontext prüfen; bei Bestätigung /offend <player> verwenden."
+    alt-auto-applied-staff: "<red>Automatische Einstufung:</red> <white><player></white> wurde wegen einer IP-Übereinstimmung in Layer 2 versetzt."
+    country-denied: "<red>Verbindungen sind nur mit einer bayerischen IP-Adresse erlaubt."
+    country-lookup-failed: "<red>Deine IP-Adresse konnte lokal nicht geografisch zugeordnet werden. Bitte versuche es später erneut."
+    log-luckperms-enabled: "LuckPerms-Integration aktiv."
+    log-luckperms-missing: "LuckPerms fehlt oder ist nicht aktiviert."
+    log-geoip-missing: "Die lokale IP2Location-Datenbank fehlt oder ist nicht lesbar."
+    feature-luckperms-required: "Deaktiviert: Dieser Befehl benötigt LuckPerms."
+    log-enabled: "ThatsABan aktiviert. Optionale Integrationen wurden unabhängig initialisiert."
+    log-supervanish-missing: "SuperVanish fehlt oder ist nicht aktiviert."
+    log-supervanish-enabled: "SuperVanish-Integration aktiv."
+    feature-protocollib-missing: "Admin-Spectator deaktiviert: ProtocolLib fehlt oder ist nicht aktiviert."
+    log-protocollib-missing: "ProtocolLib fehlt oder ist deaktiviert."
+    log-protocollib-enabled: "ProtocolLib-Integration aktiv: Admin-Spectator verfügbar."
+    feature-protocollib-incompatible: "Admin-Spectator deaktiviert: ProtocolLib ist inkompatibel oder konnte nicht initialisiert werden."
+    log-command-missing: "Befehl fehlt in plugin.yml:"
+    reload-usage: "<red>Benutzung: /thatsaban reload"
+    reload-no-permission: "<red>Du hast keine Berechtigung, ThatsABan neu zu laden."
+    reload-success: "<green>Die ThatsABan-Konfiguration wurde neu geladen."
+    reload-no-missing: "<green>Es fehlen keine optionalen Abhängigkeiten oder konfigurierten Integrations-Plugins."
+    reload-missing-header: "<yellow>Fehlende oder deaktivierte Abhängigkeiten:"
+    reload-missing-entry: "<red>- <dependency>"
+    reload-restart-note: "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad oder Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart."

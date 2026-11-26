@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Paths;
 import java.nio.file.InvalidPathException;
 import java.nio.file.StandardOpenOption;
@@ -22,6 +24,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -49,6 +52,7 @@ final class LinkStore {
     private final Map<UUID, Long> offenders = new HashMap<>();
     private final Map<UUID, Long> layer2LastSeen = new HashMap<>();
     private final Set<UUID> expiredOffenders = new HashSet<>();
+    private final Map<UUID, Set<UUID>> autoOffenderAlts = new HashMap<>();
 
     private byte[] hmacKey;
     private boolean dirty;
@@ -85,7 +89,6 @@ final class LinkStore {
 
     synchronized void load() {
         plugin.getDataFolder().mkdirs();
-        purgeLegacyBackups();
         if (file.exists() && !restrictOwnerOnly(file)) {
             writeBlocked = true;
         }
@@ -98,8 +101,8 @@ final class LinkStore {
             }
         } catch (IOException | InvalidConfigurationException ex) {
             writeBlocked = true;
-            plugin.getLogger().severe("data.yml ist fehlerhaft. Die Datei bleibt unverändert; "
-                    + "Schreibzugriffe auf den LinkStore sind bis zur manuellen Prüfung blockiert.");
+            plugin.getLogger().severe("data.yml is invalid. The file remains unchanged; "
+                    + "writes to LinkStore are blocked until manual inspection.");
             return;
         }
 
@@ -107,7 +110,7 @@ final class LinkStore {
             loadIpData(yaml);
         } else if (file.exists() && hasDiscardableIpData(yaml)) {
             dirty = true;
-            plugin.getLogger().warning("Alte IP-Verknüpfungen wurden bei der HMAC-Migration verworfen.");
+            plugin.getLogger().warning("Old IP links were discarded during the HMAC migration.");
         }
 
         ConfigurationSection offenderTimes = yaml.getConfigurationSection("offender-last-seen");
@@ -121,7 +124,7 @@ final class LinkStore {
                         layer2LastSeen.put(uuid, timestamp);
                     }
                 } catch (IllegalArgumentException ignored) {
-                    // Ungültigen UUID-Eintrag überspringen.
+                    // Skip invalid UUID entry.
                 }
             }
         }
@@ -130,7 +133,29 @@ final class LinkStore {
             try {
                 expiredOffenders.add(UUID.fromString(id));
             } catch (IllegalArgumentException ignored) {
-                // Ungültigen UUID-Eintrag überspringen.
+                // Skip invalid UUID entry.
+            }
+        }
+
+        ConfigurationSection autoLinks = yaml.getConfigurationSection("auto-offender-alts");
+        if (autoLinks != null) {
+            for (String mainId : autoLinks.getKeys(false)) {
+                try {
+                    UUID main = UUID.fromString(mainId);
+                    Set<UUID> linked = new HashSet<>();
+                    for (String altId : autoLinks.getStringList(mainId)) {
+                        try {
+                            linked.add(UUID.fromString(altId));
+                        } catch (IllegalArgumentException ignored) {
+                            // Skip invalid linked account UUID.
+                        }
+                    }
+                    if (!linked.isEmpty()) {
+                        autoOffenderAlts.put(main, linked);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // Skip invalid main account UUID.
+                }
             }
         }
 
@@ -143,7 +168,7 @@ final class LinkStore {
                         layer2LastSeen.put(UUID.fromString(id), timestamp);
                     }
                 } catch (IllegalArgumentException ignored) {
-                    // Ungültigen UUID-Eintrag überspringen.
+                    // Skip invalid UUID entry.
                 }
             }
         }
@@ -158,7 +183,7 @@ final class LinkStore {
                     dirty = true;
                 }
             } catch (IllegalArgumentException ignored) {
-                // Ungültige UUID überspringen.
+                // Skip invalid UUID.
             }
         }
         for (UUID uuid : offenders.keySet()) {
@@ -171,13 +196,13 @@ final class LinkStore {
         if (invalidKeyPath) {
             writeBlocked = true;
             plugin.getLogger().severe("privacy.hmac-key-path bzw. THATSABAN_HMAC_KEY_PATH muss ein absoluter Pfad "
-                    + "außerhalb des Plugin-Ordners sein. IP-Verarbeitung und LinkStore-Schreibzugriffe sind blockiert.");
+                    + "must be outside the plugin directory. IP processing and LinkStore writes are blocked.");
             return false;
         }
         try {
             File parent = keyFile.getAbsoluteFile().getParentFile();
             if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-                throw new IOException("Schlüsselverzeichnis konnte nicht erstellt werden");
+                throw new IOException("Could not create key directory");
             }
             if (keyFile.isFile()) {
                 byte[] existing = Files.readAllBytes(keyFile.toPath());
@@ -189,7 +214,7 @@ final class LinkStore {
                     }
                     return true;
                 }
-                plugin.getLogger().warning("Der HMAC-Schlüssel ist ungültig; alte IP-Verknüpfungen werden verworfen.");
+                plugin.getLogger().warning("The HMAC key is invalid; old IP links will be discarded.");
             }
 
             hmacKey = new byte[32];
@@ -204,7 +229,7 @@ final class LinkStore {
             return false;
         } catch (IOException | SecurityException ex) {
             writeBlocked = true;
-            plugin.getLogger().severe("Der separate HMAC-Schlüssel konnte nicht sicher geladen/erstellt werden. "
+            plugin.getLogger().severe("The separate HMAC key could not be loaded or created securely. "
                     + "IP-Verarbeitung und Schreibzugriffe sind blockiert.");
             return false;
         }
@@ -271,23 +296,6 @@ final class LinkStore {
                 && !yaml.getConfigurationSection("ip-last-seen").getKeys(false).isEmpty());
     }
 
-    private void purgeLegacyBackups() {
-        File parent = file.getParentFile();
-        File[] backups = parent == null ? null : parent.listFiles((dir, name) ->
-                name.startsWith("data.yml.bak-") || name.startsWith("data.yml.corrupt-"));
-        if (backups == null) {
-            return;
-        }
-        for (File backup : backups) {
-            try {
-                Files.deleteIfExists(backup.toPath());
-            } catch (IOException | SecurityException ex) {
-                plugin.getLogger().warning("Eine alte LinkStore-Sicherung konnte nicht gelöscht werden. "
-                        + "Bitte data.yml.bak-* und data.yml.corrupt-* manuell prüfen.");
-            }
-        }
-    }
-
     private boolean restrictOwnerOnly(File target) {
         try {
             Files.setPosixFilePermissions(target.toPath(), OWNER_ONLY);
@@ -299,12 +307,12 @@ final class LinkStore {
                     && target.setReadable(true, true)
                     && target.setWritable(true, true);
             if (!ok) {
-                plugin.getLogger().severe("Dateirechte konnten nicht auf owner-only gesetzt werden: "
+                plugin.getLogger().severe("Could not set file permissions to owner-only: "
                         + target.getName() + ". Schreibzugriffe werden blockiert.");
             }
             return ok;
         } catch (IOException | SecurityException ex) {
-            plugin.getLogger().severe("Dateirechte konnten nicht auf owner-only gesetzt werden: "
+            plugin.getLogger().severe("Could not set file permissions to owner-only: "
                     + target.getName() + ". Schreibzugriffe werden blockiert.");
             return false;
         }
@@ -332,19 +340,50 @@ final class LinkStore {
         yaml.set("layer2-last-seen", new HashMap<>(layer2LastSeen));
         yaml.set("expired-layer2-markers",
                 expiredOffenders.stream().map(UUID::toString).toList());
+        for (Map.Entry<UUID, Set<UUID>> entry : autoOffenderAlts.entrySet()) {
+            yaml.set("auto-offender-alts." + entry.getKey(),
+                    entry.getValue().stream().map(UUID::toString).toList());
+        }
         for (Map.Entry<UUID, Long> entry : offenders.entrySet()) {
             yaml.set("offender-last-seen." + entry.getKey(), entry.getValue());
         }
+        Path temporaryFile = null;
         try {
-            plugin.getDataFolder().mkdirs();
-            yaml.save(file);
+            Path parent = file.toPath().toAbsolutePath().getParent();
+            if (parent == null) {
+                throw new IOException("LinkStore directory is unavailable.");
+            }
+            Files.createDirectories(parent);
+            temporaryFile = Files.createTempFile(parent, "data.yml.tmp-", ".yml");
+            yaml.save(temporaryFile.toFile());
+
+            // Protect the temporary file before it replaces the existing store.
+            if (!restrictOwnerOnly(temporaryFile.toFile())) {
+                writeBlocked = true;
+                return;
+            }
+            try {
+                Files.move(temporaryFile, file.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(temporaryFile, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
             if (!restrictOwnerOnly(file)) {
                 writeBlocked = true;
                 return;
             }
             dirty = false;
         } catch (IOException ex) {
-            plugin.getLogger().warning("data.yml konnte nicht gespeichert werden.");
+            plugin.getLogger().warning("Could not save data.yml: "
+                    + ex.getClass().getSimpleName());
+        } finally {
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException ignored) {
+                    // A leftover temporary file is harmless and is never treated as the active store.
+                }
+            }
         }
     }
 
@@ -429,6 +468,34 @@ final class LinkStore {
         return layer2LastSeen.containsKey(uuid);
     }
 
+    synchronized void linkAutoOffender(UUID main, UUID alt) {
+        if (main.equals(alt)) {
+            return;
+        }
+        autoOffenderAlts.computeIfAbsent(main, ignored -> new HashSet<>()).add(alt);
+        dirty = true;
+    }
+
+    synchronized Set<UUID> autoOffenderGroup(UUID main) {
+        Set<UUID> affected = new HashSet<>();
+        affected.add(main);
+        affected.addAll(autoOffenderAlts.getOrDefault(main, Set.of()));
+        return affected;
+    }
+
+    synchronized Set<UUID> unmarkOffenderGroup(UUID main) {
+        Set<UUID> affected = autoOffenderGroup(main);
+        autoOffenderAlts.remove(main);
+        for (Set<UUID> linked : autoOffenderAlts.values()) {
+            linked.remove(main);
+        }
+        autoOffenderAlts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        for (UUID uuid : affected) {
+            unmarkOffender(uuid);
+        }
+        return affected;
+    }
+
     synchronized void unmarkOffender(UUID uuid) {
         boolean changed = offenders.remove(uuid) != null;
         changed |= layer2LastSeen.remove(uuid) != null;
@@ -444,6 +511,11 @@ final class LinkStore {
         ipsByPlayer.remove(uuid);
         names.remove(uuid);
         offenders.remove(uuid);
+        autoOffenderAlts.remove(uuid);
+        for (Set<UUID> linked : autoOffenderAlts.values()) {
+            linked.remove(uuid);
+        }
+        autoOffenderAlts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         layer2LastSeen.remove(uuid);
         expiredOffenders.remove(uuid);
         for (String hash : hashes) {
@@ -555,6 +627,24 @@ final class LinkStore {
 
     synchronized String nameOf(UUID uuid) {
         return names.get(uuid);
+    }
+
+    synchronized List<String> knownPlayerNames(String prefix) {
+        String normalizedPrefix = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
+        return names.values().stream()
+                .filter(name -> name != null && name.toLowerCase(java.util.Locale.ROOT).startsWith(normalizedPrefix))
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
+    synchronized List<String> offenderNames(String prefix) {
+        String normalizedPrefix = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
+        return offenders.keySet().stream()
+                .map(uuid -> names.getOrDefault(uuid, uuid.toString()))
+                .filter(name -> name.toLowerCase(java.util.Locale.ROOT).startsWith(normalizedPrefix))
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
     }
 
     synchronized Set<UUID> pendingExpiredOffenders() {

@@ -30,7 +30,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
+            sender.sendMessage("Usage: /thatsaban <info|network|unoffend|forget> <player|UUID> [depth|confirm]");
             return true;
         }
 
@@ -43,18 +43,18 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
             default -> null;
         };
         if (permission == null) {
-            sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
+            sender.sendMessage("Usage: /thatsaban <info|network|unoffend|forget> <player|UUID> [depth|confirm]");
             return true;
         }
         if (!sender.hasPermission(permission) && !sender.hasPermission("thatsaban.admin")) {
-            sender.sendMessage("Dafür fehlt die Berechtigung " + permission + ".");
+            sender.sendMessage("Missing permission: " + permission + ".");
             return true;
         }
 
         String input = args[1];
         UUID target = resolve(input);
         if (target == null) {
-            sender.sendMessage("Spieler nicht gefunden. Verwende einen bekannten Namen oder eine UUID.");
+            sender.sendMessage("Player not found. Use a known name or UUID.");
             return true;
         }
 
@@ -65,30 +65,34 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                     try {
                         depth = Integer.parseInt(args[2]);
                     } catch (NumberFormatException ex) {
-                        sender.sendMessage("Tiefe muss eine Zahl zwischen 1 und 3 sein.");
+                        sender.sendMessage("Depth must be a number between 1 and 3.");
                         return true;
                     }
                 }
                 if (depth < 1 || depth > 3) {
-                    sender.sendMessage("Tiefe muss zwischen 1 und 3 liegen.");
+                    sender.sendMessage("Depth must be between 1 and 3.");
+                    return true;
+                }
+                if (sender instanceof Player player) {
+                    plugin.accountNetworkMenu().open(player, target, depth, 0);
                     return true;
                 }
                 if (!plugin.getConfig().getBoolean("alt-detection.enabled", false)) {
-                    sender.sendMessage("Alt-Account-Erkennung ist deaktiviert. Aktiviere alt-detection.enabled in config.yml.");
+                    sender.sendMessage("Alt-account detection is disabled. Enable alt-detection.enabled in config.yml.");
                     return true;
                 }
                 if (store.isWriteBlocked()) {
-                    sender.sendMessage("Account-Netzwerk nicht verfügbar: LinkStore ist schreibgeschützt.");
+                    sender.sendMessage("Account network unavailable: LinkStore is read-only.");
                     return true;
                 }
                 LinkStore.NetworkSnapshot graph = store.network(target, depth, 50);
                 boolean showNames = sender.hasPermission("thatsaban.view-linked-accounts")
                         || sender.hasPermission("thatsaban.admin");
-                sender.sendMessage("Account-Netzwerk für " + target + " (max. Tiefe " + depth + "):");
+                sender.sendMessage("Account network for " + target + " (maximum depth " + depth + "):");
                 sender.sendMessage("Start: " + (showNames && store.nameOf(target) != null
                         ? store.nameOf(target) : target.toString()));
                 if (graph.accounts().isEmpty()) {
-                    sender.sendMessage("Keine gespeicherten Verbindungen innerhalb der Aufbewahrungsfrist gefunden.");
+                    sender.sendMessage("No stored connections found within the retention period.");
                 } else {
                     for (LinkStore.NetworkEntry entry : graph.accounts()) {
                         String identity = showNames && entry.name() != null
@@ -97,46 +101,46 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                                 ? java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
                                     .withZone(java.time.ZoneId.systemDefault())
                                     .format(java.time.Instant.ofEpochMilli(entry.lastSeen()))
-                                : "unbekannt";
-                        String relation = entry.depth() == 1 ? "direkt" : "indirekt";
+                                : "unknown";
+                        String relation = entry.depth() == 1 ? "direct" : "indirect";
                         String viaName = showNames && store.nameOf(entry.connectedVia()) != null
                                 ? store.nameOf(entry.connectedVia()) : entry.connectedVia().toString();
                         sender.sendMessage("  " + (entry.depth() == 1 ? "├─ " : "└─ ")
-                                + identity + " [über " + viaName + ", " + relation + ", Tiefe " + entry.depth()
-                                + ", gemeinsame IP-HMACs: " + entry.sharedIpCount()
-                                + ", zuletzt gesehen: " + lastSeen + "]");
+                                + identity + " [via " + viaName + ", " + relation + ", depth " + entry.depth()
+                                + ", shared IP HMACs: " + entry.sharedIpCount()
+                                + ", last seen: " + lastSeen + "]");
                     }
                     if (graph.truncated()) {
-                        sender.sendMessage("Anzeige auf 50 Accounts begrenzt. Für weitere Ergebnisse engeren Startpunkt wählen.");
+                        sender.sendMessage("Display limited to 50 accounts. Choose a narrower starting point for more results.");
                     }
                 }
-                sender.sendMessage("Wichtig: Gemeinsame IP-Adressen sind kein Identitätsnachweis. Indirekte Verbindungen sind besonders unsicher. Keine automatische Sanktion daraus ableiten.");
+                sender.sendMessage("Important: Shared IP addresses do not prove identity. Indirect connections are especially unreliable. Do not derive automatic sanctions from this data.");
             }
             case "info" -> {
                 LinkStore.PlayerSnapshot snapshot = store.snapshot(target);
                 if (store.isWriteBlocked()) {
-                    sender.sendMessage("WARNUNG: LinkStore ist schreibgeschützt; die Auskunft kann unvollständig sein.");
+                    sender.sendMessage("WARNING: LinkStore is read-only; this information may be incomplete.");
                 }
                 hook.users().loadUser(target).whenComplete((user, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (error != null || user == null) {
-                                sender.sendMessage("LuckPerms-Auskunft konnte nicht geladen werden.");
+                                sender.sendMessage("Could not load LuckPerms information.");
                                 return;
                             }
-                            sender.sendMessage("Datenauskunft für UUID " + target + ":");
-                            sender.sendMessage("Gespeicherter Name: "
-                                    + (snapshot.name() == null ? "keiner" : snapshot.name()));
-                            sender.sendMessage("Verknüpfte IP-Hash-Einträge: " + snapshot.linkedIpCount());
-                            sender.sendMessage("Offender-Eintrag: "
-                                    + (snapshot.offender() ? "vorhanden" : "nicht vorhanden"));
-                            sender.sendMessage("Layer-2-Aufbewahrungseintrag: "
-                                    + (snapshot.layer2Tracked() ? "vorhanden" : "nicht vorhanden"));
-                            sender.sendMessage("Plugin-Datensatz vorhanden: "
-                                    + (snapshot.hasStoredData() ? "ja" : "nein"));
-                            sender.sendMessage("LuckPerms-Layer-2-Marker effektiv: "
+                            sender.sendMessage("Data export for UUID " + target + ":");
+                            sender.sendMessage("Stored name: "
+                                    + (snapshot.name() == null ? "none" : snapshot.name()));
+                            sender.sendMessage("Linked IP hash entries: " + snapshot.linkedIpCount());
+                            sender.sendMessage("Offender entry: "
+                                    + (snapshot.offender() ? "present" : "not present"));
+                            sender.sendMessage("Layer 2 retention entry: "
+                                    + (snapshot.layer2Tracked() ? "present" : "not present"));
+                            sender.sendMessage("Plugin record exists: "
+                                    + (snapshot.hasStoredData() ? "yes" : "nein"));
+                            sender.sendMessage("Effective LuckPerms Layer 2 marker: "
                                     + hook.has(user, hook.markerNode()));
                             for (String node : hook.negatedNodes()) {
-                                sender.sendMessage("LuckPerms-Node " + node + " effektiv: "
+                                sender.sendMessage("LuckPerms node " + node + " effective: "
                                         + hook.has(user, node));
                             }
                         }));
@@ -145,35 +149,35 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                 layer2.removeLayer2(target).whenComplete((stillMarked, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (error != null) {
-                                sender.sendMessage("Layer 2 konnte nicht entfernt werden.");
+                                sender.sendMessage("Could not remove Layer 2.");
                             } else if (Boolean.TRUE.equals(stillMarked)) {
-                                sender.sendMessage("Direkte Layer-2-Nodes wurden entfernt, aber der Marker ist "
-                                        + "weiterhin effektiv (möglicherweise über eine LuckPerms-Gruppe oder einen Kontext).");
+                                sender.sendMessage("Direct Layer 2 nodes were removed, but the marker is "
+                                        + "still effective (possibly through a LuckPerms group or context).");
                             } else {
-                                sender.sendMessage("Layer 2 und der Offender-Eintrag wurden entfernt: " + target);
+                                sender.sendMessage("Layer 2 and the offender entry were removed: " + target);
                             }
                         }));
             }
             case "forget" -> {
                 if (args.length != 3 || !args[2].equalsIgnoreCase("confirm")) {
-                    sender.sendMessage("Vollständiges Löschen der Plugin-Daten ist endgültig. Bestätige mit: "
+                    sender.sendMessage("Deleting all plugin data is permanent. Confirm with: "
                             + "/thatsaban forget " + input + " confirm");
                     return true;
                 }
                 layer2.forgetPlayer(target).whenComplete((removedHashes, error) ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (error != null) {
-                                sender.sendMessage("Die LuckPerms-Daten konnten nicht bereinigt werden. "
-                                        + "Der Plugin-Datensatz blieb unverändert.");
+                                sender.sendMessage("Could not clean up LuckPerms data. "
+                                        + "The plugin record was left unchanged.");
                             } else {
-                                sender.sendMessage("Plugin-Daten gelöscht; entfernte IP-Hash-Verknüpfungen: "
-                                        + removedHashes + ". Plugin-Layer-2-Nodes wurden entfernt.");
-                                sender.sendMessage("Geteilte IP-Hashes bleiben erhalten, falls sie noch anderen "
-                                        + "Spielern zugeordnet sind. Andere LuckPerms-Daten bleiben unberührt.");
+                                sender.sendMessage("Plugin data deleted; removed IP hash links: "
+                                        + removedHashes + ". Plugin Layer 2 nodes were removed.");
+                                sender.sendMessage("Shared IP hashes are retained if they are still assigned to other "
+                                        + "players. Other LuckPerms data remains untouched.");
                             }
                         }));
             }
-            default -> sender.sendMessage("Benutzung: /thatsaban <info|network|unoffend|forget> <Spieler|UUID> [depth|confirm]");
+            default -> sender.sendMessage("Usage: /thatsaban <info|network|unoffend|forget> <player|UUID> [depth|confirm]");
         }
         return true;
     }
@@ -221,8 +225,10 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                 return List.of();
             }
             String prefix = args[1].toLowerCase(Locale.ROOT);
-            return Bukkit.getOnlinePlayers().stream().map(Player::getName)
-                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).toList();
+            if (action.equals("unoffend")) {
+                return store.offenderNames(prefix);
+            }
+            return store.knownPlayerNames(prefix);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("network")
                 && (sender.hasPermission("thatsaban.network") || sender.hasPermission("thatsaban.admin"))) {
