@@ -161,10 +161,8 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
         return reports.reports().stream().filter(entry -> switch (filter) {
             case ALL -> true;
             case OPEN -> entry.status() == ReportManager.Status.OPEN
-                    || entry.status() == ReportManager.Status.CAPTURING
-                    || entry.status() == ReportManager.Status.FAILED;
-            case FAILED -> entry.status() == ReportManager.Status.FAILED
                     || entry.status() == ReportManager.Status.CAPTURING;
+            case FAILED -> entry.status() == ReportManager.Status.FAILED;
             case RESOLVED -> entry.status() == ReportManager.Status.RESOLVED;
             case DISMISSED -> entry.status() == ReportManager.Status.DISMISSED;
         }).toList();
