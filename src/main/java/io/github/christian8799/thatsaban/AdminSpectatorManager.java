@@ -89,13 +89,13 @@ final class AdminSpectatorManager implements Listener {
         this.plugin = plugin;
         this.vanish = vanish;
         if (Bukkit.getPluginManager().getPlugin("ProtocolLib") == null) {
-            throw new IllegalStateException("ProtocolLib fehlt; Admin-Spectator wird nicht aktiviert.");
+            throw new IllegalStateException("ProtocolLib is missing; admin spectator mode will not be enabled.");
         }
         this.protocol = ProtocolLibrary.getProtocolManager();
         verifyRequiredPacketMappings();
         for (String raw : plugin.getConfig().getStringList("admin-spectator.permanent-players")) {
             try { permanent.add(UUID.fromString(raw)); }
-            catch (IllegalArgumentException ex) { plugin.getLogger().warning("Ungültige UUID in admin-spectator.permanent-players: " + raw); }
+            catch (IllegalArgumentException ex) { plugin.getLogger().warning("Invalid UUID in admin-spectator.permanent-players: " + raw); }
         }
         loadPermanentSnapshots("admin-spectator.permanent-snapshots", permanentSnapshots);
         loadPermanentSnapshots("admin-spectator.pending-permanent-restores", pendingPermanentSnapshots);
@@ -135,7 +135,7 @@ final class AdminSpectatorManager implements Listener {
             try {
                 protocol.removePacketListeners(plugin);
             } catch (RuntimeException cleanupError) {
-                plugin.getLogger().warning("ProtocolLib-Listener-Cleanup nach fehlgeschlagener Initialisierung nicht möglich: "
+                plugin.getLogger().warning("Could not clean up ProtocolLib listeners after failed initialization: "
                         + cleanupError.getClass().getSimpleName());
             }
             throw ex;
@@ -150,7 +150,7 @@ final class AdminSpectatorManager implements Listener {
     boolean observe(Player observer, Player target, boolean vanishMode) {
         if (observer.equals(target)) return false;
         if (vanishMode && !vanishAvailable()) {
-            observer.sendMessage("Der Vanish-Modus benötigt das installierte und kompatible SuperVanish-Plugin.");
+            observer.sendMessage("Vanish mode requires an installed and compatible SuperVanish plugin.");
             return false;
         }
 
@@ -158,8 +158,8 @@ final class AdminSpectatorManager implements Listener {
         Session active = sessions.get(observerId);
         if (active != null) {
             if (active.vanishMode() != vanishMode) {
-                observer.sendMessage("Der Beobachtungsmodus kann während einer laufenden Sitzung nicht gewechselt werden. "
-                        + "Beende sie zuerst mit /adminspec off.");
+                observer.sendMessage("The observation mode cannot be changed during an active session. "
+                        + "End it first with /adminspec off.");
                 return false;
             }
             return retarget(observer, target, active);
@@ -178,8 +178,8 @@ final class AdminSpectatorManager implements Listener {
         int offsetZ = createOffset(targetZ);
         if (Math.abs(targetX - offsetX) > 29_000_000.0
                 || Math.abs(targetZ - offsetZ) > 29_000_000.0) {
-            observer.sendMessage("Der Zielspieler befindet sich zu nahe an der Weltgrenze. "
-                    + "Eine sichere Koordinatenverschiebung ist dort nicht möglich.");
+            observer.sendMessage("The target player is too close to the world border. "
+                    + "A safe coordinate offset is not possible there.");
             audit("START_OUT_OF_RANGE", observerId, target.getUniqueId());
             return false;
         }
@@ -189,8 +189,8 @@ final class AdminSpectatorManager implements Listener {
                 wasVanished = vanish.isVanished(observer);
             } catch (LinkageError | RuntimeException ex) {
                 markVanishUnavailable(ex);
-                observer.sendMessage("SuperVanish konnte den bisherigen Vanish-Status nicht sicher lesen. "
-                        + "Die Beobachtung wurde nicht gestartet.");
+                observer.sendMessage("Could not safely read the previous vanish state from SuperVanish. "
+                        + "The observation was not started.");
                 return false;
             }
         }
@@ -212,19 +212,19 @@ final class AdminSpectatorManager implements Listener {
             observer.setViewDistance(4);
             observer.setSendViewDistance(4);
             if (!observer.teleport(target.getLocation())) {
-                stop(observer, "Teleport zum Zielspieler fehlgeschlagen");
+                stop(observer, "Teleport to target player failed");
                 return false;
             }
             observer.setSpectatorTarget(target);
             audit("START", observerId, target.getUniqueId());
             return true;
         } catch (LinkageError | RuntimeException ex) {
-            plugin.getLogger().severe("Admin-Spectator konnte nicht gestartet werden: " + ex.getMessage());
+            plugin.getLogger().severe("Could not start admin spectator mode: " + ex.getMessage());
             if (sessions.containsKey(observerId)) {
                 try {
-                    stop(observer, "Startfehler");
+                    stop(observer, "startup error");
                 } catch (LinkageError | RuntimeException restoreError) {
-                    plugin.getLogger().severe("Wiederherstellung nach Startfehler fehlgeschlagen: " + restoreError.getMessage());
+                    plugin.getLogger().severe("Wiederherstellung nach startup error fehlgeschlagen: " + restoreError.getMessage());
                 }
             }
             return false;
@@ -254,7 +254,7 @@ final class AdminSpectatorManager implements Listener {
                         observer.teleport(previousTarget.getLocation());
                         observer.setSpectatorTarget(previousTarget);
                     } else {
-                        stop(observer, "Vorheriger Beobachtungs-Spieler ist nicht mehr online");
+                        stop(observer, "Previous observation target is no longer online");
                     }
                     audit("RETARGET_FAILED", observerId, target.getUniqueId());
                     return false;
@@ -268,7 +268,7 @@ final class AdminSpectatorManager implements Listener {
                 // A teleport may have emitted a packet before throwing. Keep the same
                 // offset, and conservatively track the requested target for later cleanup.
                 if (teleportAttempted) session.setTarget(target.getUniqueId());
-                plugin.getLogger().severe("Admin-Spectator-Zielwechsel fehlgeschlagen für "
+                plugin.getLogger().severe("Admin spectator target switch failed for "
                         + observerId + ": " + ex.getMessage());
                 keepObserverHidden(observer);
                 audit("RETARGET_FAILED", observerId, target.getUniqueId());
@@ -296,7 +296,7 @@ final class AdminSpectatorManager implements Listener {
                 if (!observer.teleport(session.snapshot().location())) {
                     sessions.put(observerId, session);
                     keepObserverHidden(observer);
-                    plugin.getLogger().severe("Admin-Spectator-Rückteleport fehlgeschlagen; Spieler bleibt verborgen: " + observerId);
+                    plugin.getLogger().severe("Admin spectator return teleport failed; player remains hidden: " + observerId);
                     audit("STOP_FAILED (" + reason + ")", observerId, session.target());
                     return false;
                 }
@@ -318,7 +318,7 @@ final class AdminSpectatorManager implements Listener {
                     sessions.putIfAbsent(observerId, session);
                 }
                 keepObserverHidden(observer);
-                plugin.getLogger().severe("Admin-Spectator-Wiederherstellung fehlgeschlagen für "
+                plugin.getLogger().severe("Admin spectator restoration failed for "
                         + observerId + ": " + ex.getMessage());
                 audit("STOP_FAILED (" + reason + ")", observerId, session.target());
                 return false;
@@ -371,8 +371,8 @@ final class AdminSpectatorManager implements Listener {
         if (player != null) {
             restorePermanentSnapshot(player, previousSnapshot, sessionOwnsState);
         } else if (previousSnapshot == null) {
-            plugin.getLogger().warning("Permanenter Spectator-Eintrag offline entfernt, aber kein Ursprungszustand ist gespeichert: "
-                    + uuid + ". Ein bereits gespeicherter Spectator-Gamemode kann deshalb nicht automatisch zurückgesetzt werden.");
+            plugin.getLogger().warning("Removed permanent spectator entry for offline player, but no original state is stored: "
+                    + uuid + ". A previously stored spectator game mode therefore cannot be reset automatically.");
         }
         audit("PERMANENT_REMOVE", uuid, uuid);
         return true;
@@ -398,7 +398,7 @@ final class AdminSpectatorManager implements Listener {
             plugin.getConfig().set(playersPath, oldPlayers);
             plugin.getConfig().set(snapshotsPath, oldSnapshots);
             plugin.getConfig().set(pendingPath, oldPending);
-            plugin.getLogger().severe("Permanente Spectator-Daten konnten nicht gespeichert werden; Änderung wurde zurückgenommen: "
+            plugin.getLogger().severe("Could not save permanent spectator data; the change was rolled back: "
                     + ex.getMessage());
             return false;
         }
@@ -436,8 +436,8 @@ final class AdminSpectatorManager implements Listener {
                         section.getBoolean(key + ".vanish-state-known"),
                         section.getBoolean(key + ".was-vanished")));
             } catch (IllegalArgumentException ex) {
-                plugin.getLogger().warning("Ungültiger gespeicherter Spectator-Zustand für UUID " + key
-                        + " in " + path + "; automatische Wiederherstellung kann unvollständig sein.");
+                plugin.getLogger().warning("Invalid stored spectator state for UUID " + key
+                        + " in " + path + "; automatic restoration may be incomplete.");
             }
         }
     }
@@ -511,7 +511,7 @@ final class AdminSpectatorManager implements Listener {
         permanentSnapshots.put(uuid, capturePermanentSnapshot(player));
         if (!savePermanentData()) {
             permanentDataSavePending = true;
-            plugin.getLogger().warning("Vorheriger Zustand des permanenten Spectator-Accounts bleibt bis zum nächsten erfolgreichen Speichern nur im Arbeitsspeicher: "
+            plugin.getLogger().warning("Previous state of the permanent spectator account remains in memory until the next successful save: "
                     + uuid);
         }
     }
@@ -527,12 +527,12 @@ final class AdminSpectatorManager implements Listener {
             player.setAllowFlight(snapshot.allowFlight());
             player.setFlying(snapshot.flying() && snapshot.allowFlight());
             if (player.getGameMode() != snapshot.gameMode()) {
-                plugin.getLogger().warning("Ursprünglicher Gamemode konnte nach Entfernen der permanenten Spectator-Festlegung "
-                        + "nicht wiederhergestellt werden: " + player.getUniqueId());
+                plugin.getLogger().warning("Original game mode could not be restored after removing the permanent spectator setting "
+                        + "could not be restored: " + player.getUniqueId());
             }
         } catch (LinkageError | RuntimeException ex) {
-            plugin.getLogger().warning("Spielerzustand konnte nach Entfernen der permanenten Spectator-Festlegung "
-                    + "nicht vollständig wiederhergestellt werden: " + ex.getClass().getSimpleName());
+            plugin.getLogger().warning("Player state could not be fully restored after removing the permanent spectator setting "
+                    + "could not be fully restored: " + ex.getClass().getSimpleName());
         }
         restorePermanentVisibility(player, snapshot);
     }
@@ -572,7 +572,7 @@ final class AdminSpectatorManager implements Listener {
             audit("PERMANENT_RESTORE", uuid, uuid);
             return true;
         } catch (LinkageError | RuntimeException ex) {
-            plugin.getLogger().severe("Ausstehende permanente Spectator-Wiederherstellung fehlgeschlagen für "
+            plugin.getLogger().severe("Pending permanent spectator restoration failed for "
                     + uuid + ": " + ex.getClass().getSimpleName());
             return false;
         }
@@ -591,7 +591,7 @@ final class AdminSpectatorManager implements Listener {
     private void markVanishUnavailable(Throwable error) {
         vanishUnavailable = true;
         if (!vanishFailureLogged) {
-            plugin.getLogger().warning("SuperVanish-API ist zur Laufzeit nicht verfügbar; Bukkit-Hiding wird verwendet: "
+            plugin.getLogger().warning("SuperVanish API is unavailable at runtime; using Bukkit player hiding: "
                     + error.getClass().getSimpleName());
             vanishFailureLogged = true;
         }
@@ -618,7 +618,7 @@ final class AdminSpectatorManager implements Listener {
         String path = pendingRestorePath(uuid);
         Location location = snapshot.location();
         World world = location.getWorld();
-        if (world == null) throw new IllegalStateException("Kann Admin-Spectator-Zustand ohne Welt nicht sichern.");
+        if (world == null) throw new IllegalStateException("Cannot save admin spectator state without a world.");
         plugin.getConfig().set(path + ".world-uuid", world.getUID().toString());
         plugin.getConfig().set(path + ".world-name", world.getName());
         plugin.getConfig().set(path + ".x", location.getX());
@@ -668,13 +668,13 @@ final class AdminSpectatorManager implements Listener {
             try {
                 if (!worldId.isBlank()) world = Bukkit.getWorld(UUID.fromString(worldId));
             } catch (IllegalArgumentException ignored) {
-                plugin.getLogger().warning("Ungültige Welt-UUID bei gespeicherter Spectator-Wiederherstellung: " + uuid);
+                plugin.getLogger().warning("Invalid world UUID in stored spectator restoration: " + uuid);
             }
             if (world == null) {
                 String savedWorldName = plugin.getConfig().getString(path + ".world-name", "<unknown>");
                 keepObserverHidden(player);
-                plugin.getLogger().severe("Gespeicherte Wiederherstellungswelt ist nicht verfügbar ("
-                        + savedWorldName + "); Spieler bleibt verborgen im Spectator-Modus: " + uuid);
+                plugin.getLogger().severe("Stored restoration world is unavailable ("
+                        + savedWorldName + "); player remains hidden in spectator mode: " + uuid);
                 return false;
             }
 
@@ -685,7 +685,7 @@ final class AdminSpectatorManager implements Listener {
             float pitch = (float) plugin.getConfig().getDouble(path + ".pitch");
             if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
                     || !Float.isFinite(yaw) || !Float.isFinite(pitch)) {
-                throw new IllegalStateException("Gespeicherte Position enthält ungültige Zahlen.");
+                throw new IllegalStateException("Stored position contains invalid numbers.");
             }
 
             Location location = new Location(world, x, y, z, yaw, pitch);
@@ -704,7 +704,7 @@ final class AdminSpectatorManager implements Listener {
             player.setSpectatorTarget(null);
             if (!player.teleport(location)) {
                 keepObserverHidden(player);
-                plugin.getLogger().severe("Gespeicherte Spectator-Position konnte nicht wiederhergestellt werden; Spieler bleibt verborgen: " + uuid);
+                plugin.getLogger().severe("Could not restore stored spectator position; player remains hidden: " + uuid);
                 return false;
             }
 
@@ -713,7 +713,7 @@ final class AdminSpectatorManager implements Listener {
                 gameMode = GameMode.valueOf(plugin.getConfig().getString(path + ".game-mode", "SURVIVAL"));
             } catch (IllegalArgumentException ex) {
                 gameMode = GameMode.SURVIVAL;
-                plugin.getLogger().warning("Ungültiger gespeicherter Gamemode; verwende SURVIVAL für " + uuid);
+                plugin.getLogger().warning("Invalid stored game mode; using SURVIVAL for " + uuid);
             }
             Snapshot snapshot = new Snapshot(location, gameMode,
                     plugin.getConfig().getBoolean(path + ".allow-flight"),
@@ -733,7 +733,7 @@ final class AdminSpectatorManager implements Listener {
             return true;
         } catch (LinkageError | RuntimeException ex) {
             keepObserverHidden(player);
-            plugin.getLogger().severe("Gespeicherte Admin-Spectator-Wiederherstellung fehlgeschlagen für "
+            plugin.getLogger().severe("Gespeicherte Admin spectator restoration failed for "
                     + uuid + ": " + ex.getMessage());
             return false;
         }
@@ -744,7 +744,7 @@ final class AdminSpectatorManager implements Listener {
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException ex) {
-            plugin.getLogger().warning("Ungültige gespeicherte Spectator-Ziel-UUID: " + value);
+            plugin.getLogger().warning("Invalid stored spectator target UUID: " + value);
             return null;
         }
     }
@@ -757,7 +757,7 @@ final class AdminSpectatorManager implements Listener {
             observer.setFlying(true);
             hideObserverFromAll(observer);
         } catch (RuntimeException ex) {
-            plugin.getLogger().severe("Fail-closed Spectator-Zustand konnte nicht vollständig gesetzt werden: " + ex.getMessage());
+            plugin.getLogger().severe("Could not fully apply fail-closed spectator state: " + ex.getMessage());
         }
     }
 
@@ -925,7 +925,7 @@ final class AdminSpectatorManager implements Listener {
         for (Map.Entry<UUID, Session> entry : Set.copyOf(sessions.entrySet())) {
             if (entry.getValue().target().equals(quitter.getUniqueId())) {
                 Player observer = Bukkit.getPlayer(entry.getKey());
-                if (observer != null) stop(observer, "Zielspieler hat den Server verlassen");
+                if (observer != null) stop(observer, "Target player left the server");
             }
         }
     }
@@ -933,7 +933,7 @@ final class AdminSpectatorManager implements Listener {
     private void translateEntityMetadata(PacketEvent event, int offsetX, int offsetZ) {
         var valuesModifier = event.getPacket().getDataValueCollectionModifier();
         if (valuesModifier.size() == 0) {
-            throw new IllegalStateException("Entity-Metadaten enthalten keine lesbare DataValue-Liste.");
+            throw new IllegalStateException("Entity metadata does not contain a readable DataValue list.");
         }
 
         List<WrappedDataValue> values = valuesModifier.read(0);
@@ -971,7 +971,7 @@ final class AdminSpectatorManager implements Listener {
     private void translateChunkBlockEntityNbt(PacketEvent event, int offsetX, int offsetZ) {
         var chunkDataModifier = event.getPacket().getLevelChunkData();
         if (chunkDataModifier.size() == 0) {
-            throw new IllegalStateException("Chunk-Paket enthält keine lesbare ChunkData-Struktur.");
+            throw new IllegalStateException("Chunk packet does not contain a readable ChunkData structure.");
         }
 
         WrappedLevelChunkData.ChunkData chunkData = chunkDataModifier.read(0);
@@ -988,11 +988,11 @@ final class AdminSpectatorManager implements Listener {
     private void translateBlockEntityPacketNbt(PacketEvent event, int offsetX, int offsetZ) {
         var tags = event.getPacket().getNbtModifier();
         if (tags.size() == 0) {
-            throw new IllegalStateException("Block-Entity-Paket enthält keinen NBT-Tag.");
+            throw new IllegalStateException("Block entity packet does not contain an NBT tag.");
         }
         NbtBase<?> tag = tags.read(0);
         if (!(tag instanceof NbtCompound compound)) {
-            throw new IllegalStateException("Block-Entity-Paket enthält keinen NBT-Compound.");
+            throw new IllegalStateException("Block entity packet does not contain an NBT compound.");
         }
         translateBlockEntityNbt(compound, offsetX, offsetZ);
         tags.write(0, compound);
@@ -1012,13 +1012,13 @@ final class AdminSpectatorManager implements Listener {
                 return;
             }
         }
-        throw new IllegalStateException("Respawn enthält keine eindeutige Optional-Todesposition in CommonPlayerSpawnInfo.");
+        throw new IllegalStateException("Respawn packet does not contain a unique optional death location in CommonPlayerSpawnInfo.");
     }
 
     private void translateDoubleCoordinates(PacketEvent event, int offsetX, int offsetZ, int xIndex, int zIndex) {
         var doubles = event.getPacket().getDoubles();
         if (doubles.size() <= Math.max(xIndex, zIndex)) {
-            throw new IllegalStateException("Paket enthält nicht die erwarteten Koordinatenfelder: " + event.getPacketType());
+            throw new IllegalStateException("Packet does not contain the expected coordinate fields: " + event.getPacketType());
         }
         doubles.write(xIndex, doubles.read(xIndex) - offsetX);
         doubles.write(zIndex, doubles.read(zIndex) - offsetZ);
@@ -1043,13 +1043,13 @@ final class AdminSpectatorManager implements Listener {
             integers.write(1, integers.read(1) - chunkOffsetZ);
             return;
         }
-        throw new IllegalStateException("Paket enthält keine unterstützte Chunk-Koordinate: " + event.getPacketType());
+        throw new IllegalStateException("Packet does not contain a supported chunk coordinate: " + event.getPacketType());
     }
 
     private void translateBlockPosition(PacketEvent event, int deltaX, int deltaZ) {
         var positions = event.getPacket().getBlockPositionModifier();
         if (positions.size() == 0) {
-            throw new IllegalStateException("Paket enthält keine Blockposition: " + event.getPacketType());
+            throw new IllegalStateException("Packet does not contain a block position: " + event.getPacketType());
         }
         var pos = positions.read(0);
         positions.write(0, new com.comphenix.protocol.wrappers.BlockPosition(
@@ -1059,7 +1059,7 @@ final class AdminSpectatorManager implements Listener {
     private void translateVectorCoordinates(PacketEvent event, int offsetX, int offsetZ) {
         var vectors = event.getPacket().getVectors();
         if (vectors.size() == 0) {
-            throw new IllegalStateException("Paket enthält keinen Positionsvektor: " + event.getPacketType());
+            throw new IllegalStateException("Packet does not contain a position vector: " + event.getPacketType());
         }
         Vector position = vectors.read(0);
         vectors.write(0, translated(position, -offsetX, -offsetZ));
@@ -1072,7 +1072,7 @@ final class AdminSpectatorManager implements Listener {
     private void translatePositionMoveRotation(PacketEvent event, int offsetX, int offsetZ) {
         var positions = event.getPacket().getPositionMoveRotation();
         if (positions.size() == 0) {
-            throw new IllegalStateException("Paket enthält keine Position/Rotation: " + event.getPacketType());
+            throw new IllegalStateException("Packet does not contain a position/rotation: " + event.getPacketType());
         }
         WrappedPositionMoveRotation position = positions.read(0);
         position.setPosition(translated(position.getPosition(), -offsetX, -offsetZ));
@@ -1082,7 +1082,7 @@ final class AdminSpectatorManager implements Listener {
     private void translateRelativePosition(PacketEvent event, int offsetX, int offsetZ) {
         var positions = event.getPacket().getPositionMoveRotation();
         if (positions.size() == 0) {
-            throw new IllegalStateException("Relatives Positionspaket enthält keine Position/Rotation.");
+            throw new IllegalStateException("Relative position packet does not contain a position/rotation.");
         }
 
         // ClientboundPlayerPositionPacket in 1.21.11 carries a Set<Relative>.
@@ -1090,7 +1090,7 @@ final class AdminSpectatorManager implements Listener {
         // so only absolute components receive the coordinate offset.
         var setModifiers = event.getPacket().getModifier().withType(Set.class);
         if (setModifiers.size() == 0) {
-            throw new IllegalStateException("Relatives Positionspaket enthält keine Relative-Flags.");
+            throw new IllegalStateException("Relative position packet does not contain relative flags.");
         }
         Set<?> flags = (Set<?>) setModifiers.read(0);
         boolean relativeX = containsRelativeFlag(flags, "X");
@@ -1125,7 +1125,7 @@ final class AdminSpectatorManager implements Listener {
             translateVectorCoordinates(event, offsetX, offsetZ);
             return;
         }
-        throw new IllegalStateException("Paket enthält kein unterstütztes Positionsformat: " + event.getPacketType());
+        throw new IllegalStateException("Packet does not contain a supported position format: " + event.getPacketType());
     }
 
     private void translateVehicleMove(PacketEvent event, int offsetX, int offsetZ) {
@@ -1146,7 +1146,7 @@ final class AdminSpectatorManager implements Listener {
             translateDoubleCoordinates(event, offsetX, offsetZ, 0, 2);
             return;
         }
-        throw new IllegalStateException("Fahrzeugpaket enthält kein unterstütztes Positionsformat.");
+        throw new IllegalStateException("Vehicle packet does not contain a supported position format.");
     }
 
     private void translateUseItemOn(PacketEvent event, int offsetX, int offsetZ) {
@@ -1204,11 +1204,11 @@ final class AdminSpectatorManager implements Listener {
                 .map(type -> type.name() + " (" + type.getCurrentVersion() + ")")
                 .toList();
         if (!unsupported.isEmpty()) {
-            throw new IllegalStateException("ProtocolLib kann erforderliche Paket-Mappings auf diesem Server nicht auflösen: "
+            throw new IllegalStateException("ProtocolLib cannot resolve required packet mappings on this server: "
                     + String.join(", ", unsupported));
         }
-        plugin.getLogger().info("Admin-Spectator-Paket-Mappings geprüft: "
-                + required.size() + " erforderliche Pakettypen verfügbar.");
+        plugin.getLogger().info("Admin spectator packet mappings verified: "
+                + required.size() + " required packet types available.");
     }
 
     private void registerPacketTranslation() {
@@ -1331,7 +1331,7 @@ final class AdminSpectatorManager implements Listener {
                         // Sound packet coordinates use fixed-point block coordinates multiplied by eight.
                         var ints = event.getPacket().getIntegers();
                         if (ints.size() < 3) {
-                            throw new IllegalStateException("Soundpaket enthält nicht die erwarteten Festkomma-Koordinaten.");
+                            throw new IllegalStateException("Sound packet does not contain the expected fixed-point coordinates.");
                         }
                         ints.write(0, ints.read(0) - session.offsetX() * 8);
                         ints.write(2, ints.read(2) - session.offsetZ() * 8);
@@ -1342,7 +1342,7 @@ final class AdminSpectatorManager implements Listener {
                         translateDoubleCoordinates(event, session.offsetX(), session.offsetZ(), 0, 1);
                     }
                     } catch (LinkageError | Exception ex) {
-                        plugin.getLogger().warning("Konnte ausgehendes Paket für Admin-Spectator nicht transformieren: " + ex.getMessage());
+                        plugin.getLogger().warning("Could not transform outgoing admin spectator packet: " + ex.getMessage());
                         event.setCancelled(true);
                     }
                 }
@@ -1412,7 +1412,7 @@ final class AdminSpectatorManager implements Listener {
                         doubles.write(2, doubles.read(2) + session.offsetZ());
                     }
                     } catch (LinkageError | Exception ex) {
-                        plugin.getLogger().warning("Konnte eingehendes Interaktionspaket nicht transformieren: " + ex.getMessage());
+                        plugin.getLogger().warning("Could not transform incoming interaction packet: " + ex.getMessage());
                         event.setCancelled(true);
                     }
                 }
@@ -1432,9 +1432,9 @@ final class AdminSpectatorManager implements Listener {
                 Player player = Bukkit.getPlayer(uuid);
                 if (player != null) {
                     try {
-                        stop(player, "Plugin wird deaktiviert");
+                        stop(player, "plugin is disabling");
                     } catch (RuntimeException ex) {
-                        plugin.getLogger().severe("Fehler beim Beenden einer Admin-Spectator-Sitzung für "
+                        plugin.getLogger().severe("Error while stopping admin spectator session for "
                                 + uuid + ": " + ex.getMessage());
                     }
                 }
@@ -1444,7 +1444,7 @@ final class AdminSpectatorManager implements Listener {
                 try {
                     protocol.removePacketListeners(plugin);
                 } catch (RuntimeException ex) {
-                    plugin.getLogger().severe("ProtocolLib-Listener konnten nicht vollständig entfernt werden: " + ex.getMessage());
+                    plugin.getLogger().severe("Could not fully remove ProtocolLib listeners: " + ex.getMessage());
                 } finally {
                     packetListenerRegistered = false;
                 }
