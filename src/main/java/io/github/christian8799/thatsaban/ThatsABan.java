@@ -191,8 +191,12 @@ public final class ThatsABan extends JavaPlugin {
     private void migrateConfig() {
         int version = getConfig().getInt("config-version", 0);
         if (version < 2) {
-            getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
-            getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
+            if (!getConfig().contains("country-filter.database-file")) {
+                getConfig().set("country-filter.database-file", "geoip/IP2LOCATION-LITE-DB3.IPV6.BIN");
+            }
+            if (!getConfig().contains("country-filter.allowed-region-names")) {
+                getConfig().set("country-filter.allowed-region-names", List.of("Bayern", "Bavaria"));
+            }
             getConfig().set("alt-detection.enabled", false);
             getConfig().set("alt-detection.retention-days", 30);
             version = 2;
