@@ -102,11 +102,6 @@ final class FlashbackClipIntegration {
                     new IllegalStateException("FlashbackServer returned an invalid ClipService result."));
         }
 
-        if (!commandArmedPlayers.contains(player.getUniqueId())) {
-            return CompletableFuture.failedFuture(
-                    new IllegalStateException("No report clip buffer is armed for this player."));
-        }
-
         Plugin dependency = dependency();
         if (dependency == null || replayCommand() == null) {
             return CompletableFuture.failedFuture(
@@ -114,30 +109,60 @@ final class FlashbackClipIntegration {
         }
 
         Path clipsDirectory = dependency.getDataFolder().toPath().resolve("clips");
-        Map<Path, FileStamp> before;
-        try {
-            before = scanClips(clipsDirectory);
-            Path parent = output.toAbsolutePath().getParent();
-            if (parent == null) throw new IOException("Report replay output directory is unavailable.");
-            Files.createDirectories(parent);
-        } catch (IOException ex) {
-            return CompletableFuture.failedFuture(ex);
-        }
-
-        if (!dispatchClipCommand("save", player)) {
+        Path parent = output.toAbsolutePath().getParent();
+        if (parent == null) {
             return CompletableFuture.failedFuture(
-                    new IllegalStateException("FlashbackServer rejected /replay clip save."));
+                    new IOException("Report replay output directory is unavailable."));
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                Path generated = waitForGeneratedClip(clipsDirectory, before);
-                Files.copy(generated, output, StandardCopyOption.REPLACE_EXISTING);
-                return output;
-            } catch (IOException ex) {
-                throw new CompletionException(ex);
+        // Re-arm immediately before saving. The arm command is idempotent: an existing
+        // buffer is left untouched, while a buffer lost by FlashbackServer is recreated.
+        // This avoids trusting the local UUID cache as proof of FlashbackServer state.
+        if (!dispatchClipCommand("arm", player)) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("FlashbackServer rejected /replay clip arm."));
+        }
+        commandArmedPlayers.add(player.getUniqueId());
+
+        CompletableFuture<Path> result = new CompletableFuture<>();
+        // FlashbackServer builds the initial snapshot asynchronously on the player's
+        // region thread. Give it two ticks before asking it to write the clip.
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) {
+                result.completeExceptionally(
+                        new IllegalStateException("Player disconnected before the replay clip could be saved."));
+                return;
             }
-        });
+
+            Map<Path, FileStamp> before;
+            try {
+                Files.createDirectories(parent);
+                before = scanClips(clipsDirectory);
+            } catch (IOException ex) {
+                result.completeExceptionally(ex);
+                return;
+            }
+
+            if (!dispatchClipCommand("save", player)) {
+                result.completeExceptionally(
+                        new IllegalStateException("FlashbackServer rejected /replay clip save."));
+                return;
+            }
+
+            CompletableFuture.supplyAsync(() -> {
+                try {
+                    Path generated = waitForGeneratedClip(clipsDirectory, before);
+                    Files.copy(generated, output, StandardCopyOption.REPLACE_EXISTING);
+                    return output;
+                } catch (IOException ex) {
+                    throw new CompletionException(ex);
+                }
+            }).whenComplete((path, error) -> {
+                if (error != null) result.completeExceptionally(error);
+                else result.complete(path);
+            });
+        }, 2L);
+        return result;
     }
 
     private Plugin dependency() {
