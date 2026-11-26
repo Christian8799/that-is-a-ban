@@ -25,7 +25,6 @@ commands:
   reports:
     description: Zeigt und verwaltet Spieler-Reports
     usage: /<command> [list|view|offend|resolve|dismiss] [ID]
-    permission: thatsaban.reports
 
 permissions:
   thatsaban.admin:
