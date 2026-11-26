@@ -13,7 +13,7 @@ commands:
     permission: thatsaban.offend
   thatsaban:
     description: Privacy data export, account network, Layer 2 removal, and data deletion
-    usage: /<command> <info|network|unoffend|forget> <player|UUID> [depth|confirm]
+    usage: /<command> <reload|info|network|unoffend|forget> [player|UUID] [depth|confirm]
   adminspec:
     description: Manage protected admin observation
     usage: /<command> <observe|menu|tp|offend|off|permanent> [player] [vanish]
