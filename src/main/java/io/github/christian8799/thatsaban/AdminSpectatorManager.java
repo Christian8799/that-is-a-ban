@@ -1325,7 +1325,10 @@ final class AdminSpectatorManager implements Listener {
                             || type == PacketType.Play.Server.MOVE_MINECART
                             || type == PacketType.Play.Server.LOOK_AT
                             || type == PacketType.Play.Server.TRACKED_WAYPOINT
-                            || type == PacketType.Play.Server.TEST_INSTANCE_BLOCK_STATUS) {
+                            || type == PacketType.Play.Server.TEST_INSTANCE_BLOCK_STATUS
+                            || type == PacketType.Play.Server.SPAWN_POSITION) {
+                        // The observer does not need the world's default spawn point while spectating.
+                        // ProtocolLib does not expose this packet's position through the block-position modifier.
                         event.setCancelled(true);
                         return;
                     } else if (type == PacketType.Play.Server.MAP_CHUNK) {
@@ -1348,7 +1351,6 @@ final class AdminSpectatorManager implements Listener {
                     } else if (type == PacketType.Play.Server.BLOCK_CHANGE
                             || type == PacketType.Play.Server.BLOCK_ACTION
                             || type == PacketType.Play.Server.BLOCK_BREAK_ANIMATION
-                            || type == PacketType.Play.Server.SPAWN_POSITION
                             || type == PacketType.Play.Server.OPEN_SIGN_EDITOR) {
                         translateBlockPosition(event, -session.offsetX(), -session.offsetZ());
                     } else if (type == PacketType.Play.Server.SPAWN_ENTITY) {
