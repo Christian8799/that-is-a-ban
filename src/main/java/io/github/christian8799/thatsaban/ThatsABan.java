@@ -14,8 +14,8 @@ public final class ThatsABan extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        migrateConfig();
         messages = new Messages(this);
+        migrateConfig();
         store = new LinkStore(this);
         store.load();
         store.startAutosave();
@@ -225,9 +225,49 @@ public final class ThatsABan extends JavaPlugin {
             }
             version = 4;
         }
+        if (version < 5) {
+            if (!getConfig().contains("language")) getConfig().set("language", "en");
+            if (!getConfig().contains("messages.de.prefix")) {
+                var oldMessages = getConfig().getConfigurationSection("messages");
+                if (oldMessages != null) {
+                    for (String key : oldMessages.getKeys(false)) {
+                        if (!oldMessages.isConfigurationSection(key) && !getConfig().contains("messages.de." + key)) {
+                            getConfig().set("messages.de." + key, oldMessages.get(key));
+                        }
+                    }
+                }
+            }
+            setEnglishMessageDefaults();
+            version = 5;
+        }
         if (getConfig().getInt("config-version", 0) != version) {
             getConfig().set("config-version", version);
             saveConfig();
+        }
+    }
+
+
+    private void setEnglishMessageDefaults() {
+        java.util.Map<String, String> defaults = java.util.Map.ofEntries(
+                java.util.Map.entry("prefix", "<gray>[<red>that-s-a-ban</red>]</gray> "),
+                java.util.Map.entry("usage", "<red>Usage: /offend <player>"),
+                java.util.Map.entry("player-not-found", "<red>Player <white><player></white> is not known to this server."),
+                java.util.Map.entry("bedrock-immune", "<yellow><player></yellow> is a Bedrock player and is immune to /offend."),
+                java.util.Map.entry("exempt", "<yellow><player></yellow> is exempt (thatsaban.exempt)."),
+                java.util.Map.entry("already", "<yellow><player></yellow> is already in Layer 2."),
+                java.util.Map.entry("done", "<green><player></green> was moved to <red>Layer 2</red>."),
+                java.util.Map.entry("done-alts", "<gray>Also automatically moved to Layer 2: <white><alts></white>"),
+                java.util.Map.entry("error", "<red>Could not apply Layer 2. Check the console."),
+                java.util.Map.entry("kick-relogin", "<red>Your security level has changed. Please reconnect."),
+                java.util.Map.entry("alt-suggestion-staff", "<yellow>Review required:</yellow> <white><player></white> shares a flagged IP. Review the context before taking action; if confirmed, use /offend <player>."),
+                java.util.Map.entry("alt-auto-applied-staff", "<red>Automatic action:</red> <white><player></white> was moved to Layer 2 due to an IP match."),
+                java.util.Map.entry("country-denied", "<red>Connections are only allowed from an IP address in Bavaria."),
+                java.util.Map.entry("country-lookup-failed", "<red>Your IP address could not be geolocated locally. Please try again later.")
+        );
+        for (var entry : defaults.entrySet()) {
+            if (!getConfig().contains("messages.en." + entry.getKey())) {
+                getConfig().set("messages.en." + entry.getKey(), entry.getValue());
+            }
         }
     }
 
