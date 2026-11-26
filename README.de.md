@@ -9,6 +9,7 @@ Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Adm
 ## Inhaltsverzeichnis
 
 - [Kompatibilität und optionale Plugins](#kompatibilität-und-optionale-plugins)
+- [Spieler-Reports und Replay-Clips](docs/REPORTS.md)
 - [Schnellstart](#schnellstart)
 - [Funktionsweise: Layer 1 und Layer 2](#funktionsweise-layer-1-und-layer-2)
 - [Konfiguration vollständig](#konfiguration-vollständig)
@@ -42,6 +43,7 @@ Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Adm
 | LuckPerms | Optional, für Layer 2 erforderlich | Berechtigungsmarker, Layer-2-Nodes, /offend und LuckPerms-abhängige Datenschutzaktionen |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung |
 | SuperVanish | Optional | Expliziter Vanish-Modus und Vanish-Durchsetzung permanenter Admin-Accounts |
+| FlashbackServer | Optional; für `/report`-Clips erforderlich | Rolling-Flashback-Replay-Puffer für Spieler-Reports; siehe [Report-Einrichtung](docs/REPORTS.md) |
 | IP2Location LITE DB3 BIN (IPv6) | Externe Datei, optional für den restlichen Pluginbetrieb | Lokaler Country-/Region-Filter |
 | GrimAC, CheatDetector | Optionale Integrationen | In der Standardkonfiguration für Layer 1 aufgeführt |
 | FoxGate, HandShaker | Optionale Integrationen | In der Standardkonfiguration für Layer 2 aufgeführt |
@@ -119,6 +121,12 @@ layer2:
 
 offend:
   kick-online-target: false
+
+reports:
+  enabled: true
+  cooldown-seconds: 60
+  max-reason-length: 200
+  minimum-clip-window-seconds: 60
 
 privacy:
   # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
