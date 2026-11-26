@@ -32,7 +32,7 @@ The links below point to the official project pages, source repositories, or dow
 | Plugin | Used for | Link |
 |---|---|---|
 | SuperVanish | Optional vanish mode and permanent-admin vanish enforcement | [SpigotMC resource](https://www.spigotmc.org/resources/supervanish-be-invisible.1331/) · [Source](https://github.com/LeonMangler/SuperVanish) |
-| FlashbackServer | Optional rolling replay clips for `/report` | [GitHub project](https://github.com/Zeffut/FlashbackServer) · [Modrinth](https://modrinth.com/plugin/flashback-server) |
+| FlashbackServer | Optional rolling replay clips for `/report` | [SpigotMC download page](https://www.spigotmc.org/resources/flashback-server-server-side-replay-recording.136942/) · [GitHub source](https://github.com/Zeffut/FlashbackServer) · [Modrinth](https://modrinth.com/plugin/flashback-server) |
 | GrimAC | Optional Layer 1 anti-cheat integration | [Official source](https://github.com/GrimAnticheat/Grim) · [Modrinth](https://modrinth.com/plugin/grim) |
 | CheatDetector | Optional Layer 1 integration | [SpigotMC resource](https://www.spigotmc.org/resources/cheatdetector.134018/) |
 | FoxGate | Optional Layer 2 AntiVPN integration | [Modrinth](https://modrinth.com/plugin/foxgate) · [Source](https://github.com/IDCTeam-Group/FoxGate-Issues) |
