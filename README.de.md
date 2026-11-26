@@ -201,6 +201,10 @@ messages:
 | layer2.negated-permissions | foxav.bypass, handshaker.bypass | Liste der Bypass-Permissions, die That'sABan einem Layer-2-Spieler entzieht beziehungsweise negiert. Passe die Nodes an deine Anti-Cheat-Plugins an. |
 | layer2.exempt-permission | thatsaban.exempt | Spieler mit dieser Permission sind von /offend und der IP-Kopplung ausgenommen. |
 | offend.kick-online-target | false | Bei true wird ein online Zielspieler nach erfolgreicher /offend-Einstufung mit der konfigurierten Nachricht kick-relogin getrennt. Bei false bleibt er online. |
+| reports.enabled | true | Aktiviert Spieler-Reports. Für Replay-Clips wird das separate FlashbackServer-Plugin benötigt. |
+| reports.cooldown-seconds | 60 | Mindestwartezeit zwischen Reports desselben Spielers. |
+| reports.max-reason-length | 200 | Maximale Länge des Report-Grunds in Zeichen. |
+| reports.minimum-clip-window-seconds | 60 | Mindestwert für FlashbackServer `clips.window-seconds`; gespeicherte Clips können durch Keyframe-Rotation länger sein. |
 
 Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Gruppenstruktur vergeben werden. That'sABan legt keine Anti-Cheat-Regeln für die externen Plugins fest.
 
