@@ -110,7 +110,7 @@ Alle vom Betreiber vorgesehenen Konfigurationsoptionen der ausgelieferten config
 
 ~~~yaml
 # that-s-a-ban - Konfiguration
-config-version: 4
+config-version: 6
 
 layer2:
   marker-permission: "thatsaban.layer2"

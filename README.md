@@ -135,7 +135,7 @@ The active file is `plugins/ThatsABan/config.yml`. Every operator-editable optio
 
 ```yaml
 # That's a Ban configuration (values match the shipped defaults)
-config-version: 4
+config-version: 6
 
 layer2:
   marker-permission: "thatsaban.layer2"
