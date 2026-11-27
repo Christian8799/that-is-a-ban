@@ -63,6 +63,9 @@ permissions:
   thatsaban.reports:
     description: Can view and manage reports
     default: op
+  thatsaban.replay.view:
+    description: Can request and view report replay files through the Fabric Replay Viewer
+    default: op
   thatsaban.reports.notify:
     description: Receives notifications about new reports
     default: op

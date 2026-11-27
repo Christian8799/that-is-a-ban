@@ -14,6 +14,7 @@ public final class ThatsABan extends JavaPlugin {
     private SpectatorIntegration spectatorFeature;
     private ReportManager reportManager;
     private ClipManager reportClipManager;
+    private ReplayTransferBridge replayTransferBridge;
     private AccountNetworkMenu accountNetworkMenu;
 
     @Override
@@ -82,6 +83,8 @@ public final class ThatsABan extends JavaPlugin {
         registerCommand("reports", reportsCommand);
         getServer().getPluginManager().registerEvents(reportsCommand, this);
         reportManager.initialize();
+        replayTransferBridge = new ReplayTransferBridge(this, reportManager);
+        replayTransferBridge.enable();
 
         if (!getConfig().getBoolean("alt-detection.enabled", false)) {
             getLogger().info("IP-based account linking is disabled (alt-detection.enabled: false): accounts that "
@@ -348,6 +351,7 @@ public final class ThatsABan extends JavaPlugin {
     @Override
     public void onDisable() {
         if (spectatorFeature != null) spectatorFeature.shutdown();
+        if (replayTransferBridge != null) replayTransferBridge.shutdown();
         if (reportManager != null) reportManager.shutdown();
         if (reportClipManager != null) reportClipManager.disarmAll();
         if (store != null) store.save();
@@ -358,6 +362,10 @@ public final class ThatsABan extends JavaPlugin {
                 getLogger().warning("Could not close country filter: " + ex.getClass().getSimpleName());
             }
         }
+    }
+
+    boolean requestReportReplay(org.bukkit.entity.Player player, String reportId) {
+        return replayTransferBridge != null && replayTransferBridge.requestFromMenu(player, reportId);
     }
 
     Messages messages() { return messages; }
