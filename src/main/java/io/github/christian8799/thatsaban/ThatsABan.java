@@ -1,5 +1,7 @@
 package io.github.christian8799.thatsaban;
 
+import dev.zeffut.flashbackserver.clip.ClipManager;
+
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
@@ -11,6 +13,7 @@ public final class ThatsABan extends JavaPlugin {
     private CountryFilterIntegration countryFilter;
     private SpectatorIntegration spectatorFeature;
     private ReportManager reportManager;
+    private ClipManager reportClipManager;
     private AccountNetworkMenu accountNetworkMenu;
 
     @Override
@@ -67,8 +70,12 @@ public final class ThatsABan extends JavaPlugin {
 
         registerSpectatorFeature();
 
-        FlashbackClipIntegration flashbackClips = new FlashbackClipIntegration(this);
-        reportManager = new ReportManager(this, flashbackClips);
+        int clipWindowSeconds = Math.max(60,
+                Math.min(120, getConfig().getInt("reports.clip-window-seconds", 60)));
+        reportClipManager = new ClipManager(this,
+                getDataFolder().toPath().resolve("reports"), clipWindowSeconds);
+        getServer().getPluginManager().registerEvents(reportClipManager, this);
+        reportManager = new ReportManager(this, reportClipManager);
         getServer().getPluginManager().registerEvents(reportManager, this);
         registerCommand("report", new ReportCommand(reportManager));
         ReportsCommand reportsCommand = new ReportsCommand(this, reportManager);
@@ -251,6 +258,13 @@ public final class ThatsABan extends JavaPlugin {
             }
             version = 5;
         }
+        if (version < 6) {
+            if (!getConfig().contains("reports.clip-window-seconds")) {
+                getConfig().set("reports.clip-window-seconds", 60);
+            }
+            getConfig().set("reports.minimum-clip-window-seconds", null);
+            version = 6;
+        }
         setEnglishMessageDefaults();
         setGermanMessageDefaults();
         getConfig().set("config-version", version);
@@ -335,6 +349,7 @@ public final class ThatsABan extends JavaPlugin {
     public void onDisable() {
         if (spectatorFeature != null) spectatorFeature.shutdown();
         if (reportManager != null) reportManager.shutdown();
+        if (reportClipManager != null) reportClipManager.disarmAll();
         if (store != null) store.save();
         if (countryFilter != null) {
             try {
@@ -356,7 +371,6 @@ public final class ThatsABan extends JavaPlugin {
         checkDependency(missing, "LuckPerms");
         checkDependency(missing, "ProtocolLib");
         checkDependency(missing, "SuperVanish");
-        checkDependency(missing, "FlashbackServer");
 
         for (String key : List.of("layer1-plugins", "layer2-plugins")) {
             for (String name : getConfig().getStringList("integrations." + key)) {
