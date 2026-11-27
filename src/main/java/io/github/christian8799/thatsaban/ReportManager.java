@@ -1,5 +1,8 @@
 package io.github.christian8799.thatsaban;
 
+import dev.zeffut.flashbackserver.clip.ClipManager;
+import dev.zeffut.flashbackserver.version.VersionAdapters;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -11,7 +14,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,7 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletionException;
 import java.util.logging.Level;
 
 /** Owns player report metadata and the rolling replay buffers used for evidence clips. */
@@ -73,15 +74,15 @@ final class ReportManager implements Listener {
     }
 
     private final ThatsABan plugin;
-    private final FlashbackClipIntegration clips;
+    private final ClipManager clips;
+    private boolean clipCaptureAvailable;
     private final File storageFile;
     private final Map<String, ReportEntry> reports = new LinkedHashMap<>();
     private boolean storageWriteBlocked;
     private boolean permissionWarningLogged;
     private final Map<UUID, Long> cooldowns = new HashMap<>();
-    private final java.util.Set<UUID> armedByThisPlugin = new java.util.HashSet<>();
 
-    ReportManager(ThatsABan plugin, FlashbackClipIntegration clips) {
+    ReportManager(ThatsABan plugin, ClipManager clips) {
         this.plugin = plugin;
         this.clips = clips;
         this.storageFile = new File(plugin.getDataFolder(), "reports.yml");
@@ -93,24 +94,20 @@ final class ReportManager implements Listener {
             plugin.getLogger().info("Player reports are disabled in config.yml.");
             return;
         }
-        if (!clips.isAvailable()) {
-            plugin.getLogger().warning("Player reports disabled: FlashbackServer is missing or its clip API is unavailable.");
-            return;
-        }
 
-        int configuredWindow = clips.configuredWindowSeconds();
-        int requiredWindow = Math.max(1,
-                plugin.getConfig().getInt("reports.minimum-clip-window-seconds", 60));
-        if (configuredWindow < requiredWindow) {
-            plugin.getLogger().warning("FlashbackServer clips.window-seconds is " + configuredWindow
-                    + "; for at least " + requiredWindow + " seconds of report replay, set "
-                    + "clips.window-seconds in plugins/FlashbackServer/config.yml accordingly.");
+        try {
+            VersionAdapters.current();
+            clipCaptureAvailable = true;
+        } catch (RuntimeException | LinkageError ex) {
+            plugin.getLogger().warning("Report replay capture is unavailable; reports remain disabled. Cause: "
+                    + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+            return;
         }
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> armIfNeeded(player), 1L);
         }
-        plugin.getLogger().info("Report system initialized; FlashbackServer rolling clips will be enabled when players join.");
+        plugin.getLogger().info("Report system initialized with embedded " + clips.windowSeconds() + "-second Flashback replay buffers.");
     }
 
     @EventHandler
@@ -120,22 +117,14 @@ final class ReportManager implements Listener {
                 () -> armIfNeeded(event.getPlayer()), 1L);
     }
 
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        armedByThisPlugin.remove(event.getPlayer().getUniqueId());
-        // FlashbackServer also removes its own rolling buffer on quit.
-    }
-
     private void armIfNeeded(Player player) {
-        if (!player.isOnline() || !clips.isAvailable()) return;
+        if (!player.isOnline() || !clipCaptureAvailable) return;
         try {
             if (clips.isArmed(player)) return;
-            if (clips.arm(player)) {
-                armedByThisPlugin.add(player.getUniqueId());
-            } else if (!clips.isArmed(player)) {
-                plugin.getLogger().warning("Could not enable report clip buffer for " + player.getName() + " .");
+            if (!clips.arm(player)) {
+                plugin.getLogger().warning("Could not enable report clip buffer for " + player.getName() + ".");
             }
-        } catch (RuntimeException ex) {
+        } catch (RuntimeException | LinkageError ex) {
             plugin.getLogger().warning("Report clip buffer for " + player.getName()
                     + " failed: " + ex.getClass().getSimpleName());
         }
@@ -151,7 +140,7 @@ final class ReportManager implements Listener {
             reporter.sendMessage(Component.text("The report system is disabled.", NamedTextColor.RED));
             return false;
         }
-        if (!clips.isAvailable()) {
+        if (!clipCaptureAvailable) {
             reporter.sendMessage(Component.text("Reports are currently unavailable.", NamedTextColor.RED));
             return false;
         }
@@ -168,20 +157,13 @@ final class ReportManager implements Listener {
             return false;
         }
 
-        int minimumWindow = Math.max(1,
-                plugin.getConfig().getInt("reports.minimum-clip-window-seconds", 60));
-        if (clips.configuredWindowSeconds() < minimumWindow) {
-            reporter.sendMessage(Component.text("The replay system is not configured correctly yet. Please notify the staff team.",
-                    NamedTextColor.RED));
-            return false;
-        }
         try {
-            if (!clips.isArmed(target)) {
-                reporter.sendMessage(Component.text("No replay buffer is ready for this player yet. Please try again later.",
+            if (!clips.isArmed(target) || !clips.isReady(target)) {
+                reporter.sendMessage(Component.text("The replay buffer has not collected " + clips.windowSeconds() + " seconds yet. Please try again later.",
                         NamedTextColor.RED));
                 return false;
             }
-        } catch (RuntimeException ex) {
+        } catch (RuntimeException | LinkageError ex) {
             reporter.sendMessage(Component.text("The replay system is currently unavailable.", NamedTextColor.RED));
             return false;
         }
@@ -215,7 +197,8 @@ final class ReportManager implements Listener {
         cooldowns.put(reporter.getUniqueId(), now);
 
         Path output = plugin.getDataFolder().toPath().resolve("reports")
-                .resolve(reportId + "-" + safeFileName(target.getName()) + ".flashback");
+                .resolve(reportId + "-" + safeFileName(target.getName()) + ".flashback")
+                .toAbsolutePath().normalize();
         try {
             Files.createDirectories(output.getParent());
             clips.saveClip(target, output).whenComplete((path, error) -> {
@@ -227,7 +210,7 @@ final class ReportManager implements Listener {
                         current.status = Status.FAILED;
                         if (error == null) {
                             plugin.getLogger().warning("Replay for report " + reportId
-                                    + " could not be saved: FlashbackServer returned no replay path.");
+                                    + " could not be saved: the embedded replay engine returned no replay path.");
                         } else {
                             plugin.getLogger().log(Level.WARNING,
                                     "Replay for report " + reportId + " could not be saved: "
@@ -300,18 +283,6 @@ final class ReportManager implements Listener {
     }
 
     void shutdown() {
-        for (UUID id : List.copyOf(armedByThisPlugin)) {
-            Player player = Bukkit.getPlayer(id);
-            if (player != null && player.isOnline()) {
-                try {
-                    clips.disarm(player);
-                } catch (RuntimeException ex) {
-                    plugin.getLogger().warning("Could not stop report buffer for " + player.getName()
-                            + " during plugin shutdown.");
-                }
-            }
-        }
-        armedByThisPlugin.clear();
         save();
     }
 

@@ -1,5 +1,7 @@
 package io.github.christian8799.thatsaban;
 
+import dev.zeffut.flashbackserver.clip.ClipManager;
+
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
@@ -11,6 +13,8 @@ public final class ThatsABan extends JavaPlugin {
     private CountryFilterIntegration countryFilter;
     private SpectatorIntegration spectatorFeature;
     private ReportManager reportManager;
+    private ClipManager reportClipManager;
+    private ReplayTransferBridge replayTransferBridge;
     private AccountNetworkMenu accountNetworkMenu;
 
     @Override
@@ -67,14 +71,20 @@ public final class ThatsABan extends JavaPlugin {
 
         registerSpectatorFeature();
 
-        FlashbackClipIntegration flashbackClips = new FlashbackClipIntegration(this);
-        reportManager = new ReportManager(this, flashbackClips);
+        int clipWindowSeconds = Math.max(60,
+                Math.min(120, getConfig().getInt("reports.clip-window-seconds", 60)));
+        reportClipManager = new ClipManager(this,
+                getDataFolder().toPath().resolve("reports"), clipWindowSeconds);
+        getServer().getPluginManager().registerEvents(reportClipManager, this);
+        reportManager = new ReportManager(this, reportClipManager);
         getServer().getPluginManager().registerEvents(reportManager, this);
         registerCommand("report", new ReportCommand(reportManager));
         ReportsCommand reportsCommand = new ReportsCommand(this, reportManager);
         registerCommand("reports", reportsCommand);
         getServer().getPluginManager().registerEvents(reportsCommand, this);
         reportManager.initialize();
+        replayTransferBridge = new ReplayTransferBridge(this, reportManager);
+        replayTransferBridge.enable();
 
         if (!getConfig().getBoolean("alt-detection.enabled", false)) {
             getLogger().info("IP-based account linking is disabled (alt-detection.enabled: false): accounts that "
@@ -251,6 +261,13 @@ public final class ThatsABan extends JavaPlugin {
             }
             version = 5;
         }
+        if (version < 6) {
+            if (!getConfig().contains("reports.clip-window-seconds")) {
+                getConfig().set("reports.clip-window-seconds", 60);
+            }
+            getConfig().set("reports.minimum-clip-window-seconds", null);
+            version = 6;
+        }
         setEnglishMessageDefaults();
         setGermanMessageDefaults();
         getConfig().set("config-version", version);
@@ -292,7 +309,7 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("reload-no-missing", "<green>No missing optional dependencies or configured integration plugins were detected."),
                 java.util.Map.entry("reload-missing-header", "<yellow>Missing or disabled dependencies:"),
                 java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
-                java.util.Map.entry("reload-restart-note", "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, or startup-only features require a full server restart.")
+                java.util.Map.entry("reload-restart-note", "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, the report clip window, or other startup-only features require a full server restart.")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.en." + entry.getKey())) {
@@ -322,7 +339,7 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("reload-no-missing", "<green>Es fehlen keine optionalen Abhängigkeiten oder konfigurierten Integrations-Plugins."),
                 java.util.Map.entry("reload-missing-header", "<yellow>Fehlende oder deaktivierte Abhängigkeiten:"),
                 java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
-                java.util.Map.entry("reload-restart-note", "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad oder Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart.")
+                java.util.Map.entry("reload-restart-note", "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad, dem Report-Clip-Fenster oder anderen Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart.")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.de." + entry.getKey())) {
@@ -334,7 +351,9 @@ public final class ThatsABan extends JavaPlugin {
     @Override
     public void onDisable() {
         if (spectatorFeature != null) spectatorFeature.shutdown();
+        if (replayTransferBridge != null) replayTransferBridge.shutdown();
         if (reportManager != null) reportManager.shutdown();
+        if (reportClipManager != null) reportClipManager.disarmAll();
         if (store != null) store.save();
         if (countryFilter != null) {
             try {
@@ -343,6 +362,10 @@ public final class ThatsABan extends JavaPlugin {
                 getLogger().warning("Could not close country filter: " + ex.getClass().getSimpleName());
             }
         }
+    }
+
+    boolean requestReportReplay(org.bukkit.entity.Player player, String reportId) {
+        return replayTransferBridge != null && replayTransferBridge.requestFromMenu(player, reportId);
     }
 
     Messages messages() { return messages; }
@@ -356,7 +379,6 @@ public final class ThatsABan extends JavaPlugin {
         checkDependency(missing, "LuckPerms");
         checkDependency(missing, "ProtocolLib");
         checkDependency(missing, "SuperVanish");
-        checkDependency(missing, "FlashbackServer");
 
         for (String key : List.of("layer1-plugins", "layer2-plugins")) {
             for (String name : getConfig().getStringList("integrations." + key)) {

@@ -1,40 +1,34 @@
 # Player reports and replay clips
 
-That'sABan integrates with the separate, MIT-licensed [FlashbackServer](https://github.com/Zeffut/FlashbackServer) Paper plugin. This is a Paper-compatible alternative to the original Fabric-only ServerReplay mod; it creates **Flashback `.flashback` files**, not ReplayMod `.mcpr` files.
+That'sABan embeds the MIT-licensed FlashbackServer recording engine. **No separate FlashbackServer plugin is required.** The embedded engine includes separate NMS adapters for Paper 1.21.11 and Paper 26.3.
+
+The server creates native Flashback `.flashback` replay files. These are not MP4 videos or ReplayMod `.mcpr` files. Staff can open them with the [Flashback client mod](https://modrinth.com/mod/flashback).
 
 ## Requirements
 
-- Paper 1.21.11 and Java 21.
-- That'sABan with reports enabled.
-- [FlashbackServer](https://github.com/Zeffut/FlashbackServer) installed as a separate plugin. Its upstream project supports Paper 1.21.5–26.3 and is MIT-licensed.
-- The [Flashback client mod](https://modrinth.com/mod/flashback) on the staff member's client to open the saved replay.
+- Paper 1.21.11 with Java 21, or Paper 26.3 with Java 25.
+- That'sABan with `reports.enabled: true`.
+- Staff client with the Flashback mod installed to view replay files.
 
-The upstream repository currently has no published GitHub release asset, so build the plugin JAR from its source (the integration was checked against commit `2a1549593b78b4bce3cb3f9d48f9869d4e39c513`):
+Replay capture is available on Paper 1.21.11 and Paper 26.3. Each version uses its own NMS adapter. Other server versions fail closed for replay capture instead of using an incompatible adapter.
 
-```bash
-git clone https://github.com/Zeffut/FlashbackServer.git
-cd FlashbackServer
-git checkout 2a1549593b78b4bce3cb3f9d48f9869d4e39c513
-./gradlew build --no-daemon
-cp build/libs/FlashbackServer-*.jar /path/to/your/server/plugins/
-```
+## Rolling evidence buffer
 
-That'sABan does not bundle or shade its API. Install FlashbackServer as a separate plugin and restart the server.
+That'sABan arms a rolling buffer for each online player after join. It records outgoing gameplay packets in memory and periodically creates a fresh world-state keyframe. When a report is submitted, the buffer is saved to a report-specific `.flashback` file.
 
-## FlashbackServer configuration
-
-In `plugins/FlashbackServer/config.yml`, set:
+Default configuration:
 
 ```yaml
-clips:
-  window-seconds: 60
-telemetry:
-  enabled: false
+reports:
+  enabled: true
+  cooldown-seconds: 60
+  max-reason-length: 200
+  clip-window-seconds: 60
 ```
 
-The rolling clip implementation retains two keyframe segments. A configured window of 60 seconds guarantees at least roughly 60 seconds of evidence, but the actual clip can be longer (up to approximately twice the configured window) because the buffer rotates on keyframe boundaries. The FlashbackServer telemetry is independent of That'sABan; it is recommended to disable it explicitly as shown above.
+A report is accepted only after the target has a complete 60-second buffer. Because the recorder rotates keyframes in two segments, a saved replay contains at least 60 seconds and can be up to approximately 120 seconds depending on when the report is submitted. The configured value is clamped to 60–120 seconds. Restart the server after changing it.
 
-Restart the server after changing this file. That'sABan checks that the configured window is at least the configured minimum and refuses to create a report if it is too short.
+The packet capture handler runs on the player's Netty connection and forwards data into a bounded, thread-safe in-memory buffer. Replay serialization and file writing run asynchronously. Entity movement is recorded through the version-specific adapter as Flashback `move_entities` actions.
 
 ## Player command
 
@@ -42,9 +36,7 @@ Restart the server after changing this file. That'sABan checks that the configur
 /report <Spieler> <Grund>
 ```
 
-The target must be online. A player cannot report themselves. The reason is limited by `reports.max-reason-length` (default 200 characters). Each reporter has a cooldown (default 60 seconds).
-
-That'sABan automatically arms a rolling clip buffer for each player after they join. When a report is submitted, it saves the target's already-buffered replay. It does not start recording only after the report, because that would miss the preceding gameplay.
+The target must be online and have a complete buffer. A player cannot report themselves. The reason is limited by `reports.max-reason-length` (default 200 characters). Each reporter has a cooldown (default 60 seconds).
 
 ## Staff commands
 
@@ -52,13 +44,11 @@ That'sABan automatically arms a rolling clip buffer for each player after they j
 |---|---|
 | `/reports` or `/reports list` | Opens the interactive staff GUI for players; the console receives a text list |
 | `/reports view <ID>` | Opens the report detail GUI for players; the console receives text details |
-| `/reports offend <ID>` | Invoke the existing `/offend <player>` command as the staff sender; normal permission and Bedrock checks still apply |
-| `/reports resolve <ID>` | Mark a report as resolved |
-| `/reports dismiss <ID>` | Dismiss a report |
+| `/reports offend <ID>` | Invokes the existing `/offend <player>` command as the staff sender; normal permission and Bedrock checks still apply |
+| `/reports resolve <ID>` | Marks a report as resolved |
+| `/reports dismiss <ID>` | Dismisses a report |
 
-The replay path in `/reports view` is clickable to copy. Download the `.flashback` file from the server using your normal server file access, then open it with the Flashback client mod. The replay is not streamed to the staff member's Minecraft client by this plugin.
-
-The GUI provides filters for open, all, failed, resolved and dismissed reports, paginates through the report queue, and opens a detail view with replay-path copying plus the existing offend/resolve/dismiss actions. All inventory interactions are locked to the plugin menu so staff cannot accidentally move items while using it. The command subcommands remain available for console use and automation.
+The replay path in `/reports view` is clickable to copy. Download the `.flashback` file from the server using normal server file access, then open it with the Flashback client mod. The replay is not streamed to the staff member's Minecraft client.
 
 ## Permissions
 
@@ -66,8 +56,12 @@ The GUI provides filters for open, all, failed, resolved and dismissed reports, 
 - `thatsaban.reports` (default: op): list and manage reports.
 - `thatsaban.reports.notify` (default: op): receive new-report notifications.
 
-## Stored data and limitations
+## Storage and privacy
 
-Report metadata is stored in `plugins/ThatsABan/reports.yml`; replay files are stored under `plugins/ThatsABan/reports/`. The metadata contains reporter/target UUIDs and names, the reason, timestamp, status and replay path. Replays contain captured gameplay packets and may therefore include player-visible chat or other in-game content. Restrict access to the report directory and backups to trusted staff, and define a retention/deletion policy for your server.
+Report metadata is stored in `plugins/ThatsABan/reports.yml`; replay files are stored under `plugins/ThatsABan/reports/`. Metadata includes reporter and target UUIDs/names, the reason, timestamp, status and replay path. Replays contain captured gameplay packets and may include player-visible chat or other in-game content.
 
-If FlashbackServer is missing, disabled, or has an unavailable API, the rest of That'sABan still loads but report capture is unavailable. Existing reports remain readable. A player whose rolling buffer was not armed before the report cannot receive a retroactive clip.
+Restrict access to the report directory and backups to trusted staff. Define a retention and deletion policy for your server. The embedded Flashback engine does not send telemetry or upload clips anywhere; files remain on the server until an administrator removes them.
+
+## Attribution and license
+
+The embedded recording engine is derived from [Zeffut/FlashbackServer](https://github.com/Zeffut/FlashbackServer), commit `2a1549593b78b4bce3cb3f9d48f9869d4e39c513`, under the MIT License. The full upstream license notice is included at `licenses/FlashbackServer-MIT-LICENSE`.

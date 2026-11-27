@@ -214,11 +214,18 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
                 "§7Status: " + statusName(entry.status())));
         inventory.setItem(20, item(Material.BOOK, "§eReport reason",
                 "§7" + shorten(safeLegacyText(entry.reason()), 120)));
-        inventory.setItem(22, item(entry.replayPath() == null ? Material.BARRIER : Material.MAP,
-                entry.replayPath() == null ? "§cNo replay available" : "§aShow replay path",
+        boolean replayAvailable = entry.status() == ReportManager.Status.OPEN && entry.replayPath() != null;
+        boolean canRequestReplay = player.hasPermission("thatsaban.replay.view")
+                || player.hasPermission("thatsaban.reports") || player.hasPermission("thatsaban.admin");
+        inventory.setItem(22, item(replayAvailable && canRequestReplay ? Material.ENDER_EYE : Material.BARRIER,
+                replayAvailable && canRequestReplay ? "§a§lWatch replay" : "§cReplay unavailable",
+                replayAvailable && canRequestReplay
+                        ? "§7Request this report replay from the server."
+                        : "§7A completed replay and replay permission are required."));
+        inventory.setItem(24, item(entry.replayPath() == null ? Material.BARRIER : Material.MAP,
+                entry.replayPath() == null ? "§cNo replay file" : "§eShow replay file path",
                 entry.replayPath() == null ? "§7No clip was saved for this report."
-                        : "§7Click here to display the file path in chat",
-                entry.replayPath() == null ? "§7display it." : "§7with a copy-to-clipboard action."));
+                        : "§7Click to copy the server-side file path."));
         inventory.setItem(29, item(Material.ANVIL, "§c§lOffend",
                 "§7Runs the existing /offend command.",
                 "§7Only use after reviewing the replay yourself.",
@@ -314,7 +321,22 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         switch (slot) {
-            case 22 -> sendReplayPath(player, entry);
+            case 22 -> {
+                if (entry.status() != ReportManager.Status.OPEN || entry.replayPath() == null) {
+                    player.sendMessage(Component.text("No completed replay is available for this report.", NamedTextColor.RED));
+                    return;
+                }
+                if (!player.hasPermission("thatsaban.replay.view")
+                        && !player.hasPermission("thatsaban.reports")
+                        && !player.hasPermission("thatsaban.admin")) {
+                    player.sendMessage(Component.text("You do not have permission to view report replays.", NamedTextColor.RED));
+                    return;
+                }
+                if (!plugin.requestReportReplay(player, entry.id())) {
+                    player.sendMessage(Component.text("The replay transfer bridge is unavailable.", NamedTextColor.RED));
+                }
+            }
+            case 24 -> sendReplayPath(player, entry);
             case 29 -> {
                 offend(player, entry);
                 if (entry.status() == ReportManager.Status.OPEN && entry.replayPath() != null

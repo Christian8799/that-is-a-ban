@@ -2,7 +2,7 @@
 
 **Dokumentation:** [English](README.md) · [Deutsch](README.de.md) · [Spieler-Reports und Replay-Clips](docs/REPORTS.md)
 
-**That's a Ban** ist ein Anti-Cheat-Connector und ein Werkzeug für Datenschutz- und Moderationsabläufe auf **Paper 1.21.11**. Das Plugin implementiert keine eigenen Cheat-Erkennungsregeln. Es verbindet vorhandene Plugins und steuert über LuckPerms, welche Anti-Cheat-Integrationen für Spieler in Layer 1 beziehungsweise Layer 2 greifen.
+**That's a Ban** ist ein Anti-Cheat-Connector und ein Werkzeug für Datenschutz- und Moderationsabläufe auf **Paper 1.21.11 und Paper 26.3**. Das Plugin implementiert keine eigenen Cheat-Erkennungsregeln. Es verbindet vorhandene Plugins und steuert über LuckPerms, welche Anti-Cheat-Integrationen für Spieler in Layer 1 beziehungsweise Layer 2 greifen.
 
 Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Admin-Beobachtung, eine lokale GeoIP-Regionsprüfung und – wenn ausdrücklich aktiviert – ein pseudonymisiertes Alt-Account-Netzwerk.
 
@@ -38,12 +38,12 @@ Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Adm
 
 | Komponente | Status | Zweck |
 |---|---|---|
-| Paper 1.21.11 | Erforderlich | Serverplattform |
-| Java 21 | Erforderlich | Laufzeit und Build |
+| Paper 1.21.11 / 26.3 | Erforderlich | Beide Versionen werden mit versionsspezifischen eingebetteten NMS-Adaptern unterstützt |
+| Java 21 / 25 | Erforderlich | Java 21 für Paper 1.21.11, Java 25 für Paper 26.3 |
 | LuckPerms | Optional, für Layer 2 erforderlich | Berechtigungsmarker, Layer-2-Nodes, /offend und LuckPerms-abhängige Datenschutzaktionen |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung · [Server-JAR herunterladen](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) |
 | SuperVanish | Optional | Expliziter Vanish-Modus und Vanish-Durchsetzung permanenter Admin-Accounts |
-| FlashbackServer | Optional; für `/report`-Clips erforderlich | Rolling-Flashback-Replay-Puffer für Spieler-Reports; siehe [Report-Einrichtung](docs/REPORTS.md) |
+| Flashback-Replay-Engine | Direkt in That'sABan integriert; kein separates Server-Plugin erforderlich | Speichert `.flashback`-Beweisclips für Spieler-Reports; Staff benötigt die Flashback-Client-Mod |
 | IP2Location LITE DB3 BIN (IPv6) | Externe Datei, optional für den restlichen Pluginbetrieb | Lokaler Country-/Region-Filter |
 | GrimAC, CheatDetector | Optionale Integrationen | In der Standardkonfiguration für Layer 1 aufgeführt |
 | FoxGate, HandShaker | Optionale Integrationen | In der Standardkonfiguration für Layer 2 aufgeführt |
@@ -58,7 +58,7 @@ Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Fehlt ein
 
 ## Schnellstart
 
-1. Paper 1.21.11 mit Java 21 installieren.
+1. Paper 1.21.11 mit Java 21 oder Paper 26.3 mit Java 25 installieren.
 2. Die That'sABan-JAR in den Ordner plugins legen und den Server einmal starten. Dadurch wird plugins/ThatsABan/config.yml angelegt.
 3. Server stoppen und config.yml nach Bedarf anpassen.
 4. Für Layer 2 LuckPerms installieren. Für /adminspec die [ProtocolLib-5.5.0-SNAPSHOT-Server-JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) herunterladen und installieren.
@@ -126,7 +126,7 @@ reports:
   enabled: true
   cooldown-seconds: 60
   max-reason-length: 200
-  minimum-clip-window-seconds: 60
+  clip-window-seconds: 60
 
 privacy:
   # Optionaler absoluter Pfad außerhalb des Plugin-Ordners; leer = plugins/ThatsABan/ip-hmac.key.
@@ -201,10 +201,10 @@ messages:
 | layer2.negated-permissions | foxav.bypass, handshaker.bypass | Liste der Bypass-Permissions, die That'sABan einem Layer-2-Spieler entzieht beziehungsweise negiert. Passe die Nodes an deine Anti-Cheat-Plugins an. |
 | layer2.exempt-permission | thatsaban.exempt | Spieler mit dieser Permission sind von /offend und der IP-Kopplung ausgenommen. |
 | offend.kick-online-target | false | Bei true wird ein online Zielspieler nach erfolgreicher /offend-Einstufung mit der konfigurierten Nachricht kick-relogin getrennt. Bei false bleibt er online. |
-| reports.enabled | true | Aktiviert Spieler-Reports. Für Replay-Clips wird das separate FlashbackServer-Plugin benötigt. |
+| reports.enabled | true | Aktiviert Spieler-Reports. Die Replay-Engine ist integriert; ein separates Server-Plugin ist nicht erforderlich. |
 | reports.cooldown-seconds | 60 | Mindestwartezeit zwischen Reports desselben Spielers. |
 | reports.max-reason-length | 200 | Maximale Länge des Report-Grunds in Zeichen. |
-| reports.minimum-clip-window-seconds | 60 | Mindestwert für FlashbackServer `clips.window-seconds`; gespeicherte Clips können durch Keyframe-Rotation länger sein. |
+| reports.clip-window-seconds | 60 | Keyframe-Intervall des Replay-Puffers in Sekunden; Standard 60, gespeicherte Clips können bis zu doppelt so lang sein. Änderung erfordert Neustart. |
 
 Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Gruppenstruktur vergeben werden. That'sABan legt keine Anti-Cheat-Regeln für die externen Plugins fest.
 
@@ -497,13 +497,13 @@ Prüfe daher:
 
 ## Build
 
-Voraussetzungen: Java 21 und Gradle.
+Voraussetzungen: Java-21- und Java-25-Toolchains sowie Gradle 9.9.3.
 
 ~~~bash
 gradle build
 ~~~
 
-Das Plugin-Artefakt liegt anschließend unter build/libs/. Der GitHub-Actions-Workflow baut gegen die Paper-1.21.11-API mit Java 21.
+Das Plugin-Artefakt liegt anschließend unter build/libs/. GitHub Actions baut den gemeinsamen Plugin-Kern mit Java 21 und beide NMS-Adapter (1.21.11 und 26.3) mit den jeweils passenden Paperweight-Toolchains.
 
 ---
 

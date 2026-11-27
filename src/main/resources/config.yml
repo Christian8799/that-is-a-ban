@@ -1,5 +1,5 @@
 # that-s-a-ban configuration
-config-version: 5
+config-version: 6
 
 layer2:
   marker-permission: "thatsaban.layer2"
@@ -15,9 +15,9 @@ reports:
   enabled: true
   cooldown-seconds: 60
   max-reason-length: 200
-  # FlashbackServer clips.window-seconds must be at least this value.
-  # FlashbackServer retains two keyframe segments, so the saved clip may be longer.
-  minimum-clip-window-seconds: 60
+  # Rolling replay keyframe interval. Reports require a full buffer of this length.
+  # Saved clips contain at least this many seconds and can be up to twice as long.
+  clip-window-seconds: 60
 
 privacy:
   # Optional absolute path outside the plugin directory; empty = plugins/ThatsABan/ip-hmac.key.
