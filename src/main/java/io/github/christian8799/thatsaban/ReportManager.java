@@ -197,7 +197,8 @@ final class ReportManager implements Listener {
         cooldowns.put(reporter.getUniqueId(), now);
 
         Path output = plugin.getDataFolder().toPath().resolve("reports")
-                .resolve(reportId + "-" + safeFileName(target.getName()) + ".flashback");
+                .resolve(reportId + "-" + safeFileName(target.getName()) + ".flashback")
+                .toAbsolutePath().normalize();
         try {
             Files.createDirectories(output.getParent());
             clips.saveClip(target, output).whenComplete((path, error) -> {
