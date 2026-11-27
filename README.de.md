@@ -152,7 +152,7 @@ country-filter:
 alt-detection:
   enabled: false
   retention-days: 30
-  offender-retention-days: 365 # Endliche Frist seit letzter Aktivität; maximal 3650 Tage
+  offender-retention-days: 365 # Tage seit letzter Aktivität bis zum Ablauf; maximal 3650; 0 = läuft nie ab (dauerhaftes Layer 2)
   auto-apply: false # false = nur Staff-Vorschläge; /offend erfordert eine bewusste Bestätigung
   retroactive: false # Bereits bekannte IP-Übereinstimmungen nicht automatisch rückwirkend einstufen
   ignore-private-addresses: true
@@ -256,7 +256,7 @@ Die IP-basierte Erkennung ist standardmäßig ausgeschaltet. Sie muss bewusst ak
 |---|---:|---|
 | alt-detection.enabled | false | Hauptschalter. Bei false werden keine neuen IP-Verknüpfungen erfasst und die Netzwerkfunktion ist deaktiviert. |
 | alt-detection.retention-days | 30 | Aufbewahrungsdauer für IP-HMACs und zugehörige Verknüpfungen in Tagen. Effektiver Wertebereich: 1 bis 3650 Tage. |
-| alt-detection.offender-retention-days | 365 | Aufbewahrungsdauer für vom Plugin verwaltete Layer-2-/Offender-Markierungen seit der letzten Aktivität. Effektiver Wertebereich: 1 bis 3650 Tage. |
+| alt-detection.offender-retention-days | 365 | Aufbewahrungsdauer für vom Plugin verwaltete Layer-2-/Offender-Markierungen seit der letzten Aktivität. Effektiver Wertebereich: 1 bis 3650 Tage; `0` = läuft nie ab (dauerhaftes Layer 2). |
 | alt-detection.auto-apply | false | Bei true können erkannte Accounts mit einer bereits als Layer 2 markierten IP automatisch in Layer 2 eingestuft werden. Bei false erhalten Staff nur einen Hinweis. |
 | alt-detection.retroactive | false | Bei true werden bereits gespeicherte IP-Übereinstimmungen bei der Login-Prüfung berücksichtigt. Bei false werden nur neue Übereinstimmungen verarbeitet. |
 | alt-detection.ignore-private-addresses | true | Ignoriert Loopback-, private, Link-Local- und Any-Local-Adressen für die IP-Kopplung. |

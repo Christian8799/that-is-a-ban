@@ -49,7 +49,7 @@ Für die **Regionsbeschränkung** ist eine eigene Interessenabwägung zu dokumen
 ### Speicherdauer
 
 - IP-HMAC-Hashes, UUID-Zuordnungen und daraus abgeleitete Netzwerkverbindungen: `alt-detection.retention-days` (Standard 30 Tage). Netzwerkverbindungen werden nicht separat gespeichert, sondern bei einer Abfrage aus den noch vorhandenen HMAC-Zuordnungen berechnet.
-- Offender-Einträge und zugehörige Layer-2-Marker: `alt-detection.offender-retention-days` (Standard 365 Tage seit letztem Login; maximal 3650 Tage).
+- Offender-Einträge und zugehörige Layer-2-Marker: `alt-detection.offender-retention-days` (Standard 365 Tage seit letztem Login; maximal 3650 Tage; `0` = keine automatische Löschung).
 - Paper-, Proxy-, Firewall-, Hoster- und andere Plugin-Logs: [eigene Frist des Betreibers eintragen].
 - LuckPerms-Daten außerhalb der von diesem Plugin gesetzten Nodes: [eigene Regelung eintragen].
 

@@ -219,7 +219,7 @@ final class ReportsCommand implements CommandExecutor, TabCompleter, Listener {
                 entry.replayPath() == null ? "§7No clip was saved for this report."
                         : "§7Click here to display the file path in chat",
                 entry.replayPath() == null ? "§7display it." : "§7with a copy-to-clipboard action."));
-        inventory.setItem(29, item(Material.ANVIL, "§c§lOpenden",
+        inventory.setItem(29, item(Material.ANVIL, "§c§lOffend",
                 "§7Runs the existing /offend command.",
                 "§7Only use after reviewing the replay yourself.",
                 entry.status() == ReportManager.Status.OPEN && entry.replayPath() != null

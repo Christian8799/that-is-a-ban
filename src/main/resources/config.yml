@@ -43,7 +43,7 @@ country-filter:
 alt-detection:
   enabled: false
   retention-days: 30
-  offender-retention-days: 365 # Finite retention period since last activity; maximum 3650 days
+  offender-retention-days: 365 # Days since last activity until a Layer 2 mark expires (maximum 3650). 0 = never expires (permanent Layer 2)
   auto-apply: false # false = staff suggestions only; /offend requires deliberate confirmation
   retroactive: false # Do not automatically classify previously known IP matches retroactively
   ignore-private-addresses: true

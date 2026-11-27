@@ -9,6 +9,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -39,6 +40,9 @@ final class LinkStore {
     private static final Set<PosixFilePermission> OWNER_ONLY =
             EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
 
+    /** Tag SnakeYAML wrote for UUID map keys in data.yml up to 1.1.0; Bukkit's loader cannot read it. */
+    private static final String LEGACY_UUID_TAG = "!!java.util.UUID ";
+
     private final ThatsABan plugin;
     private final File file;
     private final File keyFile;
@@ -57,6 +61,7 @@ final class LinkStore {
     private byte[] hmacKey;
     private boolean dirty;
     private boolean writeBlocked;
+    private boolean permissionWarningLogged;
     private long lastPrune;
 
     LinkStore(ThatsABan plugin) {
@@ -89,15 +94,15 @@ final class LinkStore {
 
     synchronized void load() {
         plugin.getDataFolder().mkdirs();
-        if (file.exists() && !restrictOwnerOnly(file)) {
-            writeBlocked = true;
+        if (file.exists()) {
+            restrictOwnerOnly(file);
         }
         boolean keyReady = loadHmacKey();
 
         YamlConfiguration yaml = new YamlConfiguration();
         try {
             if (file.exists()) {
-                yaml.load(file);
+                loadYaml(yaml, file);
             }
         } catch (IOException | InvalidConfigurationException ex) {
             writeBlocked = true;
@@ -192,6 +197,27 @@ final class LinkStore {
         pruneExpired(now, true);
     }
 
+    /**
+     * Loads data.yml. Versions up to 1.1.0 wrote "layer2-last-seen" with UUID map keys, which
+     * SnakeYAML serializes with a "!!java.util.UUID" tag that Bukkit's safe loader refuses to read.
+     * Such a file is repaired in memory by dropping the tag and is rewritten in the fixed format.
+     */
+    private void loadYaml(YamlConfiguration yaml, File source)
+            throws IOException, InvalidConfigurationException {
+        try {
+            yaml.load(source);
+        } catch (InvalidConfigurationException ex) {
+            String content = Files.readString(source.toPath(), StandardCharsets.UTF_8);
+            if (!content.contains(LEGACY_UUID_TAG)) {
+                throw ex;
+            }
+            yaml.loadFromString(content.replace(LEGACY_UUID_TAG, ""));
+            dirty = true;
+            plugin.getLogger().warning("data.yml used a legacy UUID format; it was repaired in memory "
+                    + "and will be rewritten.");
+        }
+    }
+
     private boolean loadHmacKey() {
         if (invalidKeyPath) {
             writeBlocked = true;
@@ -208,10 +234,7 @@ final class LinkStore {
                 byte[] existing = Files.readAllBytes(keyFile.toPath());
                 if (existing.length == 32) {
                     hmacKey = existing;
-                    if (!restrictOwnerOnly(keyFile)) {
-                        writeBlocked = true;
-                        return false;
-                    }
+                    restrictOwnerOnly(keyFile);
                     return true;
                 }
                 plugin.getLogger().warning("The HMAC key is invalid; old IP links will be discarded.");
@@ -221,10 +244,7 @@ final class LinkStore {
             new SecureRandom().nextBytes(hmacKey);
             Files.write(keyFile.toPath(), hmacKey, StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-            if (!restrictOwnerOnly(keyFile)) {
-                writeBlocked = true;
-                return false;
-            }
+            restrictOwnerOnly(keyFile);
             dirty = true;
             return false;
         } catch (IOException | SecurityException ex) {
@@ -296,24 +316,21 @@ final class LinkStore {
                 && !yaml.getConfigurationSection("ip-last-seen").getKeys(false).isEmpty());
     }
 
+    /**
+     * Best effort: restricts a file to its owner where the file system supports POSIX permissions.
+     * Windows, FAT/NTFS mounts and some container volumes do not; that must never disable the plugin.
+     */
     private boolean restrictOwnerOnly(File target) {
         try {
             Files.setPosixFilePermissions(target.toPath(), OWNER_ONLY);
             return true;
-        } catch (UnsupportedOperationException ex) {
-            boolean ok = target.setReadable(false, false)
-                    && target.setWritable(false, false)
-                    && target.setExecutable(false, false)
-                    && target.setReadable(true, true)
-                    && target.setWritable(true, true);
-            if (!ok) {
-                plugin.getLogger().severe("Could not set file permissions to owner-only: "
-                        + target.getName() + ". Schreibzugriffe werden blockiert.");
+        } catch (UnsupportedOperationException | IOException | SecurityException ex) {
+            if (!permissionWarningLogged) {
+                permissionWarningLogged = true;
+                plugin.getLogger().warning("Could not restrict file permissions to the owner ("
+                        + target.getName() + "). This file system does not support it; "
+                        + "restrict access to the plugin folder manually.");
             }
-            return ok;
-        } catch (IOException | SecurityException ex) {
-            plugin.getLogger().severe("Could not set file permissions to owner-only: "
-                    + target.getName() + ". Schreibzugriffe werden blockiert.");
             return false;
         }
     }
@@ -337,7 +354,11 @@ final class LinkStore {
         yaml.set("layer2-ips", new ArrayList<>(layer2Ips));
         yaml.set("ip-last-seen", new HashMap<>(ipLastSeen));
         yaml.set("offenders", offenders.keySet().stream().map(UUID::toString).toList());
-        yaml.set("layer2-last-seen", new HashMap<>(layer2LastSeen));
+        // Keys must be written as strings: UUID map keys get a "!!java.util.UUID" tag that
+        // Bukkit's YAML loader cannot read back, which used to block every write after a restart.
+        for (Map.Entry<UUID, Long> entry : layer2LastSeen.entrySet()) {
+            yaml.set("layer2-last-seen." + entry.getKey(), entry.getValue());
+        }
         yaml.set("expired-layer2-markers",
                 expiredOffenders.stream().map(UUID::toString).toList());
         for (Map.Entry<UUID, Set<UUID>> entry : autoOffenderAlts.entrySet()) {
@@ -358,20 +379,14 @@ final class LinkStore {
             yaml.save(temporaryFile.toFile());
 
             // Protect the temporary file before it replaces the existing store.
-            if (!restrictOwnerOnly(temporaryFile.toFile())) {
-                writeBlocked = true;
-                return;
-            }
+            restrictOwnerOnly(temporaryFile.toFile());
             try {
                 Files.move(temporaryFile, file.toPath(),
                         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {
                 Files.move(temporaryFile, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
-            if (!restrictOwnerOnly(file)) {
-                writeBlocked = true;
-                return;
-            }
+            restrictOwnerOnly(file);
             dirty = false;
         } catch (IOException ex) {
             plugin.getLogger().warning("Could not save data.yml: "
@@ -705,8 +720,12 @@ final class LinkStore {
         ipsByPlayer.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         names.keySet().removeIf(uuid -> !ipsByPlayer.containsKey(uuid));
 
-        long offenderRetentionDays = Math.max(1L, Math.min(3650L,
-                plugin.getConfig().getLong("alt-detection.offender-retention-days", 365L)));
+        // 0 (or less) means that Layer 2 marks never expire automatically.
+        long configuredOffenderDays = plugin.getConfig().getLong("alt-detection.offender-retention-days", 365L);
+        if (configuredOffenderDays <= 0L) {
+            return;
+        }
+        long offenderRetentionDays = Math.min(3650L, configuredOffenderDays);
         long offenderCutoff = now - offenderRetentionDays * 24L * 60L * 60L * 1000L;
         for (Map.Entry<UUID, Long> entry : new HashMap<>(layer2LastSeen).entrySet()) {
             if (entry.getValue() <= offenderCutoff) {

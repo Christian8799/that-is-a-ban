@@ -54,15 +54,17 @@ final class LoginListener implements Listener {
         if (bedrock.isBedrock(uuid, name)) {
             try {
                 luckPerms.recordNetworkLogin(uuid, name, address);
-            } catch (LinkageError | Exception ignored) {
-                plugin.getLogger().warning("Login network capture failed; details are not logged.");
+            } catch (LinkageError | Exception ex) {
+                plugin.getLogger().warning("Login network capture failed ("
+                        + ex.getClass().getSimpleName() + "); IP addresses are not logged.");
             }
             return;
         }
         try {
             luckPerms.handleLogin(uuid, name, address);
-        } catch (LinkageError | Exception ignored) {
-            plugin.getLogger().warning("Login check failed; details are not logged.");
+        } catch (LinkageError | Exception ex) {
+            plugin.getLogger().warning("Login check failed (" + ex.getClass().getSimpleName()
+                    + "); IP addresses are not logged.");
         }
     }
 }
