@@ -246,7 +246,7 @@ jobs:
           PAPER_URL="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper/versions/26.3/builds?limit=1" | jq -er 'first(.[] | .downloads["server:default"].url)')"
           curl --fail --location --retry 3 "$PAPER_URL" -o paper.jar
           test -s paper.jar
-          printf 'eula=true\\n' > eula.txt
+          printf 'eula=true\n' > eula.txt
           printf 'online-mode=false\\nserver-port=25565\\n' > server.properties
       - name: Start Paper and verify the embedded 26.3 adapter
         env:
