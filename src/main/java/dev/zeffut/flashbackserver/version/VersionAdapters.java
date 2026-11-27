@@ -91,6 +91,7 @@ public final class VersionAdapters {
         String fqn = ADAPTERS_BY_VERSION.get(running);
         if (fqn != null) return fqn;
         throw new VersionAdapterUnavailableException(
-            "That'sABan's embedded replay engine currently supports Minecraft 26.3; found " + running);
+            "That'sABan's embedded replay engine currently supports Minecraft 26.3; found " + running,
+            null);
     }
 }
