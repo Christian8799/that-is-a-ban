@@ -41,7 +41,26 @@ final class FlashbackClipIntegration {
     }
 
     boolean isAvailable() {
-        if (dependency() == null) return false;
+        Plugin dependency = dependency();
+        if (dependency == null) return false;
+
+        // FlashbackServer 1.2.2's command-only bridge targets Minecraft 1.21.11.
+        // On 26.3, require the modern API so an older recorder cannot silently
+        // produce clips using an incompatible packet/version adapter.
+        if (requiresModernApi()) {
+            if (!isAtLeast(dependency.getDescription().getVersion(), 1, 2, 4)) {
+                warnUnavailable("Minecraft 26.3 requires FlashbackServer 1.2.4 or newer; found "
+                        + dependency.getDescription().getVersion() + ".");
+                return false;
+            }
+            if (apiService() == null) {
+                warnUnavailable("Minecraft 26.3 requires FlashbackServer's public ClipService API. "
+                        + "The command-only compatibility bridge is disabled for this version.");
+                return false;
+            }
+            return true;
+        }
+
         if (apiService() != null) return true;
         if (replayCommand() != null) {
             if (!loggedCommandFallback) {
@@ -52,6 +71,24 @@ final class FlashbackClipIntegration {
         }
         warnUnavailable("FlashbackServer is enabled, but neither its ClipService API nor its /replay command is available.");
         return false;
+    }
+
+    private boolean requiresModernApi() {
+        String minecraftVersion = Bukkit.getMinecraftVersion();
+        return minecraftVersion.startsWith("26.2") || minecraftVersion.startsWith("26.3");
+    }
+
+    private static boolean isAtLeast(String version, int major, int minor, int patch) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^(\\d+)\\.(\\d+)\\.(\\d+)")
+                .matcher(version == null ? "" : version);
+        if (!matcher.find()) return false;
+        int foundMajor = Integer.parseInt(matcher.group(1));
+        int foundMinor = Integer.parseInt(matcher.group(2));
+        int foundPatch = Integer.parseInt(matcher.group(3));
+        if (foundMajor != major) return foundMajor > major;
+        if (foundMinor != minor) return foundMinor > minor;
+        return foundPatch >= patch;
     }
 
     int configuredWindowSeconds() {
