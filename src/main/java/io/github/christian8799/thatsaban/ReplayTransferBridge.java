@@ -26,6 +26,7 @@ final class ReplayTransferBridge implements PluginMessageListener {
     private static final int TRANSFER_END = 4;
     private static final int TRANSFER_ERROR = 5;
     private static final int TRANSFER_CANCEL = 6;
+    private static final int MENU_REQUEST_REPLAY = 7;
     private static final int CHUNK_SIZE = 24 * 1024;
     private static final long MAX_REPLAY_BYTES = 256L * 1024L * 1024L;
 
@@ -57,6 +58,30 @@ final class ReplayTransferBridge implements PluginMessageListener {
         plugin.getServer().getMessenger().unregisterIncomingPluginChannel(plugin, CHANNEL, this);
         plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(plugin, CHANNEL);
         enabled = false;
+    }
+
+    boolean requestFromMenu(Player player, String reportId) {
+        if (!enabled || !player.isOnline()) return false;
+        if (!player.hasPermission("thatsaban.replay.view")
+                && !player.hasPermission("thatsaban.reports")
+                && !player.hasPermission("thatsaban.admin")) {
+            player.sendMessage("You do not have permission to view report replays.");
+            return true;
+        }
+
+        ReportManager.ReportEntry entry = reports.find(reportId);
+        if (entry == null || entry.status() != ReportManager.Status.OPEN || entry.replayPath() == null) {
+            player.sendMessage("No completed replay is available for this report.");
+            return true;
+        }
+
+        player.sendPluginMessage(plugin, CHANNEL, encode(out -> {
+            out.writeByte(PROTOCOL_VERSION);
+            out.writeByte(MENU_REQUEST_REPLAY);
+            out.writeUTF(reportId);
+        }));
+        player.sendMessage("Replay request sent to your That'sABan Replay Viewer.");
+        return true;
     }
 
     @Override
