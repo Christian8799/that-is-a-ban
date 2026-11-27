@@ -32,7 +32,7 @@ The links below point to the official project pages, source repositories, or dow
 | Plugin | Used for | Link |
 |---|---|---|
 | SuperVanish | Optional vanish mode and permanent-admin vanish enforcement | [SpigotMC resource](https://www.spigotmc.org/resources/supervanish-be-invisible.1331/) · [Source](https://github.com/LeonMangler/SuperVanish) |
-| Flashback replay engine | Embedded in That'sABan; no separate server plugin | Native `.flashback` report replays; staff clients need the Flashback mod |
+| Flashback replay engine | Embedded in That'sABan; no separate server plugin | Native `.flashback` report replays; staff clients need [Flashback](https://modrinth.com/mod/flashback) and the [That'sABan Replay Viewer](https://github.com/Christian8799/ThatsABan-ReplayViewer) Fabric mod |
 | GrimAC | Optional Layer 1 anti-cheat integration | [Official source](https://github.com/GrimAnticheat/Grim) · [Modrinth](https://modrinth.com/plugin/grim) |
 | CheatDetector | Optional Layer 1 integration | [SpigotMC resource](https://www.spigotmc.org/resources/cheatdetector.134018/) |
 | FoxGate | Optional Layer 2 AntiVPN integration | [Modrinth](https://modrinth.com/plugin/foxgate) · [Source](https://github.com/IDCTeam-Group/FoxGate-Issues) |
@@ -94,7 +94,7 @@ Optional plugins are not bundled into the That'sABan JAR. If an integration is u
 1. Install Paper 1.21.11 and Java 21.
 2. Put the That'sABan JAR in the server's `plugins` directory and start the server once. This creates `plugins/ThatsABan/config.yml`.
 3. Stop the server and edit the configuration as needed.
-4. Install LuckPerms for Layer 2. Download the [ProtocolLib 5.5.0-SNAPSHOT server plugin JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) for `/adminspec`. Report replay capture is embedded; staff clients need the [Flashback client mod](https://modrinth.com/mod/flashback). See [Player reports and replay clips](docs/REPORTS.md).
+4. Install LuckPerms for Layer 2. Download the [ProtocolLib 5.5.0-SNAPSHOT server plugin JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) for `/adminspec`. Report replay capture is embedded; staff clients need both the [Flashback client mod](https://modrinth.com/mod/flashback) and the [That'sABan Replay Viewer Fabric mod](https://github.com/Christian8799/ThatsABan-ReplayViewer). See [Player reports and replay clips](docs/REPORTS.md) and the [Replay Viewer setup guide](https://github.com/Christian8799/ThatsABan-ReplayViewer#installation).
 5. If you use the country/region filter, install the IP2Location database as described in [Install the GeoIP database](#install-the-geoip-database).
 6. Start the server and check the startup log for disabled optional features or missing integrations.
 7. Grant staff permissions deliberately; see [Permissions](#permissions).
