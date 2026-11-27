@@ -238,7 +238,7 @@ messages:
 | `country-filter.allow-private-addresses` | `false` | If true, private, loopback, link-local and any-local addresses bypass GeoIP lookup. |
 | `alt-detection.enabled` | `false` | Master switch for IP-based account linking. When false, no new IP links are collected and the network feature is disabled. |
 | `alt-detection.retention-days` | `30` | Retention period for IP HMACs and links, in days. Effective range: 1–3650. |
-| `alt-detection.offender-retention-days` | `365` | Retention for plugin-managed Layer 2/offender marks since last activity. Effective range: 1–3650 days. |
+| `alt-detection.offender-retention-days` | `365` | Retention for plugin-managed Layer 2/offender marks since last activity. Effective range: 1–3650 days; `0` = never expires (permanent Layer 2). |
 | `alt-detection.auto-apply` | `false` | If true, matching accounts can automatically be classified into Layer 2. If false, staff receive suggestions only. |
 | `alt-detection.retroactive` | `false` | If true, existing stored IP matches are considered at login. This does not enable automatic classification by itself. |
 | `alt-detection.ignore-private-addresses` | `true` | Excludes loopback, private, link-local and any-local addresses from IP linking. |

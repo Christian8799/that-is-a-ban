@@ -76,6 +76,10 @@ public final class ThatsABan extends JavaPlugin {
         getServer().getPluginManager().registerEvents(reportsCommand, this);
         reportManager.initialize();
 
+        if (!getConfig().getBoolean("alt-detection.enabled", false)) {
+            getLogger().info("IP-based account linking is disabled (alt-detection.enabled: false): accounts that "
+                    + "share an IP address with a Layer 2 player are not linked or classified automatically.");
+        }
         getServer().getScheduler().runTask(this, this::checkIntegrations);
         getLogger().info(messages.text("log-enabled"));
     }

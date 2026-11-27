@@ -136,7 +136,7 @@ final class PrivacyAdminCommand implements CommandExecutor, TabCompleter {
                             sender.sendMessage("Layer 2 retention entry: "
                                     + (snapshot.layer2Tracked() ? "present" : "not present"));
                             sender.sendMessage("Plugin record exists: "
-                                    + (snapshot.hasStoredData() ? "yes" : "nein"));
+                                    + (snapshot.hasStoredData() ? "yes" : "no"));
                             sender.sendMessage("Effective LuckPerms Layer 2 marker: "
                                     + hook.has(user, hook.markerNode()));
                             for (String node : hook.negatedNodes()) {

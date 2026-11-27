@@ -77,6 +77,7 @@ final class ReportManager implements Listener {
     private final File storageFile;
     private final Map<String, ReportEntry> reports = new LinkedHashMap<>();
     private boolean storageWriteBlocked;
+    private boolean permissionWarningLogged;
     private final Map<UUID, Long> cooldowns = new HashMap<>();
     private final java.util.Set<UUID> armedByThisPlugin = new java.util.HashSet<>();
 
@@ -316,12 +317,7 @@ final class ReportManager implements Listener {
 
     private void load() {
         if (!storageFile.isFile()) return;
-        if (!restrictOwnerOnly(storageFile.toPath())) {
-            storageWriteBlocked = true;
-            plugin.getLogger().severe("Could not set reports.yml permissions to owner-only. "
-                    + "Report writes are blocked.");
-            return;
-        }
+        restrictOwnerOnly(storageFile.toPath());
         YamlConfiguration yaml = new YamlConfiguration();
         try {
             yaml.load(storageFile);
@@ -385,12 +381,7 @@ final class ReportManager implements Listener {
             Files.createDirectories(parent);
             temporaryFile = Files.createTempFile(parent, "reports.yml.tmp-", ".yml");
             yaml.save(temporaryFile.toFile());
-            if (!restrictOwnerOnly(temporaryFile)) {
-                storageWriteBlocked = true;
-                plugin.getLogger().severe("Could not secure permissions for temporary reports.yml. "
-                        + "Report writes are blocked.");
-                return false;
-            }
+            restrictOwnerOnly(temporaryFile);
             try {
                 Files.move(temporaryFile, storageFile.toPath(),
                         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
@@ -414,20 +405,23 @@ final class ReportManager implements Listener {
         }
     }
 
-    private static boolean restrictOwnerOnly(Path path) {
+    /**
+     * Best effort: restricts a file to its owner where the file system supports POSIX permissions.
+     * Windows, FAT/NTFS mounts and some container volumes do not; that must never disable reports.
+     */
+    private boolean restrictOwnerOnly(Path path) {
         Set<PosixFilePermission> permissions = EnumSet.of(
                 PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
         try {
             Files.setPosixFilePermissions(path, permissions);
             return true;
-        } catch (UnsupportedOperationException ex) {
-            File file = path.toFile();
-            return file.setReadable(false, false)
-                    && file.setWritable(false, false)
-                    && file.setExecutable(false, false)
-                    && file.setReadable(true, true)
-                    && file.setWritable(true, true);
-        } catch (IOException | SecurityException ex) {
+        } catch (UnsupportedOperationException | IOException | SecurityException ex) {
+            if (!permissionWarningLogged) {
+                permissionWarningLogged = true;
+                plugin.getLogger().warning("Could not restrict file permissions to the owner ("
+                        + path.getFileName() + "). This file system does not support it; "
+                        + "restrict access to the plugin folder manually.");
+            }
             return false;
         }
     }
