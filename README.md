@@ -32,7 +32,7 @@ The links below point to the official project pages, source repositories, or dow
 | Plugin | Used for | Link |
 |---|---|---|
 | SuperVanish | Optional vanish mode and permanent-admin vanish enforcement | [SpigotMC resource](https://www.spigotmc.org/resources/supervanish-be-invisible.1331/) · [Source](https://github.com/LeonMangler/SuperVanish) |
-| FlashbackServer | Optional rolling replay clips for `/report` | [SpigotMC download page](https://www.spigotmc.org/resources/flashback-server-server-side-replay-recording.136942/) · [GitHub source](https://github.com/Zeffut/FlashbackServer) · [Modrinth](https://modrinth.com/plugin/flashback-server) |
+| Embedded Flashback engine | Included; MIT-licensed FlashbackServer recording core and Paper 26.3 adapter are bundled into That'sABan | No separate FlashbackServer plugin required; see [third-party notices](third_party/NOTICE.md) |
 | GrimAC | Optional Layer 1 anti-cheat integration | [Official source](https://github.com/GrimAnticheat/Grim) · [Modrinth](https://modrinth.com/plugin/grim) |
 | CheatDetector | Optional Layer 1 integration | [SpigotMC resource](https://www.spigotmc.org/resources/cheatdetector.134018/) |
 | FoxGate | Optional Layer 2 AntiVPN integration | [Modrinth](https://modrinth.com/plugin/foxgate) · [Source](https://github.com/IDCTeam-Group/FoxGate-Issues) |
@@ -76,7 +76,7 @@ The links below point to the official project pages, source repositories, or dow
 | LuckPerms | Optional; required for Layer 2 | Permission markers, Layer 2 nodes, `/offend`, and LuckPerms-backed privacy actions |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional; required for `/adminspec` | Packet translation for protected admin spectating |
 | SuperVanish | Optional | Explicit vanish observation mode and permanent-admin vanish enforcement |
-| FlashbackServer | Optional; required for `/report` clips | Rolling Flashback replay buffer for player reports; see [report setup](docs/REPORTS.md) |
+| Embedded Flashback engine | Included; replay clips currently supported on Paper 26.3 | Rolling Flashback replay buffer for player reports; no external plugin required |
 | IP2Location LITE DB3 BIN (IPv6) | External optional file | Local country/region filter |
 | GrimAC, CheatDetector | Optional integrations | Listed as Layer 1 integrations by default |
 | FoxGate, HandShaker | Optional integrations | Listed as Layer 2 integrations by default |
@@ -91,10 +91,10 @@ Optional plugins are not bundled into the That'sABan JAR. If an integration is u
 
 ## Installation
 
-1. Install Paper 1.21.11 and Java 21.
+1. Install Paper 1.21.11 and Java 21 for the base plugin; Paper 26.3 uses Java 25 and the embedded replay adapter.
 2. Put the That'sABan JAR in the server's `plugins` directory and start the server once. This creates `plugins/ThatsABan/config.yml`.
 3. Stop the server and edit the configuration as needed.
-4. Install LuckPerms for Layer 2. Download the [ProtocolLib 5.5.0-SNAPSHOT server plugin JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) for `/adminspec`. Install FlashbackServer if you want the optional report/replay workflow; see [Player reports and replay clips](docs/REPORTS.md).
+4. Install LuckPerms for Layer 2. Download the [ProtocolLib 5.5.0-SNAPSHOT server plugin JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) for `/adminspec`. The report/replay workflow is built into That'sABan on Paper 26.3; no separate replay plugin is needed. See [Player reports and replay clips](docs/REPORTS.md).
 5. If you use the country/region filter, install the IP2Location database as described in [Install the GeoIP database](#install-the-geoip-database).
 6. Start the server and check the startup log for disabled optional features or missing integrations.
 7. Grant staff permissions deliberately; see [Permissions](#permissions).
@@ -151,6 +151,7 @@ reports:
   enabled: true
   cooldown-seconds: 60
   max-reason-length: 200
+  clip-window-seconds: 60
   minimum-clip-window-seconds: 60
 
 privacy:
@@ -224,10 +225,10 @@ messages:
 | `layer2.negated-permissions` | `foxav.bypass`, `handshaker.bypass` | List of bypass nodes removed/negated for Layer 2 players. Adapt these to your installed anti-cheat plugins. |
 | `layer2.exempt-permission` | `thatsaban.exempt` | Players with this node are exempt from `/offend` and IP linking. |
 | `offend.kick-online-target` | `false` | If true, kick an online target after a successful `/offend` action using `messages.kick-relogin`. |
-| `reports.enabled` | `true` | Enables player reports. Requires the separate FlashbackServer plugin for replay clips. |
+| `reports.enabled` | `true` | Enables player reports. Replay clips use the embedded Flashback engine on Paper 26.3. |
 | `reports.cooldown-seconds` | `60` | Minimum time between reports submitted by the same player. |
 | `reports.max-reason-length` | `200` | Maximum report reason length in characters. |
-| `reports.minimum-clip-window-seconds` | `60` | Minimum FlashbackServer `clips.window-seconds` accepted for reports; saved clips may be longer due to keyframe rotation. |
+| `reports.minimum-clip-window-seconds` | `60` | Minimum embedded replay buffer length accepted for reports. |
 | `privacy.hmac-key-path` | empty | Optional absolute path for the HMAC secret. Empty uses `plugins/ThatsABan/ip-hmac.key`. |
 | `THATSABAN_HMAC_KEY_PATH` | unset | Environment variable overriding `privacy.hmac-key-path`. Use an absolute path to store the key outside the plugin folder. |
 | `privacy.audit-logging` | `false` | Logs successful `/offend` actions with actor and target UUIDs only; no player names or IP addresses. |
@@ -324,7 +325,7 @@ IPv6 addresses are truncated to /64 before HMAC generation. Raw IP addresses are
 | Command | Description | Permission |
 |---|---|---|
 | `/offend <player>` | Deliberately classifies a Java player into Layer 2 | `thatsaban.offend` |
-| `/report <player> <reason>` | Submits a report and saves the target's rolling replay clip (requires FlashbackServer) | `thatsaban.report` |
+| `/report <player> <reason>` | Submits a report and saves the target's rolling replay clip (embedded engine; Paper 26.3) | `thatsaban.report` |
 | `/reports` | Opens the interactive staff GUI with filters, pagination and report details | `thatsaban.reports` |
 | `/reports [view|offend|resolve|dismiss] <ID>` | Opens a detail view or performs the selected staff action; subcommands also work from console | `thatsaban.reports`; `thatsaban.offend` for offend |
 | `/thatsaban unoffend <player|UUID>` | Removes the plugin-managed Layer 2/offender classification | `thatsaban.layer2.remove` or `thatsaban.admin` |
@@ -479,13 +480,13 @@ Verify that:
 
 ## Build
 
-Requirements: Java 21 and Gradle.
+Requirements: Java 21 and Java 25 toolchains, plus Gradle. Java 25 is needed to compile the Paper 26.3 NMS adapter.
 
 ```bash
 gradle build
 ```
 
-The plugin artifact is created in `build/libs/`. GitHub Actions builds against the Paper 1.21.11 API with Java 21.
+The shaded plugin artifact (including the embedded replay core and Paper 26.3 adapter) is created in `build/libs/`. The build uses Java 21 for the shared plugin/core and Java 25 for the 26.3 adapter.
 
 ---
 

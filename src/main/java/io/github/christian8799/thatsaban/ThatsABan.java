@@ -11,6 +11,7 @@ public final class ThatsABan extends JavaPlugin {
     private CountryFilterIntegration countryFilter;
     private SpectatorIntegration spectatorFeature;
     private ReportManager reportManager;
+    private FlashbackClipIntegration flashbackClips;
     private AccountNetworkMenu accountNetworkMenu;
 
     @Override
@@ -67,7 +68,7 @@ public final class ThatsABan extends JavaPlugin {
 
         registerSpectatorFeature();
 
-        FlashbackClipIntegration flashbackClips = new FlashbackClipIntegration(this);
+        flashbackClips = new FlashbackClipIntegration(this);
         reportManager = new ReportManager(this, flashbackClips);
         getServer().getPluginManager().registerEvents(reportManager, this);
         registerCommand("report", new ReportCommand(reportManager));
@@ -251,6 +252,12 @@ public final class ThatsABan extends JavaPlugin {
             }
             version = 5;
         }
+        if (version < 6) {
+            if (!getConfig().contains("reports.clip-window-seconds")) {
+                getConfig().set("reports.clip-window-seconds", 60);
+            }
+            version = 6;
+        }
         setEnglishMessageDefaults();
         setGermanMessageDefaults();
         getConfig().set("config-version", version);
@@ -335,6 +342,7 @@ public final class ThatsABan extends JavaPlugin {
     public void onDisable() {
         if (spectatorFeature != null) spectatorFeature.shutdown();
         if (reportManager != null) reportManager.shutdown();
+        if (flashbackClips != null) flashbackClips.shutdown();
         if (store != null) store.save();
         if (countryFilter != null) {
             try {
@@ -356,7 +364,6 @@ public final class ThatsABan extends JavaPlugin {
         checkDependency(missing, "LuckPerms");
         checkDependency(missing, "ProtocolLib");
         checkDependency(missing, "SuperVanish");
-        checkDependency(missing, "FlashbackServer");
 
         for (String key : List.of("layer1-plugins", "layer2-plugins")) {
             for (String name : getConfig().getStringList("integrations." + key)) {

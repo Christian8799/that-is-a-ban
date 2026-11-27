@@ -94,7 +94,7 @@ final class ReportManager implements Listener {
             return;
         }
         if (!clips.isAvailable()) {
-            plugin.getLogger().warning("Player reports disabled: FlashbackServer is missing or its clip API is unavailable.");
+            plugin.getLogger().warning("Player reports disabled: the embedded replay recorder is unavailable on this Minecraft version.");
             return;
         }
 
@@ -102,15 +102,14 @@ final class ReportManager implements Listener {
         int requiredWindow = Math.max(1,
                 plugin.getConfig().getInt("reports.minimum-clip-window-seconds", 60));
         if (configuredWindow < requiredWindow) {
-            plugin.getLogger().warning("FlashbackServer clips.window-seconds is " + configuredWindow
-                    + "; for at least " + requiredWindow + " seconds of report replay, set "
-                    + "clips.window-seconds in plugins/FlashbackServer/config.yml accordingly.");
+            plugin.getLogger().warning("The embedded replay clip window is " + configuredWindow
+                    + " seconds; increase reports.clip-window-seconds to at least " + requiredWindow + ".");
         }
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> armIfNeeded(player), 1L);
         }
-        plugin.getLogger().info("Report system initialized; FlashbackServer rolling clips will be enabled when players join.");
+        plugin.getLogger().info("Report system initialized; embedded Flashback replay clips will be captured for online players.");
     }
 
     @EventHandler
@@ -123,7 +122,7 @@ final class ReportManager implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         armedByThisPlugin.remove(event.getPlayer().getUniqueId());
-        // FlashbackServer also removes its own rolling buffer on quit.
+        // ClipManager independently tears down the player's embedded capture handler on quit.
     }
 
     private void armIfNeeded(Player player) {
@@ -227,7 +226,7 @@ final class ReportManager implements Listener {
                         current.status = Status.FAILED;
                         if (error == null) {
                             plugin.getLogger().warning("Replay for report " + reportId
-                                    + " could not be saved: FlashbackServer returned no replay path.");
+                                    + " could not be saved: embedded recorder returned no replay path.");
                         } else {
                             plugin.getLogger().log(Level.WARNING,
                                     "Replay for report " + reportId + " could not be saved: "

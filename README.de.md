@@ -43,13 +43,13 @@ Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Adm
 | LuckPerms | Optional, für Layer 2 erforderlich | Berechtigungsmarker, Layer-2-Nodes, /offend und LuckPerms-abhängige Datenschutzaktionen |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung · [Server-JAR herunterladen](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) |
 | SuperVanish | Optional | Expliziter Vanish-Modus und Vanish-Durchsetzung permanenter Admin-Accounts |
-| FlashbackServer | Optional; für `/report`-Clips erforderlich | Rolling-Flashback-Replay-Puffer für Spieler-Reports; siehe [Report-Einrichtung](docs/REPORTS.md) |
+| Eingebettete Flashback-Engine | Enthalten; MIT-lizenzierter FlashbackServer-Aufnahmekern und Paper-26.3-Adapter sind in That'sABan integriert | Kein separates FlashbackServer-Plugin erforderlich; siehe [Drittanbieter-Hinweise](third_party/NOTICE.md) |
 | IP2Location LITE DB3 BIN (IPv6) | Externe Datei, optional für den restlichen Pluginbetrieb | Lokaler Country-/Region-Filter |
 | GrimAC, CheatDetector | Optionale Integrationen | In der Standardkonfiguration für Layer 1 aufgeführt |
 | FoxGate, HandShaker | Optionale Integrationen | In der Standardkonfiguration für Layer 2 aufgeführt |
 | Geyser/Floodgate | Optional | Zusätzliche Erkennung von Bedrock-Spielern |
 
-Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Fehlt eine optionale Integration, wird nach Möglichkeit nur die davon abhängige Funktion deaktiviert:
+Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Die Flashback-Aufnahme-Engine ist davon ausgenommen: Ihr MIT-lizenzierter Kern und der Paper-26.3-Adapter sind direkt in That'sABan enthalten. Fehlt eine optionale Integration, wird nach Möglichkeit nur die davon abhängige Funktion deaktiviert:
 
 - Ohne LuckPerms bleiben der LinkStore, die lokale GeoIP-Prüfung und die Store-basierten Teile von /thatsaban info und /thatsaban network verfügbar. Layer 2, /offend, /thatsaban unoffend und /thatsaban forget benötigen LuckPerms.
 - Ohne ProtocolLib oder bei inkompatiblen Paket-Mappings wird /adminspec deaktiviert.
@@ -61,7 +61,7 @@ Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Fehlt ein
 1. Paper 1.21.11 mit Java 21 installieren.
 2. Die That'sABan-JAR in den Ordner plugins legen und den Server einmal starten. Dadurch wird plugins/ThatsABan/config.yml angelegt.
 3. Server stoppen und config.yml nach Bedarf anpassen.
-4. Für Layer 2 LuckPerms installieren. Für /adminspec die [ProtocolLib-5.5.0-SNAPSHOT-Server-JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) herunterladen und installieren.
+4. Für Layer 2 LuckPerms installieren. Für /adminspec die [ProtocolLib-5.5.0-SNAPSHOT-Server-JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) herunterladen und installieren. Für Replay-Clips auf Paper 26.3 ist kein zusätzliches Plugin nötig.
 5. Wenn der Country-/Region-Filter verwendet werden soll, die IP2Location-Datenbank wie unter [GeoIP-Datenbank installieren](#geoip-datenbank-installieren) beschrieben ablegen.
 6. Server starten und die Startmeldungen auf deaktivierte optionale Funktionen oder fehlende Integrationen prüfen.
 7. Permissions gezielt an Staff vergeben. Die vollständige Liste steht unter [Permissions](#permissions).
@@ -126,6 +126,7 @@ reports:
   enabled: true
   cooldown-seconds: 60
   max-reason-length: 200
+  clip-window-seconds: 60
   minimum-clip-window-seconds: 60
 
 privacy:
@@ -201,10 +202,10 @@ messages:
 | layer2.negated-permissions | foxav.bypass, handshaker.bypass | Liste der Bypass-Permissions, die That'sABan einem Layer-2-Spieler entzieht beziehungsweise negiert. Passe die Nodes an deine Anti-Cheat-Plugins an. |
 | layer2.exempt-permission | thatsaban.exempt | Spieler mit dieser Permission sind von /offend und der IP-Kopplung ausgenommen. |
 | offend.kick-online-target | false | Bei true wird ein online Zielspieler nach erfolgreicher /offend-Einstufung mit der konfigurierten Nachricht kick-relogin getrennt. Bei false bleibt er online. |
-| reports.enabled | true | Aktiviert Spieler-Reports. Für Replay-Clips wird das separate FlashbackServer-Plugin benötigt. |
+| reports.enabled | true | Aktiviert Spieler-Reports. Replay-Clips verwenden die eingebettete Flashback-Engine auf Paper 26.3. |
 | reports.cooldown-seconds | 60 | Mindestwartezeit zwischen Reports desselben Spielers. |
 | reports.max-reason-length | 200 | Maximale Länge des Report-Grunds in Zeichen. |
-| reports.minimum-clip-window-seconds | 60 | Mindestwert für FlashbackServer `clips.window-seconds`; gespeicherte Clips können durch Keyframe-Rotation länger sein. |
+| reports.minimum-clip-window-seconds | 60 | Mindestlänge des eingebetteten Replay-Puffers für Reports. |
 
 Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Gruppenstruktur vergeben werden. That'sABan legt keine Anti-Cheat-Regeln für die externen Plugins fest.
 
@@ -497,7 +498,7 @@ Prüfe daher:
 
 ## Build
 
-Voraussetzungen: Java 21 und Gradle.
+Voraussetzungen: Java 21 und Java 25 als Toolchains sowie Gradle. Java 25 wird zum Kompilieren des Paper-26.3-NMS-Adapters benötigt.
 
 ~~~bash
 gradle build

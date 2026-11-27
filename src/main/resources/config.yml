@@ -1,5 +1,5 @@
 # that-s-a-ban configuration
-config-version: 5
+config-version: 6
 
 layer2:
   marker-permission: "thatsaban.layer2"
@@ -15,8 +15,9 @@ reports:
   enabled: true
   cooldown-seconds: 60
   max-reason-length: 200
-  # FlashbackServer clips.window-seconds must be at least this value.
-  # FlashbackServer retains two keyframe segments, so the saved clip may be longer.
+  # Rolling replay buffer length, in seconds.
+  clip-window-seconds: 60
+  # Reports are rejected if the rolling buffer is shorter than this value.
   minimum-clip-window-seconds: 60
 
 privacy:

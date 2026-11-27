@@ -1,0 +1,96 @@
+package dev.zeffut.flashbackserver.version;
+
+import org.bukkit.Bukkit;
+
+import java.util.Map;
+import java.util.logging.Logger;
+
+/**
+ * Factory for obtaining the active {@link VersionAdapter}.
+ *
+ * <p>Each concrete NMS adapter lives in a separate Gradle module ({@code :nms:vX}) shaded into the
+ * final plugin jar at build time. {@code :core} therefore has no compile-time dependency on the
+ * adapters — they are resolved <strong>reflectively</strong> here.
+ *
+ * <p>The running Minecraft version ({@code Bukkit.getMinecraftVersion()}) selects the adapter FQN.
+ * Add a row to {@link #ADAPTERS_BY_VERSION} (and a matching {@code :nms:vX} module + a
+ * {@code PacketIds} row) per supported version. An unrecognised version falls back to the newest
+ * known adapter with a warning.
+ */
+public final class VersionAdapters {
+    private VersionAdapters() {}
+
+    private static final Logger LOG = Logger.getLogger(VersionAdapters.class.getName());
+
+    /** Minecraft version → adapter FQN (each shaded in from its {@code :nms:vX} module). */
+    private static final Map<String, String> ADAPTERS_BY_VERSION = Map.of(
+        "26.3", "dev.zeffut.flashbackserver.version.v26_3.V26_3Adapter"
+    );
+
+    /** Adapter used when the running version isn't in the table (newest known). */
+    private static final String FALLBACK_FQN =
+        "dev.zeffut.flashbackserver.version.v26_3.V26_3Adapter";
+
+    /** Returns the {@link VersionAdapter} for the running Minecraft version. */
+    public static VersionAdapter current() {
+        String fqn = resolveAdapterFqn();
+        try {
+            Class<?> clazz = Class.forName(fqn);
+            return (VersionAdapter) clazz.getDeclaredConstructor().newInstance();
+        } catch (ClassNotFoundException e) {
+            throw new VersionAdapterUnavailableException(
+                "Version adapter class not found: " + fqn
+                    + ". The :nms adapter module was not shaded into the plugin jar.", e);
+        } catch (NoClassDefFoundError e) {
+            throw new VersionAdapterUnavailableException(
+                "Version adapter class incomplete (partial classpath): " + fqn, e);
+        } catch (ReflectiveOperationException e) {
+            if (isClassLoadingFailure(e)) {
+                throw new VersionAdapterUnavailableException(
+                    "Version adapter could not be loaded: " + fqn, e);
+            }
+            throw new IllegalStateException(
+                "Failed to instantiate version adapter: " + fqn, e);
+        }
+    }
+
+    /**
+     * {@code true} only for known adapter class-loading failures
+     * ({@link VersionAdapterUnavailableException}, {@link ClassNotFoundException},
+     * {@link NoClassDefFoundError} anywhere on the cause chain).
+     *
+     * <p>Intended for adapter <em>lookup</em>. Decode failures must fail closed and must not be
+     * classified as “unavailable”.
+     */
+    public static boolean isUnavailable(Throwable t) {
+        for (Throwable c = t; c != null; c = (c.getCause() == c ? null : c.getCause())) {
+            if (c instanceof VersionAdapterUnavailableException) return true;
+            if (c instanceof ClassNotFoundException) return true;
+            if (c instanceof NoClassDefFoundError) return true;
+        }
+        return false;
+    }
+
+    private static boolean isClassLoadingFailure(Throwable t) {
+        for (Throwable c = t; c != null; c = (c.getCause() == c ? null : c.getCause())) {
+            if (c instanceof ClassNotFoundException) return true;
+            if (c instanceof NoClassDefFoundError) return true;
+            if (c instanceof ExceptionInInitializerError) return true;
+            if (c instanceof ClassCastException) return true;
+        }
+        return false;
+    }
+
+    private static String resolveAdapterFqn() {
+        String running;
+        try {
+            running = Bukkit.getMinecraftVersion();
+        } catch (Throwable t) {
+            return FALLBACK_FQN; // Bukkit not available (shouldn't happen at runtime)
+        }
+        String fqn = ADAPTERS_BY_VERSION.get(running);
+        if (fqn != null) return fqn;
+        throw new VersionAdapterUnavailableException(
+            "That'sABan's embedded replay engine currently supports Minecraft 26.3; found " + running);
+    }
+}
