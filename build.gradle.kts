@@ -34,7 +34,7 @@ tasks.processResources {
 evaluationDependsOn(":flashback-core")
 evaluationDependsOn(":nms:v1_21_11")
 val flashbackCoreJar = project(":flashback-core").tasks.named<Jar>("jar")
-val flashbackAdapterJar = project(":nms:v1_21_11").tasks.named<Jar>("reobfJar")
+val flashbackAdapterJar = project(":nms:v1_21_11").tasks.named("reobfJar")
 
 tasks.jar {
     archiveBaseName.set("ThatsABan")
