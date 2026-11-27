@@ -364,6 +364,10 @@ public final class ThatsABan extends JavaPlugin {
         }
     }
 
+    boolean requestReportReplay(org.bukkit.entity.Player player, String reportId) {
+        return replayTransferBridge != null && replayTransferBridge.requestFromMenu(player, reportId);
+    }
+
     Messages messages() { return messages; }
 
 
