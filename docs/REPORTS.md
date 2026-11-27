@@ -1,16 +1,16 @@
 # Player reports and replay clips
 
-That'sABan embeds the MIT-licensed FlashbackServer recording engine. **No separate FlashbackServer plugin is required.** The embedded engine is built specifically for Paper 1.21.11.
+That'sABan embeds the MIT-licensed FlashbackServer recording engine. **No separate FlashbackServer plugin is required.** The embedded engine includes separate NMS adapters for Paper 1.21.11 and Paper 26.3.
 
 The server creates native Flashback `.flashback` replay files. These are not MP4 videos or ReplayMod `.mcpr` files. Staff can open them with the [Flashback client mod](https://modrinth.com/mod/flashback).
 
 ## Requirements
 
-- Paper 1.21.11 and Java 21.
+- Paper 1.21.11 with Java 21, or Paper 26.3 with Java 25.
 - That'sABan with `reports.enabled: true`.
 - Staff client with the Flashback mod installed to view replay files.
 
-Replay capture is available only on Paper 1.21.11 in this build. Older server versions are not supported by this plugin build. If the plugin loads on a newer server version, replay capture fails closed instead of using an incompatible NMS adapter.
+Replay capture is available on Paper 1.21.11 and Paper 26.3. Each version uses its own NMS adapter. Other server versions fail closed for replay capture instead of using an incompatible adapter.
 
 ## Rolling evidence buffer
 

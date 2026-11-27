@@ -33,15 +33,20 @@ tasks.processResources {
 
 evaluationDependsOn(":flashback-core")
 evaluationDependsOn(":nms:v1_21_11")
+evaluationDependsOn(":nms:v26_3")
 val flashbackCoreJar = project(":flashback-core").tasks.named<Jar>("jar")
-val flashbackAdapterJar = project(":nms:v1_21_11").tasks.named("reobfJar")
+val adapter12111Jar = project(":nms:v1_21_11").tasks.named("reobfJar")
+val adapter263Jar = project(":nms:v26_3").tasks.named("reobfJar")
 
 tasks.jar {
     archiveBaseName.set("ThatsABan")
-    dependsOn(flashbackCoreJar, flashbackAdapterJar)
+    dependsOn(flashbackCoreJar, adapter12111Jar, adapter263Jar)
     from({ zipTree(flashbackCoreJar.get().archiveFile.get().asFile) })
-    from(zipTree(flashbackAdapterJar.map { it.outputs.files.singleFile })) {
+    from(zipTree(adapter12111Jar.map { it.outputs.files.singleFile })) {
         include("dev/zeffut/flashbackserver/version/v1_21_11/**")
+    }
+    from(zipTree(adapter263Jar.map { it.outputs.files.singleFile })) {
+        include("dev/zeffut/flashbackserver/version/v26_3/**")
     }
     from({
         configurations.runtimeClasspath.get()

@@ -14,8 +14,8 @@ The links below point to the official project pages, source repositories, or dow
 
 | Dependency | Version / role | Link |
 |---|---|---|
-| Paper | Required server platform; API target 1.21.11 | [Paper downloads](https://papermc.io/downloads/paper) · [Documentation](https://docs.papermc.io/paper/) |
-| Java | Required runtime and compiler; Java 21 | [Eclipse Temurin JDK 21](https://adoptium.net/temurin/releases/?version=21) |
+| Paper | Required server platform; API target 1.21.11; replay adapters for 1.21.11 and 26.3 | [Paper downloads](https://papermc.io/downloads/paper) · [Documentation](https://docs.papermc.io/paper/) |
+| Java | Required runtime: Java 21 for Paper 1.21.11; Java 25 for Paper 26.3 | [Eclipse Temurin JDK 21](https://adoptium.net/temurin/releases/?version=21) |
 | Gradle | Build system | [Gradle](https://gradle.org/) |
 
 ### Direct Gradle dependencies
@@ -71,8 +71,8 @@ The links below point to the official project pages, source repositories, or dow
 
 | Component | Status | Purpose |
 |---|---|---|
-| Paper 1.21.11 | Required | Server platform |
-| Java 21 | Required | Runtime and build |
+| Paper 1.21.11 / 26.3 | Required | Both versions supported; replay capture uses a version-specific embedded NMS adapter |
+| Java 21 / 25 | Required | Java 21 for Paper 1.21.11; Java 25 for Paper 26.3 |
 | LuckPerms | Optional; required for Layer 2 | Permission markers, Layer 2 nodes, `/offend`, and LuckPerms-backed privacy actions |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional; required for `/adminspec` | Packet translation for protected admin spectating |
 | SuperVanish | Optional | Explicit vanish observation mode and permanent-admin vanish enforcement |
@@ -91,7 +91,7 @@ Optional plugins are not bundled into the That'sABan JAR. If an integration is u
 
 ## Installation
 
-1. Install Paper 1.21.11 and Java 21.
+1. Install Paper 1.21.11 with Java 21, or Paper 26.3 with Java 25.
 2. Put the That'sABan JAR in the server's `plugins` directory and start the server once. This creates `plugins/ThatsABan/config.yml`.
 3. Stop the server and edit the configuration as needed.
 4. Install LuckPerms for Layer 2. Download the [ProtocolLib 5.5.0-SNAPSHOT server plugin JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) for `/adminspec`. Report replay capture is embedded; staff clients need both the [Flashback client mod](https://modrinth.com/mod/flashback) and the [That'sABan Replay Viewer Fabric mod](https://github.com/Christian8799/ThatsABan-ReplayViewer). See [Player reports and replay clips](docs/REPORTS.md) and the [Replay Viewer setup guide](https://github.com/Christian8799/ThatsABan-ReplayViewer#installation).
@@ -479,13 +479,13 @@ Verify that:
 
 ## Build
 
-Requirements: Java 21 and Gradle.
+Requirements: Java 21 and Java 25 toolchains plus Gradle 9.9.3.
 
 ```bash
 gradle build
 ```
 
-The plugin artifact is created in `build/libs/`. GitHub Actions builds against the Paper 1.21.11 API with Java 21.
+The plugin artifact is created in `build/libs/`. GitHub Actions builds the shared plugin/core with Java 21 and both NMS adapters (1.21.11 and 26.3) with their matching Paperweight toolchains.
 
 ---
 

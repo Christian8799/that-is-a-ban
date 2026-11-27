@@ -2,7 +2,7 @@
 
 **Dokumentation:** [English](README.md) · [Deutsch](README.de.md) · [Spieler-Reports und Replay-Clips](docs/REPORTS.md)
 
-**That's a Ban** ist ein Anti-Cheat-Connector und ein Werkzeug für Datenschutz- und Moderationsabläufe auf **Paper 1.21.11**. Das Plugin implementiert keine eigenen Cheat-Erkennungsregeln. Es verbindet vorhandene Plugins und steuert über LuckPerms, welche Anti-Cheat-Integrationen für Spieler in Layer 1 beziehungsweise Layer 2 greifen.
+**That's a Ban** ist ein Anti-Cheat-Connector und ein Werkzeug für Datenschutz- und Moderationsabläufe auf **Paper 1.21.11 und Paper 26.3**. Das Plugin implementiert keine eigenen Cheat-Erkennungsregeln. Es verbindet vorhandene Plugins und steuert über LuckPerms, welche Anti-Cheat-Integrationen für Spieler in Layer 1 beziehungsweise Layer 2 greifen.
 
 Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Admin-Beobachtung, eine lokale GeoIP-Regionsprüfung und – wenn ausdrücklich aktiviert – ein pseudonymisiertes Alt-Account-Netzwerk.
 
@@ -38,8 +38,8 @@ Neben der Layer-2-Verwaltung bietet das Plugin eine optionale, paketbasierte Adm
 
 | Komponente | Status | Zweck |
 |---|---|---|
-| Paper 1.21.11 | Erforderlich | Serverplattform |
-| Java 21 | Erforderlich | Laufzeit und Build |
+| Paper 1.21.11 / 26.3 | Erforderlich | Beide Versionen werden mit versionsspezifischen eingebetteten NMS-Adaptern unterstützt |
+| Java 21 / 25 | Erforderlich | Java 21 für Paper 1.21.11, Java 25 für Paper 26.3 |
 | LuckPerms | Optional, für Layer 2 erforderlich | Berechtigungsmarker, Layer-2-Nodes, /offend und LuckPerms-abhängige Datenschutzaktionen |
 | ProtocolLib 5.5.0-SNAPSHOT | Optional, für /adminspec erforderlich | Paketübersetzung für die geschützte Admin-Beobachtung · [Server-JAR herunterladen](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) |
 | SuperVanish | Optional | Expliziter Vanish-Modus und Vanish-Durchsetzung permanenter Admin-Accounts |
@@ -58,7 +58,7 @@ Die optionalen Plugins werden nicht in die That'sABan-JAR eingebettet. Fehlt ein
 
 ## Schnellstart
 
-1. Paper 1.21.11 mit Java 21 installieren.
+1. Paper 1.21.11 mit Java 21 oder Paper 26.3 mit Java 25 installieren.
 2. Die That'sABan-JAR in den Ordner plugins legen und den Server einmal starten. Dadurch wird plugins/ThatsABan/config.yml angelegt.
 3. Server stoppen und config.yml nach Bedarf anpassen.
 4. Für Layer 2 LuckPerms installieren. Für /adminspec die [ProtocolLib-5.5.0-SNAPSHOT-Server-JAR](https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar) herunterladen und installieren.
@@ -497,13 +497,13 @@ Prüfe daher:
 
 ## Build
 
-Voraussetzungen: Java 21 und Gradle.
+Voraussetzungen: Java-21- und Java-25-Toolchains sowie Gradle 9.9.3.
 
 ~~~bash
 gradle build
 ~~~
 
-Das Plugin-Artefakt liegt anschließend unter build/libs/. Der GitHub-Actions-Workflow baut gegen die Paper-1.21.11-API mit Java 21.
+Das Plugin-Artefakt liegt anschließend unter build/libs/. GitHub Actions baut den gemeinsamen Plugin-Kern mit Java 21 und beide NMS-Adapter (1.21.11 und 26.3) mit den jeweils passenden Paperweight-Toolchains.
 
 ---
 
