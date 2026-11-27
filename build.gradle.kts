@@ -34,6 +34,7 @@ tasks.processResources {
     filesMatching("plugin.yml") { expand("version" to project.version) }
 }
 
+evaluationDependsOn(":flashback-nms-v26_3")
 val embeddedAdapterJar = project(":flashback-nms-v26_3").tasks.named<Jar>("jar")
 
 tasks.shadowJar {
