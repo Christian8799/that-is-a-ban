@@ -204,7 +204,7 @@ messages:
 | reports.enabled | true | Aktiviert Spieler-Reports. Die Replay-Engine ist integriert; ein separates Server-Plugin ist nicht erforderlich. |
 | reports.cooldown-seconds | 60 | Mindestwartezeit zwischen Reports desselben Spielers. |
 | reports.max-reason-length | 200 | Maximale Länge des Report-Grunds in Zeichen. |
-| reports.clip-window-seconds | 60 | Keyframe-Intervall des Replay-Puffers in Sekunden; Standard 60, gespeicherte Clips können bis zu doppelt so lang sein. |
+| reports.clip-window-seconds | 60 | Keyframe-Intervall des Replay-Puffers in Sekunden; Standard 60, gespeicherte Clips können bis zu doppelt so lang sein. Änderung erfordert Neustart. |
 
 Die Marker- und Exempt-Permissions müssen in LuckPerms entsprechend deiner Gruppenstruktur vergeben werden. That'sABan legt keine Anti-Cheat-Regeln für die externen Plugins fest.
 

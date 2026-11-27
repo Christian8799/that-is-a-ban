@@ -10,7 +10,7 @@ The server creates native Flashback `.flashback` replay files. These are not MP4
 - That'sABan with `reports.enabled: true`.
 - Staff client with the Flashback mod installed to view replay files.
 
-Replay capture is available only on Minecraft 1.21.11 in this build. On other server versions, the report menu and metadata remain available, but report submission is disabled rather than using an incompatible NMS adapter.
+Replay capture is available only on Paper 1.21.11 in this build. Older server versions are not supported by this plugin build. If the plugin loads on a newer server version, replay capture fails closed instead of using an incompatible NMS adapter.
 
 ## Rolling evidence buffer
 
@@ -26,7 +26,7 @@ reports:
   clip-window-seconds: 60
 ```
 
-A report is accepted only after the target has a complete 60-second buffer. Because the recorder rotates keyframes in two segments, a saved replay contains at least 60 seconds and can be up to approximately 120 seconds depending on when the report is submitted. The configured value is clamped to 60–120 seconds.
+A report is accepted only after the target has a complete 60-second buffer. Because the recorder rotates keyframes in two segments, a saved replay contains at least 60 seconds and can be up to approximately 120 seconds depending on when the report is submitted. The configured value is clamped to 60–120 seconds. Restart the server after changing it.
 
 The packet capture handler runs on the player's Netty connection and forwards data into a bounded, thread-safe in-memory buffer. Replay serialization and file writing run asynchronously. Entity movement is recorded through the version-specific adapter as Flashback `move_entities` actions.
 

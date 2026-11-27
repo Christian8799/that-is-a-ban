@@ -306,7 +306,7 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("reload-no-missing", "<green>No missing optional dependencies or configured integration plugins were detected."),
                 java.util.Map.entry("reload-missing-header", "<yellow>Missing or disabled dependencies:"),
                 java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
-                java.util.Map.entry("reload-restart-note", "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, or startup-only features require a full server restart.")
+                java.util.Map.entry("reload-restart-note", "<gray>Configuration values are hot-reloaded. Changes to plugin integrations, the HMAC key path, the report clip window, or other startup-only features require a full server restart.")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.en." + entry.getKey())) {
@@ -336,7 +336,7 @@ public final class ThatsABan extends JavaPlugin {
                 java.util.Map.entry("reload-no-missing", "<green>Es fehlen keine optionalen Abhängigkeiten oder konfigurierten Integrations-Plugins."),
                 java.util.Map.entry("reload-missing-header", "<yellow>Fehlende oder deaktivierte Abhängigkeiten:"),
                 java.util.Map.entry("reload-missing-entry", "<red>- <dependency>"),
-                java.util.Map.entry("reload-restart-note", "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad oder Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart.")
+                java.util.Map.entry("reload-restart-note", "<gray>Konfigurationswerte wurden live neu geladen. Änderungen an Plugin-Integrationen, dem HMAC-Schlüsselpfad, dem Report-Clip-Fenster oder anderen Funktionen mit Startinitialisierung erfordern einen vollständigen Serverneustart.")
         );
         for (var entry : defaults.entrySet()) {
             if (!getConfig().contains("messages.de." + entry.getKey())) {

@@ -227,7 +227,7 @@ messages:
 | `reports.enabled` | `true` | Enables player reports. Uses the embedded Flashback replay engine; no separate server plugin is required. |
 | `reports.cooldown-seconds` | `60` | Minimum time between reports submitted by the same player. |
 | `reports.max-reason-length` | `200` | Maximum report reason length in characters. |
-| `reports.clip-window-seconds` | `60` | Rolling replay keyframe interval in seconds; default 60, and saved clips may be up to twice as long. |
+| `reports.clip-window-seconds` | `60` | Rolling replay keyframe interval in seconds; default 60, and saved clips may be up to twice as long. Restart required after changes. |
 | `privacy.hmac-key-path` | empty | Optional absolute path for the HMAC secret. Empty uses `plugins/ThatsABan/ip-hmac.key`. |
 | `THATSABAN_HMAC_KEY_PATH` | unset | Environment variable overriding `privacy.hmac-key-path`. Use an absolute path to store the key outside the plugin folder. |
 | `privacy.audit-logging` | `false` | Logs successful `/offend` actions with actor and target UUIDs only; no player names or IP addresses. |
