@@ -129,7 +129,7 @@ public final class ClipManager implements Listener, ClipService {
         Armed entry = armed.get(player.getUniqueId());
         return entry != null
                 && entry.cachedConfig().get() != null
-                && entry.buffer().captureClip().tickCount() >= windowSeconds * 20;
+                && entry.buffer().clipTickCount() >= windowSeconds * 20;
     }
 
     /**

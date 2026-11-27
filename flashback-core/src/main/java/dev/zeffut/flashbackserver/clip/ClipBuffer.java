@@ -145,8 +145,8 @@ public final class ClipBuffer {
      * Builds the ordered stream of replay actions covering all retained segments.
      *
      * <p>For each segment (oldest → newest), for each completed frame:
-     * emits each packet as a {@code game_packet} action then a {@code next_tick} action.
-     * Finally appends any in-progress {@code current} packets as {@code game_packet}s
+     * emits the recorded actions for each tick, then a {@code next_tick} action.
+     * Finally appends any in-progress {@code current} actions
      * (no trailing {@code next_tick}).
      */
     public List<ReplayAction> clipStreamActions() {

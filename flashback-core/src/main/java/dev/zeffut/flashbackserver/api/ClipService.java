@@ -8,8 +8,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Public rolling-clip controls exposed by FlashbackServer.
  *
- * <p>Obtain via {@link FlashbackAPI#clips()} or Bukkit's ServicesManager:
- * {@code Bukkit.getServicesManager().load(ClipService.class)}.
+ * <p>The embedded clip manager is owned by That'sABan and is not exposed as a separate server plugin service.
  *
  * <p><b>Threading:</b> methods may be called from any thread. {@link #saveClip(Player)} completes
  * its future on an <em>async</em> scheduler thread — do not touch Bukkit API in the callback

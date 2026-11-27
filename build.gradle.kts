@@ -37,6 +37,7 @@ val flashbackCoreJar = project(":flashback-core").tasks.named<Jar>("jar")
 val flashbackAdapterJar = project(":nms:v1_21_11").tasks.named<Jar>("reobfJar")
 
 tasks.jar {
+    archiveBaseName.set("ThatsABan")
     dependsOn(flashbackCoreJar, flashbackAdapterJar)
     from({ zipTree(flashbackCoreJar.get().archiveFile.get().asFile) })
     from(zipTree(flashbackAdapterJar.map { it.outputs.files.singleFile })) {
